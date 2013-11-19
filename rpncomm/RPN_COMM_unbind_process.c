@@ -23,6 +23,7 @@
 #include <sched.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 
 /*
    unset any processor affinity for the current process
@@ -55,18 +56,35 @@ cpu_set_t set;
 int i;
 int will_print=1;
 char *ompi=getenv("OMPI_COMM_WORLD_RANK");  /* openmpi */
+int ncores=sysconf(_SC_NPROCESSORS_CONF);
+int nthreads=1;
+int nbound=0;
+char *omp=getenv("OMP_NUM_THREADS");
+
+if(omp != NULL) nthreads=atoi(omp);  /* OMP_NUM_THREADS value */
 
 if(ompi == NULL) ompi=getenv("PMI_RANK");   /* mpich family */
 
 if(ompi != NULL) if(0 != atoi(ompi)) will_print=0;  /* not process 0, no message */
 
-if(getenv("FULL_UNBIND") == NULL) { if(will_print) printf("NO unbinding will be done\n"); return ; }
-
-if(will_print) printf("FULL unbinding will be done\n");
-
 CPU_ZERO(&set);
-for (i=0;i<=11;i++) CPU_SET(i,&set);
-sched_setaffinity(0,sizeof(set),&set);
+sched_getaffinity(0,sizeof(set),&set);
+i=ncores;
+while(--i >=0) { if (CPU_ISSET(i,&set)){ nbound++; } }  /* how many cores are we allowed to run on ? */
+  
+  if(getenv("FULL_UNBIND") != NULL) nbound = 0;  /* FULL_UNBIND found, unbind no matter what */
+  
+if(nthreads > nbound) {  /* more threads than cores we can run on , unbind everything */
+  if(will_print) printf("FULL unbinding will be done, cores=%d, threads=%d, nbound=%d\n",ncores,nthreads,nbound);
+  i=ncores;
+  i--;
+  CPU_ZERO(&set);
+  while(i >=0) { CPU_SET(i,&set); i--; }
+  sched_setaffinity(0,sizeof(set),&set);
+}else{
+  if(will_print) printf("NO unbinding will be done\n");
+}
+  
 
 #endif
 
