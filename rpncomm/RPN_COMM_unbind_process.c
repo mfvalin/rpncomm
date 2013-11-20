@@ -31,20 +31,21 @@
    ( FULL_UNBIND would normally be set by r.mpirun / ord_soumet )
    in the case of an MPI launch, only process 0 will print a message
    this code is only applicable to Linux for the time being
-   and has been written to counter openmpi behaviour in some cases.
+   and has been written to counter mpi implementation behaviour in some cases.
    (written specifically for use in the RPN_COMM library)
 
    this code is Linux only
 
-   Michel Valin , 2011 / 11 / 02 UQAM
+   Michel Valin , 2011 / 11 / 02 UQAM (openmpi)
+                  2011 / 11 / 20 UQAM (mpich / slurm)
 */
 
-/* use pragma weak to create the alternate FORTRAN entry points */
+/* use pragma weak to create alternate FORTRAN entry points */
 #pragma weak rpn_comm_unbind_process_=rpn_comm_unbind_process
 #pragma weak rpn_comm_unbind_process__=rpn_comm_unbind_process
 
 
-/* WARNING: some old versions of gcc may not generate the weak entry points correctly */
+/* WARNING: some old versions of gcc do not generate the weak entry points correctly */
 
 void rpn_comm_unbind_process__(void);
 void rpn_comm_unbind_process_(void);
@@ -65,26 +66,24 @@ if(omp != NULL) nthreads=atoi(omp);  /* OMP_NUM_THREADS value */
 
 if(ompi == NULL) ompi=getenv("PMI_RANK");   /* mpich family */
 
-if(ompi != NULL) if(0 != atoi(ompi)) will_print=0;  /* not process 0, no message */
+if(ompi != NULL) if(0 != atoi(ompi)) will_print=0;  /* not MPI process 0, no message */
 
 CPU_ZERO(&set);
 sched_getaffinity(0,sizeof(set),&set);
 i=ncores;
 while(--i >=0) { if (CPU_ISSET(i,&set)){ nbound++; } }  /* how many cores are we allowed to run on ? */
   
-  if(getenv("FULL_UNBIND") != NULL) nbound = 0;  /* FULL_UNBIND found, unbind no matter what */
+if(getenv("FULL_UNBIND") != NULL) nbound = 0;  /* FULL_UNBIND variable defined, unbind no matter what */
   
-if(nthreads > nbound) {  /* more threads than cores we can run on , unbind everything */
-  if(will_print) printf("FULL unbinding will be done, cores=%d, threads=%d, nbound=%d\n",ncores,nthreads,nbound);
-  i=ncores;
-  i--;
+if(nthreads > nbound) {  /* need more threads than cores we can run on , unbind everything */
+  if(will_print) printf("FULL unbinding will be done, cores=%d, threads needed=%d, usable cores=%d\n",ncores,nthreads,nbound);
   CPU_ZERO(&set);
-  while(i >=0) { CPU_SET(i,&set); i--; }
-  sched_setaffinity(0,sizeof(set),&set);
+  i=ncores;
+  while(--i >=0) { CPU_SET(i,&set);}
+  sched_setaffinity(0,sizeof(set),&set);  /* set affinity to all cores */
 }else{
-  if(will_print) printf("NO unbinding will be done\n");
+  if(will_print) printf("NO unbinding will be done\n");  /* enough resources available and no forced unbind */
 }
-  
 
 #endif
 
