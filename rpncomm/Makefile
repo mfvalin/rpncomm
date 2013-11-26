@@ -1,5 +1,6 @@
 SHELL=/bin/bash
 RELBASEDIR=..
+RELBASEBLD=..
 #----- Begin Boilerplate
 ifneq (,$(wildcard ./Makefile))
 # we are at the top level, in the source directory, phase 1 instance
@@ -9,7 +10,7 @@ ifneq (,$(wildcard ./Makefile))
 ifeq (,$(BASE_ARCH))
  OBJDIR := custom/unknown
 else
- OBJDIR := ../Build/$(EC_ARCH)
+ OBJDIR := $(RELBASEBLD)/Build/$(EC_ARCH)
 endif
 
 MAKETARGET=$(MAKE) --no-print-directory -C $@ -f $(CURDIR)/Makefile \
