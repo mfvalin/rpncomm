@@ -76,7 +76,7 @@
 *              offset(i) = offset from gmin for PE with ordinal I-1
 *  I    relax  decomposition mode
 *          0 : strict mode, all tiles but last one must have same dimension, 
-*              last tile may be shorter but may not have zero dimansion
+*              last tile may be shorter but may not have zero dimension
 *          1 : some tiles at end 1 shorter than tiles at beginning, zero dimension not allowed
 *          2 : same as relax=1 but zero dimension tiles at end are allowed
 *          3 : tiles with same length followed by a shorter tile followed by zero size tiles
@@ -109,7 +109,7 @@
       end if
       if(relax == 3) goto 666               ! 
       val2 = gtot - (npe-1)*val1            ! potential size of last "tile" in strict mode
-      if (val2 < 0  .and. relax == 0)  then ! in STRICT mode last "tile" would have a negative size
+      if (val2 <= 0  .and. relax == 0)  then ! in STRICT mode last "tile" would have a negative size
           goto 777
       end if
       if(val2 <= 0 ) val1 = gtot/npe        ! relax distribution rule, try mode 1
