@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -61,7 +62,7 @@ static int f_RPN_COMM_copy_1(int fd1, int fd2)  /* copy fd1 into fd2 (synchronou
     }
     if(towrite != 0) break;  /* short write, error */
   }
-  if(debug>=10) printf("synchronous copy done\n",status);
+  if(debug>=10) printf("synchronous copy done, status=%d\n",status);
   if(towrite != 0) return(-1);  /* short write, return an error */
   return (close(fd1) + close(fd2));  /*return compound status of close */
 }

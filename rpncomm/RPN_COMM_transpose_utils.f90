@@ -154,6 +154,7 @@ module RPN_COMM_transpose_utils
   integer, intent(OUT) :: status
   integer, intent(INOUT) :: za(min1:max1,n2,*)   ! * is n3g
   integer, intent(INOUT) :: zb(n2,min3:max3,*)   ! * is n1g
+  status = -1
   end SUBROUTINE RPN_COMM_transpose_44_d
 
   SUBROUTINE RPN_COMM_transpose_44(za,min1,max1,n1g,n2,min3,max3,n3g,zb,direction,min3o,max3o,status)
