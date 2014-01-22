@@ -26,6 +26,7 @@
 *
         integer myrank, ierr
         logical,save :: display = .TRUE.
+	integer, external :: MPI_Wtick
 *
         if (display) then
            call MPI_COMM_RANK(MPI_COMM_WORLD, myrank,ierr)
