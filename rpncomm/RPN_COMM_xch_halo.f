@@ -39,7 +39,6 @@
       integer, dimension(pe_ny) :: county, offsety
       integer :: halox, haloy, npol_row, errors, value, ii, jj
       logical :: periodx, periody
-
 !
       RPN_COMM_xch_halo_test=-1
       gni = params(1)
@@ -238,6 +237,8 @@
       integer land_fill
       real r_land_fill
       equivalence(land_fill,r_land_fill)
+      integer :: halo_status
+      integer, external :: rpn_comm_set_valid_halo
 !
       globalni=abs(gni)
       polarrows=npol_row
@@ -245,6 +246,11 @@
       nwds_ns = size(iBL_BLCR_iBR)
 
 1     continue
+      if(polarrows==0) then
+        halo_status = rpn_comm_set_valid_halo(g,halox,haloy,0)
+      else
+        halo_status = rpn_comm_set_valid_halo(g,-1,-1,-1)   ! if there are polar rows, invalidate halo table entry
+      endif
       
 !     call RPN_COMM_tmg_in
       east=(bnd_east) .and. (.not.periodx)
