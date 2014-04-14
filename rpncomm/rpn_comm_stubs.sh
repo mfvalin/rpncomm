@@ -324,8 +324,8 @@ c	if(pe_tot .ne. -1) call ABORT
 	return
 	end
 *
-      REAL*8 function  MPI_wticks()
-      MPI_wticks = 1.0E-9
+      REAL*8 function  MPI_wtick()
+      MPI_wtick = 1.0E-9
       return
       end
 *
