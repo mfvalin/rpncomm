@@ -328,10 +328,20 @@ c	if(pe_tot .ne. -1) call ABORT
       MPI_wtick = 1.0E-9
       return
       end
+      REAL*8 function  PMPI_wtick()
+      PMPI_wtick = 1.0E-9
+      return
+      end
 *
       REAL*8 function  MPI_wtime()
       real *8, save :: dummy_time=1.0E-9
       MPI_wtime=dummy_time
+      dummy_time=dummy_time+1.0E-9
+      return
+      end
+      REAL*8 function  PMPI_wtime()
+      real *8, save :: dummy_time=1.0E-9
+      PMPI_wtime=dummy_time
       dummy_time=dummy_time+1.0E-9
       return
       end
