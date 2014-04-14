@@ -324,17 +324,17 @@ c	if(pe_tot .ne. -1) call ABORT
 	return
 	end
 *
-    REAL*8 function  MPI_wticks()
-    MPI_wticks = 1.0E-9
-    return
-    end
+      REAL*8 function  MPI_wticks()
+      MPI_wticks = 1.0E-9
+      return
+      end
 *
-    REAL*8 function  MPI_wtime()
-    real *8, save :: dummy_time=1.0E-9
-    MPI_wtime=dummy_time
-    dummy_time=dummy_time+1.0E-9
-    return
-    end
+      REAL*8 function  MPI_wtime()
+      real *8, save :: dummy_time=1.0E-9
+      MPI_wtime=dummy_time
+      dummy_time=dummy_time+1.0E-9
+      return
+      end
 *
 EOT
 [[ "$1" == c || "$1" == all ]] && echo "CREATING: rpn_comm_c_stubs.c" && cat <<EOT >rpn_comm_c_stubs.c
