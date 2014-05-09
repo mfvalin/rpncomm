@@ -2,12 +2,17 @@
 #include <stdio.h>
 
 #define MAX_TABLE 256
+#define MAXHASH 4
 static struct {
   void *p;
   short Hx;
   short Hy;
   short Hz;  /* hz had to become Hz because of xlc */
   short spare;
+  int hash_east[MAX_HASH];
+  int hash_west[MAX_HASH];
+  int hash_south[MAX_HASH];
+  int hash_north[MAX_HASH];
 } table[MAX_TABLE];
 
 static int to_initialize=1;
@@ -100,11 +105,11 @@ int rpn_comm_set_valid_halo(void *array,int *Hx, int*Hy, int *Hz){
       table[i].Hx = *Hx;
       table[i].Hy = *Hy;
       table[i].Hz = *Hz;
-      if(*Hx<0 || *Hx<0 || *Hx<0) table[i].p=NULL;
+      if(*Hx<0 || *Hy<0 || *Hz<0) table[i].p=NULL;  /* cancel entry in table if halo not valid */
       return 0;
     }
   }
-  if(*Hx<0 || *Hx<0 || *Hx<0) return 0;        /* array not found and it was an invalidate command */
+  if(*Hx<0 || *Hy<0 || *Hz<0) return 0;        /* array not found and it was an invalidate command */
   for (i=0 ; i<=MAX_TABLE ; i++){              /* array not found, see if we have a free slot */
     if(table[i].p==NULL) {
       table[i].p  = array;
