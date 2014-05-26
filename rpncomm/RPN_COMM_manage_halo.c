@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 #define MAX_TABLE 256
-#define MAXHASH 4
+#define MAX_HASH 4
 static struct {
   void *p;
   short Hx;
