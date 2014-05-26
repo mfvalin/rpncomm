@@ -18,11 +18,12 @@ void *f_rpn_comm_shmget(int comm, unsigned int shm_size)
   int ierr, myrank, myhost, myhost2;
   MPI_Fint f_comm=comm;
   MPI_Comm c_comm;
+  
 
   c_comm = MPI_Comm_f2c(f_comm);  /* translate Fortran communicator into C communicator */
 
   myhost=gethostid();
-  ierr=MPI_Allreduce(&myhost,&myhost2,1,MPI_INTEGER,MPI_BOR,c_comm); /* booelan OR of hostid from all members of this comunicator */
+  ierr=MPI_Allreduce(&myhost,&myhost2,1,MPI_INTEGER,MPI_BOR,c_comm); /* boolean OR of hostid from all members of this comunicator */
   if(myhost != myhost2){
     printf("rpn_comm_shmget: ERROR: processes are not all on same node \n");
     return NULL;
