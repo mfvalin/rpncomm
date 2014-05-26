@@ -11,12 +11,12 @@
 
 void *f_rpn_comm_shmget(int comm, unsigned int shm_size)
 {
-  size_t size=*shm_size;
+  size_t size=shm_size;
   int id;
   struct shmid_ds shm_buf;
   void *ptr;
   int ierr, myrank, myhost, myhost2;
-  MPI_Fint f_comm=*comm;
+  MPI_Fint f_comm=comm;
   MPI_Comm c_comm;
 
   c_comm = MPI_Comm_f2c(f_comm);  /* translate Fortran communicator into C communicator */
@@ -25,7 +25,6 @@ void *f_rpn_comm_shmget(int comm, unsigned int shm_size)
   ierr=MPI_Allreduce(&myhost,&myhost2,1,MPI_INTEGER,MPI_BOR,c_comm); /* booelan OR of hostid from all members of this comunicator */
   if(myhost != myhost2){
     printf("rpn_comm_shmget: ERROR: processes are not all on same node \n");
-    *shmptr=NULL;
     return NULL;
     }
   ierr=MPI_Comm_rank(c_comm,&myrank);
@@ -35,7 +34,7 @@ void *f_rpn_comm_shmget(int comm, unsigned int shm_size)
   ptr=shmat(id,NULL,0);                                                   /* all processes attach memory segment */
   if(ptr == NULL) printf("rpn_comm_shmget: ERROR: got a null pointer from shmat\n");
   ierr=MPI_Barrier(c_comm);                                               /* all processes hgave attached the segment */
-  printf("addr = %16Lx\n",ptr);
+  printf("addr = %16p\n",ptr);
   if(myrank == 0) shmctl(id,IPC_RMID,&shm_buf);                           /* delete segment to make sure it is released when all processes terminate */
   return ptr;
 }
