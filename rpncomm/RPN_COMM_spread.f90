@@ -29,14 +29,16 @@ function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)
   integer, dimension(:), pointer :: offset, order, nlocal
   real, dimension(:,:), allocatable :: source2
   integer :: i, j, ierr, npoints, npe
+  logical :: debug
 
+  debug = .false.
   call c_f_pointer( context, context_entry)   ! convert C pointer passed by user into a Fortran pointer
   npoints = max(1,context_entry%npoints)      ! 0 length might disturb scatterv, using length of one (1)
   if(context_entry%ntotal .ne. npts .and. context_entry%rootpe == context_entry%myrank) then  ! number of data samples is not consistent
     goto 111
   endif
   if( .not. associated(dest) ) then
-    write(0,1)'allocating dest with dimensions',ndata,npoints
+    if(debug) write(0,1)'allocating dest with dimensions',ndata,npoints
     allocate(dest(ndata,npoints))
   else
     if( .not. all(shape(dest) == (/ndata,npoints/) ) ) then  ! check that the dimensions of dest are consistent with ndata and "context" metadata
@@ -47,17 +49,19 @@ function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)
   call c_f_pointer( context_entry%offset, offset, (/context_entry%n_pes/)   )   ! restore Fortran pointer to offset table
   call c_f_pointer( context_entry%nlocal, nlocal, (/context_entry%n_pes/)   )   ! restore Fortran pointer to length table
   call c_f_pointer( context_entry%order , order , (/context_entry%ntotal/) )    ! restore Fortran pointer to sort index table
-  if(context_entry%rootpe == context_entry%myrank) npe=size(nlocal)
-  if(context_entry%rootpe == context_entry%myrank) write(0,1)'order=',iand(order(1:npoints:npoints/5),524287)
-  if(context_entry%rootpe == context_entry%myrank) write(0,1)'npe   =',npe
-  if(context_entry%rootpe == context_entry%myrank) write(0,1)'nlocal=',nlocal(1:npe:max(1,npe/5))
-  if(context_entry%rootpe == context_entry%myrank) write(0,1)'offset=',offset(1:npe:max(1,npe/5))
-  if(context_entry%rootpe == context_entry%myrank) write(0,1)'context_entry%ntotal=',context_entry%ntotal
-  write(0,1)'context_entry%npoints=',context_entry%npoints
+  if(debug) then
+    if(context_entry%rootpe == context_entry%myrank) npe=size(nlocal)
+    if(context_entry%rootpe == context_entry%myrank) write(0,1)'order=',iand(order(1:npoints:npoints/5),524287)
+    if(context_entry%rootpe == context_entry%myrank) write(0,1)'npe   =',npe
+    if(context_entry%rootpe == context_entry%myrank) write(0,1)'nlocal=',nlocal(1:npe:max(1,npe/5))
+    if(context_entry%rootpe == context_entry%myrank) write(0,1)'offset=',offset(1:npe:max(1,npe/5))
+    if(context_entry%rootpe == context_entry%myrank) write(0,1)'context_entry%ntotal=',context_entry%ntotal
+    write(0,1)'context_entry%npoints=',context_entry%npoints
+  endif
 
   if(context_entry%rootpe == context_entry%myrank) then  ! root PE has some reordering to do before sending data
     allocate(source2(ndata,npts))
-    write(0,1)'source2 shape:',shape(source2)
+    if(debug) write(0,1)'source2 shape:',shape(source2)
     do i = offset(1)+1, npts   ! offset(1) contains the number of unused points
     do j = 1, ndata            ! do not bother copuing  them into temporary array source2
       source2(j,i) = source(iand(order(i),524287),j)    ! reorder and transpose data
@@ -69,9 +73,11 @@ function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)
   call mpi_scatterv(source2, max(1,nlocal)*ndata, offset*ndata , MPI_REAL,     &   ! "spread" data samples across PEs as per "context"
                     dest   , npoints*ndata                     , MPI_REAL,     &
                     context_entry%rootpe, context_entry%comm, ierr)
-  do j=context_entry%npoints,1,-(context_entry%npoints/5)
-    write(0,1)'j, received data:',j,nint(dest(1:ndata,j))
-  enddo
+  if(debug) then
+    do j=context_entry%npoints,1,-(context_entry%npoints/5)
+      write(0,1)'j, received data:',j,nint(dest(1:ndata,j))
+    enddo
+  endif
   deallocate(source2)             ! deallocate temporary array
   status = context_entry%npoints  ! number of valid data samples (>=0)
   return
