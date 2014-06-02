@@ -102,8 +102,7 @@
       if(pattern <= 0) return                  ! out of table
       if(noffsets < size(dist_table(pattern)%offsets)) return   ! array offsets is too small
 
-      offsets(1:size(dist_table(pattern)%offsets)) = 
-     %        dist_table(pattern)%offsets
+      offsets(1:size(dist_table(pattern)%offsets)) = dist_table(pattern)%offsets
       RPN_COMM_dist_offsets = size(dist_table(pattern)%offsets)
       return
       end
@@ -216,8 +215,7 @@
 !
 ! ========================================================================================
 !
-      integer function RPN_COMM_add_dist_entry
-     %        (table,max_clients,nrows,communicator,ndata,nmeta)
+      integer function RPN_COMM_add_dist_entry(table,max_clients,nrows,communicator,ndata,nmeta)
 !
 !     build a table entry describing a group of data exchanges described in array table
 !     and add it to the exchange table
@@ -288,11 +286,9 @@
       enddo
 
       nmeta = my_clients + my_sources
-      allocate    ! allocate client table
-     %  (dist_table(dist_table_entries)%clients(4,1:my_clients))
+      allocate(dist_table(dist_table_entries)%clients(4,1:my_clients))    ! allocate client table
       clients => dist_table(dist_table_entries)%clients
-      allocate    ! allocate sources table
-     %  (dist_table(dist_table_entries)%sources(4,1:my_sources))
+      allocate(dist_table(dist_table_entries)%sources(4,1:my_sources))    ! allocate sources table
       sources => dist_table(dist_table_entries)%sources
       allocate(dist_table(dist_table_entries)%offsets(nrows)) ! table of offsets
 !      allocate(dist_table(dist_table_entries)%data(ndata))    ! allocate data buffer
@@ -394,11 +390,9 @@
          length  = clients(3,j)
          offset  = clients(4,j)
          if(from_root) then ! send  to client, use row as communication tag
-            call MPI_isend(values(offset),length,MPI_INTEGER,
-     %           the_pe,row,the_comm,requests(request),ierr)
+            call MPI_isend(values(offset),length,MPI_INTEGER,the_pe,row,the_comm,requests(request),ierr)
          else               ! receive from client, use row as communication tag
-            call MPI_irecv(values(offset),length,MPI_INTEGER,
-     %           the_pe,row,the_comm,requests(request),ierr)
+            call MPI_irecv(values(offset),length,MPI_INTEGER,the_pe,row,the_comm,requests(request),ierr)
          endif
       enddo
       do j = 1 , nsources  ! as client receive from / send to roots
@@ -408,11 +402,9 @@
          length  = sources(3,j)
          offset  = abs(sources(4,j))
          if(from_root) then ! receive from root, use row as communication tag
-            call MPI_irecv(values(offset),length,MPI_INTEGER,
-     %           the_pe,row,the_comm,requests(request),ierr)
+            call MPI_irecv(values(offset),length,MPI_INTEGER,the_pe,row,the_comm,requests(request),ierr)
          else               ! send  to root, use row as communication tag
-            call MPI_isend(values(offset),length,MPI_INTEGER,
-     %           the_pe,row,the_comm,requests(request),ierr)
+            call MPI_isend(values(offset),length,MPI_INTEGER,the_pe,row,the_comm,requests(request),ierr)
          endif
       enddo
 !
@@ -468,10 +460,8 @@
         my_table(-1,i) = 1 + mod(i,3)
         my_table(-1,i) = 2
         my_table( 0,i) = maxpe / 2   ! middle PE will be the root
-        if(mod(i,maxpe+1) /= my_table( 0,i))
-     %     my_table( 1,i)=mod(i,maxpe+1)
-        if(mod(i+1,maxpe+1) /= my_table( 0,i))
-     %     my_table( 2,i)=mod(i+1,maxpe+1)
+        if(mod(i,maxpe+1) /= my_table( 0,i)) my_table( 1,i)=mod(i,maxpe+1)
+        if(mod(i+1,maxpe+1) /= my_table( 0,i)) my_table( 2,i)=mod(i+1,maxpe+1)
       enddo
       if(mype == 0) then
         print *,'ROOT PE will be PE no', maxpe / 2 
@@ -481,8 +471,7 @@
           print 100,i,'/=/',my_table(-1:MAX_CLIENTS,i)
         enddo
       endif
-      pattern = RPN_COMM_add_dist_entry
-     %          (my_table,MAX_CLIENTS,nrows,'GRID',ndata,nmeta)
+      pattern = RPN_COMM_add_dist_entry(my_table,MAX_CLIENTS,nrows,'GRID',ndata,nmeta)
 100   format(I3,A,20I4)
       if(mype == maxpe / 2) then
         print 100,mype,': CLIENTS',dist_table(pattern)%clients(2,:)  ! clients
@@ -493,8 +482,7 @@
         print 100,mype,': ROOTPE ',my_table(0,:)  ! clients
         print 100,mype,': OFFSETS',my_table(-2,:)  ! offsets table
       endif
-       if(debug)
-     % print *,mype,' : pattern,ndata,nmeta= ',pattern,ndata,nmeta
+       if(debug) print *,mype,' : pattern,ndata,nmeta= ',pattern,ndata,nmeta
 102   format(A,I3,A,20I4)
       if(dist_table(1)%nclients > 0 .and. debug) then
           print 102,'++',mype,'//',dist_table(1)%clients(1,:)
@@ -532,8 +520,7 @@
            if(my_table(0,i) /= mype) then  ! I am a client for this exchange
              low = abs(my_table(-2,i))
              up = low + my_table(-1,i) - 1
-             print 101,'==',mype,' ==',low,up,values(low:up),
-     %               values(low:up) - ((maxpe / 2)+100*i)
+             print 101,'==',mype,' ==',low,up,values(low:up),values(low:up) - ((maxpe / 2)+100*i)
            endif
          endif
       enddo

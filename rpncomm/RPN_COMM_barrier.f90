@@ -54,8 +54,7 @@ c	mpi barrier
           irank = -1
           t2=mpi_wtime()-t1
           if(detail==1) then  ! just get max barrier wait
-            call mpi_reduce(t2,t0,1,MPI_DOUBLE_PRECISION,MPI_MAX,
-     %                    0,comm,ierr)
+            call mpi_reduce(t2,t0,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,comm,ierr)
           endif
           if(detail==2) then  ! get all barrier waits
             call mpi_comm_size(comm,isize,ierr)
@@ -71,8 +70,7 @@ c	mpi barrier
               endif
               valid = .true.
             endif
-            call mpi_gather(t2,1,MPI_DOUBLE_PRECISION,
-     %                      times,1,MPI_DOUBLE_PRECISION,0,comm,ierr)
+            call mpi_gather(t2,1,MPI_DOUBLE_PRECISION,times,1,MPI_DOUBLE_PRECISION,0,comm,ierr)
           endif
         endif
 	return

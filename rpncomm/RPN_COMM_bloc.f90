@@ -63,8 +63,7 @@
 
       RPN_COMM_bloc_find = -1  !  precondition for failure
       if(valid_entries < 1) return  ! no entries in table
-      hash=nblocx+nblocy+pe_nx+pe_ny+pe_mex+pe_mey+
-     %     pe_medomm+pe_indomm+pe_myrow+pe_mycol
+      hash=nblocx+nblocy+pe_nx+pe_ny+pe_mex+pe_mey+pe_medomm+pe_indomm+pe_myrow+pe_mycol
       do i=1,valid_entries  ! all ingredients used to compute a block distribution must match
         t=>btab(i)
         if(t%hash      /= hash)      cycle ! quick inexpensive shortcut test
@@ -96,11 +95,9 @@
           pe_gr_bloc      = t%pe_gr_bloc
           pe_blocmaster   = t%pe_blocmaster
           pe_gr_blocmaster = t%pe_gr_blocmaster
-          write(rpn_u,*) 'INFO: using valid block distribution for',
-     %                 nblocx,' by',nblocy
+          write(rpn_u,*) 'INFO: using valid block distribution for',nblocx,' by',nblocy
 !        else
-!          write(rpn_u,*) 'INFO: found valid block distribution for',
-!     %                 nblocx,' by',nblocy
+!          write(rpn_u,*) 'INFO: found valid block distribution for',nblocx,' by',nblocy
         endif
         exit       ! all ingredients match, exit loop
       enddo
@@ -140,15 +137,13 @@
          return
       endif
       if(valid_entries>=MAX_ENTRIES) then ! OOPS no space left in table
-        write(rpn_u,*) 
-     %  'ERROR: block distribution table full (RPN_COMM_bloc_create)'
+        write(rpn_u,*) 'ERROR: block distribution table full (RPN_COMM_bloc_create)'
         return
       endif
 
       valid_entries=valid_entries+1
       t=>btab(valid_entries)  ! store ingredients necessary to compute table entry
-      t%hash = nblocx+nblocy+pe_nx+pe_ny+pe_mex+pe_mey+
-     %         pe_medomm+pe_indomm+pe_myrow+pe_mycol
+      t%hash = nblocx+nblocy+pe_nx+pe_ny+pe_mex+pe_mey+pe_medomm+pe_indomm+pe_myrow+pe_mycol
       t%nblocx = nblocx
       t%nblocy = nblocy
       t%pe_nx = pe_nx
@@ -170,10 +165,8 @@
       BLOC_myblocx = pe_mex / longx
       BLOC_myblocy = pe_mey / longy
       BLOC_mybloc  = BLOC_myblocx + nblocx*BLOC_myblocy
-      BLOC_me      = pe_mex-BLOC_myblocx*longx +
-     %     longx*(pe_mey-BLOC_myblocy*longy)
-      BLOC_corner  = pe_medomm-(pe_mex-BLOC_myblocx*longx)
-     %     -pe_nx*(pe_mey-BLOC_myblocy*longy)
+      BLOC_me      = pe_mex-BLOC_myblocx*longx + longx*(pe_mey-BLOC_myblocy*longy)
+      BLOC_corner  = pe_medomm-(pe_mex-BLOC_myblocx*longx) -pe_nx*(pe_mey-BLOC_myblocy*longy)
       BLOC_comm_world = pe_indomm
       BLOC_comm_row   = pe_myrow
       BLOC_comm_col   = pe_mycol
@@ -181,8 +174,7 @@
       if(BLOC_corner==pe_medomm) BLOC_master=1
       
       pe_bloc = mpi_comm_null
-      call MPI_COMM_SPLIT(BLOC_comm_world,
-     %     BLOC_mybloc,BLOC_me,pe_bloc,ierr)  ! new communicator for blockpeers
+      call MPI_COMM_SPLIT(BLOC_comm_world,BLOC_mybloc,BLOC_me,pe_bloc,ierr)  ! new communicator for blockpeers
       
       n=1
       do j=1,nblocy
@@ -192,13 +184,11 @@
             n=n+1
          enddo
       enddo
-      call MPI_Group_incl(pe_gr_indomm, nblocs, indices,
-     %     pe_gr_blocmaster, ierr)  ! group created for blockmasters
+      call MPI_Group_incl(pe_gr_indomm, nblocs, indices, pe_gr_blocmaster, ierr)  ! group created for blockmasters
 !!      call MPI_Group_rank(pe_gr_bloc,mybloc,ierr) ! mybloc is not used
       
       call MPI_Comm_group(pe_bloc,pe_gr_bloc,ierr)  ! new group for blockpeers
-      call MPI_Comm_create(BLOC_comm_world, pe_gr_blocmaster,
-     %     pe_blocmaster, ierr)  ! communicator created for blockmasters
+      call MPI_Comm_create(BLOC_comm_world, pe_gr_blocmaster, pe_blocmaster, ierr)  ! communicator created for blockmasters
 
       t%BLOC_master      = BLOC_master  ! store description of block distribution
       t%BLOC_EXIST       = BLOC_EXIST
@@ -217,8 +207,7 @@
       t%pe_blocmaster    = pe_blocmaster
       t%pe_gr_blocmaster = pe_gr_blocmaster
 
-      write(rpn_u,*) 'INFO: created block distribution for',
-     %                 nblocx,' by',nblocy
+      write(rpn_u,*) 'INFO: created block distribution for',nblocx,' by',nblocy
       RPN_COMM_bloc_create = 0  ! success
 
         
