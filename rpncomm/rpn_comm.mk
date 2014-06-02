@@ -10,7 +10,7 @@ LIB      = rpn_comm
 CLEAN    = rpn_comm_fortran_stubs.f rpn_comm_c_stubs.c \
            $(STUB_LIBRARY) $(LIBRARY) $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi.ssm
 CLEANDIRS= $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi $(LIBDIR)
-TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs TEST_005.Abs TEST_006.Abs
+TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs TEST_005.Abs TEST_006.Abs TEST_007.Abs
 FMODULES = RPN_COMM_mod.o
 LIBNAME  = $(LIB)_$(RPN_COMM_version)
 LIBRARY  = $(LIBDIR)/lib$(LIBNAME).a
@@ -26,8 +26,8 @@ stublib: $(STUB_LIBRARY)
 lib: $(LIBRARY) $(VPATH)/includes
 
 $(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f*) $(wildcard $(VPATH)/*.F*) $(wildcard $(VPATH)/*.c) $(wildcard $(VPATH)/*.h)
-	-which gnu_find 2>/dev/null 1>/dev/null || (cd $(VPATH) ; find . -maxdepth 1 -type f | ../tools/mk.dependencies.pl >dependencies.mk )
-	-which gnu_find 2>/dev/null 1>/dev/null && (cd $(VPATH) ; gnu_find . -maxdepth 1 -type f | ../tools/mk.dependencies.pl >dependencies.mk )
+	-which gnu_find 2>/dev/null 1>/dev/null || (cd $(VPATH) ; find . -maxdepth 1 -type f | grep -v TEST_0 | ../tools/mk.dependencies.pl >dependencies.mk )
+	-which gnu_find 2>/dev/null 1>/dev/null && (cd $(VPATH) ; gnu_find . -maxdepth 1 -type f | grep -v TEST_0 ../tools/mk.dependencies.pl >dependencies.mk )
 
 ssm-package:
 	rm -rf $(VPATH)/rpn-comm_${RPN_COMM_version_s}_multi
@@ -62,11 +62,12 @@ $(VPATH)/includes:
 	cp $(VPATH)/*.inc $(INCDIR)
 	touch $(VPATH)/includes
 
-TEST_000.Abs: $(LIBRARY)
-TEST_001.Abs: $(LIBRARY)
-TEST_002.Abs: $(LIBRARY)
-TEST_003.Abs: $(LIBRARY)
-TEST_004.Abs: $(LIBRARY)
-TEST_005.Abs: $(LIBRARY)
-TEST_006.Abs: $(LIBRARY)
+TEST_000.Abs: $(LIBRARY) TEST_000.o
+TEST_001.Abs: $(LIBRARY) TEST_001.o
+TEST_002.Abs: $(LIBRARY) TEST_002.o
+TEST_003.Abs: $(LIBRARY) TEST_003.o
+TEST_004.Abs: $(LIBRARY) TEST_004.o
+TEST_005.Abs: $(LIBRARY) TEST_005.o
+TEST_006.Abs: $(LIBRARY) TEST_006.o
+TEST_007.Abs: $(LIBRARY) TEST_007.o
 
