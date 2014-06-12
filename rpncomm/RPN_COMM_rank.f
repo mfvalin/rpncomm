@@ -17,22 +17,28 @@
 * * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 * * Boston, MA 02111-1307, USA.
 * */
-
-        SUBROUTINE RPN_COMM_rank( com, rank ,ierr )
+!InTf!
+      SUBROUTINE RPN_COMM_rank( com, rank ,ierr )                   !InTf!
+! Return rank of PE in specified domname/communicator
+! com     : Domain/communicator name
+! rank    : rank of process in domname
+! ierr    : error code
 c	Luc Corbeil, 2002-11-21
 c	mpi reduce
 
-        implicit none
-        integer comm,ierr, rank
-        character(len=*) com
-        integer RPN_COMM_datyp,RPN_COMM_oper,RPN_COMM_comm
-        logical RPN_COMM_grank
+      implicit none                                                 !InTf!
+      character(len=*),intent(in) :: com                            !InTf!
+      integer, intent(out) :: rank                                  !InTf!
+      integer, intent(out) :: ierr                                  !InTf!
+      integer comm
+      integer RPN_COMM_datyp,RPN_COMM_oper,RPN_COMM_comm
+      logical RPN_COMM_grank
 **
 !        include 'mpif.h'
 
-	comm=rpn_comm_comm(com)
-        if(.not.RPN_COMM_grank(com)) return
-        call mpi_comm_rank(comm, rank, ierr)
+      comm=rpn_comm_comm(com)
+      if(.not.RPN_COMM_grank(com)) return
+      call mpi_comm_rank(comm, rank, ierr)
 
-	return
-	end
+      return
+      end SUBROUTINE RPN_COMM_rank                                 !InTf!

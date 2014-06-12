@@ -17,16 +17,17 @@
 * * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 * * Boston, MA 02111-1307, USA.
 * */
-      subroutine RPN_COMM_mydomain (call_back, mydomain)
+!InTf!
+      subroutine RPN_COMM_mydomain (call_back, mydomain)             !InTf!
       use rpn_comm
-      implicit none
+      implicit none                                                  !InTf!
 !
-      external call_back
-      integer mydomain
+      external :: call_back                                          !InTf!
+      integer, intent(OUT) :: mydomain                               !InTf!
 !
 !      include 'mpif.h'
 
-	logical mpi_started
+      logical mpi_started
       integer ierr, err, err_all, pe_tot2, pe_me2, npe_per_domain,
      &        offset, ndomains
 !
@@ -61,48 +62,60 @@
      &(/'===> rpn_comm_mydomain:
      & RPN_COMM already initialized --- ABORTING ---'/)
       return
-      end
+      end subroutine RPN_COMM_mydomain                               !InTf!
 !===================================================================
-        subroutine RPN_COMM_world_set(world_comm)
-        use rpn_comm
-        implicit none
-        integer world_comm
+!InTf!
+      subroutine RPN_COMM_world_set(world_comm)                    !InTf!
+      use rpn_comm
+      implicit none                                                !InTf!
+      integer, intent(IN) ::  world_comm                           !InTf!
 !        world_comm=WORLD_COMM_MPI ! should rather be the other way around
-        WORLD_COMM_MPI=world_comm
-        WORLD_COMM_MPI_INIT=.true.
-        return
-        end
+      WORLD_COMM_MPI=world_comm
+      WORLD_COMM_MPI_INIT=.true.
+      return
+      end subroutine RPN_COMM_world_set                            !InTf!
 !===================================================================
-	SUBROUTINE RPN_COMM_init(Userinit,Pelocal,Petotal,Pex,Pey)
-	implicit none
-	integer Pelocal,Petotal,Pex,Pey
-	external Userinit
-        integer junk, RPN_COMM_init_multigrid
-        external RPN_COMM_init_multigrid
-	junk = RPN_COMM_init_multigrid
+!InTf!
+      SUBROUTINE RPN_COMM_init(Userinit,Pelocal,Petotal,Pex,Pey)     !InTf!
+      implicit none                                                  !InTf!
+      integer, intent(out)   :: Pelocal,Petotal                      !InTf!
+      integer, intent(inout) :: Pex,Pey                              !InTf!
+      external Userinit                                              !InTf!
+      integer junk, RPN_COMM_init_multigrid
+      external RPN_COMM_init_multigrid
+      junk = RPN_COMM_init_multigrid
      &      (Userinit,Pelocal,Petotal,Pex,Pey,1)
-	return
-	end
+      return
+      end SUBROUTINE RPN_COMM_init                                   !InTf!
 !===================================================================
-	INTEGER FUNCTION RPN_COMM_init_multigrid
+!InTf!
+!!INTEGER FUNCTION RPN_COMM_init_multigrid(Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids) !InTf!
+      INTEGER FUNCTION RPN_COMM_init_multigrid
      &      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids)
-	use rpn_comm
-	implicit none
-	integer Pelocal,Petotal,Pex,Pey,MultiGrids
-	external Userinit
+      use rpn_comm
+      implicit none                                                  !InTf!
+      external :: Userinit                                           !InTf!
+      integer, intent(out)   :: Pelocal,Petotal                      !InTf!
+      integer, intent(inout) :: Pex,Pey                              !InTf!
+      integer, intent(in)    :: MultiGrids                           !InTf!
       integer rpn_comm_init_multi_level
       external rpn_comm_init_multi_level
       RPN_COMM_init_multigrid=RPN_COMM_init_multi_level
      &      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,1)
       return
-      end
+      end FUNCTION RPN_COMM_init_multigrid                           !InTf!
 !===================================================================
-	INTEGER FUNCTION RPN_COMM_init_multi_level
+!InTf!
+!!INTEGER FUNCTION RPN_COMM_init_multi_level(Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids)  !InTf!
+      INTEGER FUNCTION RPN_COMM_init_multi_level
      &      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids)
-	use rpn_comm
-	implicit none
-	integer Pelocal,Petotal,Pex,Pey,MultiGrids,Grids
-	external Userinit
+      use rpn_comm
+      implicit none                                                  !InTf!
+      external :: Userinit                                           !InTf!
+      integer, intent(out)   :: Pelocal,Petotal                      !InTf!
+      integer, intent(inout) :: Pex,Pey                              !InTf!
+      integer, intent(in)    :: MultiGrids                           !InTf!
+      integer, intent(in)    :: Grids                                !InTf!
 *arguments
 *  I	Userinit	User routine that will be called by PE 0 to
 *		get the processor grid topology if it is not supplied
@@ -576,4 +589,4 @@
 *     &                    grid_id_table,3,MPI_INTEGER,
 *     &                    pe_all_domains,ierr)   ! progagate grid_id/local_rank/global_rank table
       return
-      end
+      end FUNCTION RPN_COMM_init_multi_level                        !InTf!

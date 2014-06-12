@@ -18,8 +18,8 @@
 * * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 * * Boston, MA 02111-1307, USA.
 * */
-
-      integer function RPN_COMM_comm(com)
+!InTf!
+      integer function RPN_COMM_comm(com)           !InTf!
 c	Luc Corbeil, 2000-11-21
 c
 c	lien entre chaine de caractere de communicateur
@@ -27,10 +27,10 @@ c	GRID, EW et NS et leur numero assigne par
 c	MPI.
 c
       use rpn_comm
-      implicit none
+      implicit none                                 !InTf!
 !      include mpif.h
 !        include rpn_comm.h
-      character(len=*) com
+      character(len=*), intent(IN) :: com           !InTf!
       character(len=32) comm
 
       call rpn_comm_low2up(com,comm)
@@ -97,14 +97,15 @@ c
       write(rpn_u,*) 'Unknown communicator ',comm,', aborting'
       stop
       return
-      end
-      integer function RPN_COMM_custom_comm(com,name,mode)
+      end function RPN_COMM_comm                                  !InTf!
+!InTf!
+      integer function RPN_COMM_custom_comm(com,name,mode)        !InTf!
       use rpn_comm
-      implicit none
+      implicit none                                               !InTf!
 !     lookup or create a communicator with a rpn_comm style name
-      character(len=*), intent(IN) :: name
-      integer, intent(IN) :: com
-      integer, intent(IN) :: mode
+      character(len=*), intent(IN) :: name                        !InTf!
+      integer, intent(IN) :: com                                  !InTf!
+      integer, intent(IN) :: mode                                 !InTf!
 !
       integer :: i
       character (len=32) :: name2
@@ -139,5 +140,5 @@ c
          write(rpn_u,*) 'ERROR: RPN_COMM_custom_comm illegal mode'
       endif
       return
-      end
+      end function RPN_COMM_custom_comm                      !InTf!
 

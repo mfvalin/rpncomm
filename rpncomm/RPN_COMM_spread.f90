@@ -1,14 +1,15 @@
-function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)
-  use ISO_C_BINDING
-  implicit none
+!InTf!
+function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)   !InTf!
+  use ISO_C_BINDING                                                       !InTf!
+  implicit none                                                           !InTf!
   include 'RPN_COMM_spread.inc'
   include 'mpif.h'
 
-  type(c_ptr), intent(IN) :: context                   ! blind pointer obtained from RPN_COMM_spread_context
-  integer, intent(IN) :: npts, ndata                   ! dimensions of source array (used only on root PE)
-  real, dimension(npts,ndata), intent(IN) :: source    ! source array (used only on root PE)
-  real, dimension(:,:), pointer, intent(INOUT) :: dest ! pointer to output data
-  integer :: status                                    ! < 0 : error,  >=0 : number of valid npoints in dest array
+  type(c_ptr), intent(IN) :: context                   ! blind pointer obtained from RPN_COMM_spread_context         !InTf!
+  integer, intent(IN) :: npts, ndata                   ! dimensions of source array (used only on root PE)           !InTf!
+  real, dimension(npts,ndata), intent(IN) :: source    ! source array (used only on root PE)                         !InTf!
+  real, dimension(:,:), pointer, intent(INOUT) :: dest ! pointer to output data                                      !InTf!
+  integer :: status                                    ! < 0 : error,  >=0 : number of valid npoints in dest array   !InTf!
 !
 ! NOTES:
 !   context is a C pointer (see ISO_C_BINDING documentation) obtained from function RPN_COMM_spread_context
@@ -88,19 +89,20 @@ function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)
 1 format(A,20I7)
   return
 
-end function RPN_COMM_spread
-function RPN_COMM_spread_context(context,com,rootpe,pe,npts) result(status)
-  use ISO_C_BINDING
-  implicit none
+end function RPN_COMM_spread                                                                         !InTf!
+!InTf!
+function RPN_COMM_spread_context(context,com,rootpe,pe,npts) result(status)                          !InTf!
+  use ISO_C_BINDING                                                                                  !InTf!
+  implicit none                                                                                      !InTf!
   include "RPN_COMM_spread.inc"
   include 'mpif.h'
 
-  type(c_ptr), intent(OUT) :: context              ! C pointer to metadata describing "spread" operation
-  character (len=*), intent(IN) :: com             ! RPN_COMM communicator
-  integer, intent(IN) :: npts                      ! number of data points
-  integer, intent(IN) :: rootpe                    ! root PE for the spread operation
-  integer, dimension(npts), intent(IN) :: pe       ! destination table, data point i will be sent to PE pe(i)
-  integer :: status                                ! 0 if successful, non zero otherwise
+  type(c_ptr), intent(OUT) :: context              ! C pointer to metadata describing "spread" operation         !InTf!
+  character (len=*), intent(IN) :: com             ! RPN_COMM communicator                                       !InTf!
+  integer, intent(IN) :: npts                      ! number of data points                                       !InTf!
+  integer, intent(IN) :: rootpe                    ! root PE for the spread operation                            !InTf!
+  integer, dimension(npts), intent(IN) :: pe       ! destination table, data point i will be sent to PE pe(i)    !InTf!
+  integer :: status                                ! 0 if successful, non zero otherwise                         !InTf!
 !
 ! NOTES:
 !   context    C pointer (see ISO_C_BINBING documentation) to metadata describing the "spread" operation to be performed
@@ -391,4 +393,4 @@ function RPN_COMM_spread_context(context,com,rootpe,pe,npts) result(status)
 !
   End Subroutine I_mrgrnk
 
-end function RPN_COMM_spread_context
+end function RPN_COMM_spread_context                                                    !InTf!

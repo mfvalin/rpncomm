@@ -18,12 +18,15 @@
 * * Boston, MA 02111-1307, USA.
 * */
 ***function RPN_COMM_topo_2 compute the local bounds for a distributed array
+!InTf!
+!!integer function RPN_COMM_topo_2(nxg,minx,maxx,nxl,nxlmax,halo,nx0,alongx,fill,relax,abort) !InTf!
 	integer function RPN_COMM_topo_2(nxg,minx,maxx,nxl,nxlmax,
      %                   halo,nx0,alongx,fill,relax,abort)
 	use rpn_comm
-	implicit none
-	integer nxg,minx,maxx,nxl,nxlmax,halo,nx0,relax
-	logical fill, alongx, abort
+	implicit none                                                             !InTf!
+      integer, intent(in) :: nxg,halo,relax                                 !InTf!
+      logical, intent(in) :: alongx,fill,abort                              !InTf!
+      integer, intent(out):: minx,maxx,nxl,nxlmax,nx0                       !InTf!
 *
 *arguments
 *  I	nxg	global dimension of data (along selected X or Y axis)
@@ -82,19 +85,26 @@
 *
         RPN_COMM_topo_2 = 0     ! SUCCESS
         return
-        end
+        end  function RPN_COMM_topo_2                     !InTf!
 *    this is the old function, it calls the newer RPN_COMM_topo_2 forcing 
 *    the strict distribution mode used previously and abort in case of error
 *     kept for compatibility with older versions of this library
+!InTf!
+!!integer function RPN_COMM_topo(nxg,minx,maxx,nxl,nxlmax,halo,nx0,alongx,fill) !InTf!
 	integer function RPN_COMM_topo(nxg,minx,maxx,nxl,nxlmax,
      %                   halo,nx0,alongx,fill)
-	implicit none
-	integer nxg,minx,maxx,nxl,nxlmax,halo,nx0
-	logical fill, alongx
+! Generate needed information about local tile along a specified axis.
+! The input is the total number of point to divide and the size of the halo.
+! The function will split the domain depending of the topology
+! induced by the PEs.
+      implicit none                                                                !InTf!
+      integer, intent(in) :: nxg,halo                                              !InTf!
+      logical, intent(in) :: alongx,fill                                           !InTf!
+      integer, intent(out):: minx,maxx,nxl,nxlmax,nx0                              !InTf!
         external RPN_COMM_topo_2
         integer RPN_COMM_topo_2
         RPN_COMM_topo=
      %         RPN_COMM_topo_2(nxg,minx,maxx,nxl,nxlmax,
      %         halo,nx0,alongx,fill,0,.true.)
         return
-        end
+        end function RPN_COMM_topo                                                 !InTf!

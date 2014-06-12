@@ -25,19 +25,20 @@
           logical, save :: valid = .false. ! if .true. , times array is allocated
           real *8, save :: t0 = -1.0    ! max time around barrier (used if detail = 1)
         end module RPN_COMM_barrier_priv
-
-        SUBROUTINE RPN_COMM_barrier(com,ierr)
+!InTf!
+        SUBROUTINE RPN_COMM_barrier(com,ierr)                    !InTf!
 
 !	Luc Corbeil, 2000-11-21
 !	mpi barrier
         use RPN_COMM_barrier_priv
-        implicit none
-        integer :: comm,ierr
-        character(len=*) com
+        implicit none                                            !InTf!
+        integer, intent(OUT) :: ierr                             !InTf!
+        character(len=*), intent(IN) ::  com                     !InTf!
 !*
+        integer :: comm
         include 'mpif.h'
 
-	integer RPN_COMM_comm
+        integer, external :: RPN_COMM_comm
         logical RPN_COMM_grank
         real *8 t1,t2
 
@@ -74,14 +75,14 @@
           endif
         endif
 	return
-	end SUBROUTINE RPN_COMM_barrier
-
-        integer function RPN_COMM_barrier_data(level,values,nvalues)
+	end SUBROUTINE RPN_COMM_barrier                                !InTf!
+!InTf!
+        integer function RPN_COMM_barrier_data(level,values,nvalues)                                !InTf!
         use RPN_COMM_barrier_priv
         implicit none
-        integer , intent(IN) :: level  ! >= 0, set detail level,  <0 get data from last barrier call
-        integer , intent(IN) :: nvalues
-        real *8, dimension(nvalues), intent(OUT) :: values
+        integer , intent(IN) :: level  ! >= 0, set detail level,  <0 get data from last barrier call !InTf!
+        integer , intent(IN) :: nvalues                                                              !InTf!
+        real *8, dimension(nvalues), intent(OUT) :: values                                           !InTf!
 
         RPN_COMM_barrier_data = -1  ! precondition to error
 
@@ -108,4 +109,4 @@
         endif
 
         return ! function values is the number of valid data points in values
-        end function RPN_COMM_barrier_data
+        end function RPN_COMM_barrier_data                                            !InTf!

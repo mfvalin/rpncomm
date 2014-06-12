@@ -17,12 +17,16 @@
 * * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 * * Boston, MA 02111-1307, USA.
 * */
-
-	integer function RPN_COMM_mype(Me,Me_x,Me_y)
+!InTf!
+	integer function RPN_COMM_mype(Me,Me_x,Me_y)               !InTf!
+! Return rank and position of the local process in his domain (grid)
+! me  : rank of process in its domain
+! me_x: position along X axis in its domain
+! me_y: position along Y axis in its domain
 *
 	use rpn_comm
-	implicit none
-	integer Me,Me_x,Me_y
+	implicit none                                              !InTf!
+	integer, intent(OUT) ::  Me,Me_x,Me_y                      !InTf!
 *arguments
 *  O	Me	PE rank (number)
 *  O	Me_x	X coordinate of PE in computational grid
@@ -38,4 +42,4 @@
 	RPN_COMM_mype=MPI_SUCCESS
 *
 	return
-	end
+	end  function RPN_COMM_mype                                !InTf!

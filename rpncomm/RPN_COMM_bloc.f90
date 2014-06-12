@@ -33,10 +33,10 @@
       integer, save :: valid_entries=0
       type(block_entry),dimension(MAX_ENTRIES),target,save :: btab
       end module RPN_COMM_bloc_mgt
-
-      integer function RPN_COMM_bloc(nblocx,nblocy) ! switch to nblocx by nblocy block distribution
-      implicit none
-      integer, intent(IN) :: nblocx, nblocy
+!InTf!
+      integer function RPN_COMM_bloc(nblocx,nblocy) ! switch to nblocx by nblocy block distribution !InTf!
+      implicit none                                                               !InTf!
+      integer, intent(IN) :: nblocx, nblocy                                       !InTf!
       integer, external :: RPN_COMM_bloc_create, RPN_COMM_bloc_find
       integer :: index
 !     old code
@@ -50,14 +50,14 @@
         RPN_COMM_bloc = RPN_COMM_bloc_create(nblocx,nblocy) ! no preexisting answer exists, try to create one
       endif
       return
-      end function RPN_COMM_bloc
-
-      integer function RPN_COMM_bloc_find(nblocx,nblocy,set) ! find and optionally use an already defined block distribution
+      end function RPN_COMM_bloc                                                   !InTf!
+!InTf!
+      integer function RPN_COMM_bloc_find(nblocx,nblocy,set) ! find and optionally use an already defined block distribution !InTf!
       use rpn_comm
       use RPN_COMM_bloc_mgt
-      implicit none
-      integer, intent(IN) :: nblocx, nblocy
-      logical, intent(IN) :: set   ! if block distribution found, apply it
+      implicit none                                                                !InTf!
+      integer, intent(IN) :: nblocx, nblocy                                        !InTf!
+      logical, intent(IN) :: set   ! if block distribution found, apply it         !InTf!
       type(block_entry), pointer :: t
       integer :: i, hash
 
@@ -102,13 +102,13 @@
         exit       ! all ingredients match, exit loop
       enddo
       return
-      end function RPN_COMM_bloc_find
-
-      integer function RPN_COMM_bloc_create(nblocx,nblocy)
+      end function RPN_COMM_bloc_find                                               !InTf!
+!InTf!
+      integer function RPN_COMM_bloc_create(nblocx,nblocy)                          !InTf!
       use rpn_comm
       use RPN_COMM_bloc_mgt
-      implicit none
-      integer, intent(IN) :: nblocx, nblocy
+      implicit none                                                                 !InTf!
+      integer, intent(IN) :: nblocx, nblocy                                         !InTf!
 !arguments
 !     I nblocx, nblocy: number of blocks on the subgrid in x-y direction
 !     O RPN_COMM_bloc_create : error status (-1 if error, else 0)
@@ -211,6 +211,6 @@
       RPN_COMM_bloc_create = 0  ! success
 
         
-      end function RPN_COMM_bloc_create
+      end function RPN_COMM_bloc_create                                            !InTf!
 
       

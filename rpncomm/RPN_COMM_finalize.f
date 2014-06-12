@@ -17,27 +17,27 @@
 * * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 * * Boston, MA 02111-1307, USA.
 * */
-
-        SUBROUTINE RPN_COMM_finalize(ierr)
+!InTf!
+      SUBROUTINE RPN_COMM_finalize(ierr) !InTf!
 
 c	Luc Corbeil, 2000-11-21
 c	mpi finalize
-        use rpn_comm
-        implicit none
-        integer ierr
+      use rpn_comm
+      implicit none                      !InTf!
+      integer, intent(OUT) ::  ierr      !InTf!
         
 **
 !        include 'mpif.h'
 
 !       if(allocated(pe_domains)) deallocate(pe_domains)
-        if(allocated(pe_id))      deallocate(pe_id)
-        if(allocated(pe_xtab))    deallocate(pe_xtab)
-        if(allocated(pe_ytab))    deallocate(pe_ytab)
-        if(allocated(ord_tab))    deallocate(ord_tab)
+      if(allocated(pe_id))      deallocate(pe_id)
+      if(allocated(pe_xtab))    deallocate(pe_xtab)
+      if(allocated(pe_ytab))    deallocate(pe_ytab)
+      if(allocated(ord_tab))    deallocate(ord_tab)
 
 
 !       call rpn_comm_softbarrier(MPI_COMM_WORLD)
-        call mpi_finalize(ierr)
+      call mpi_finalize(ierr)
 
-	return
-	end
+      return
+      end SUBROUTINE RPN_COMM_finalize         !InTf!

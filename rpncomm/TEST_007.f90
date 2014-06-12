@@ -88,12 +88,12 @@ subroutine rpn_comm_test_007
     end do
   end subroutine Shuffle
 
-  integer function RPN_COMM_comm(str)
-  include 'mpif.h'
-  character (len=*) :: str
-  RPN_COMM_comm = MPI_COMM_WORLD
-  return
-  end function RPN_COMM_comm
+!  integer function RPN_COMM_comm(str)
+!  include 'mpif.h'
+!  character (len=*) :: str
+!  RPN_COMM_comm = MPI_COMM_WORLD
+!  return
+!  end function RPN_COMM_comm
   
   Subroutine I_mrgrnk (XDONT, IRNGT, NVAL)
 ! __________________________________________________________

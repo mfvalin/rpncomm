@@ -17,15 +17,15 @@
 * * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 * * Boston, MA 02111-1307, USA.
 * */
-
-        integer function RPN_COMM_datyp(data_int)
+!InTf!
+        integer function RPN_COMM_datyp(data_int)                 !InTf!
 c	Luc Corbeil, 2000-11-20
 c	lien entre datatype et MPI_datatype
         use rpn_comm
-        implicit none
+        implicit none                                             !InTf!
 !        include 'mpif.h'
 !        include 'rpn_comm.h'
-        character(len=*) :: data_int
+        character(len=*), intent(IN) :: data_int                              !InTf!
         character(len=32) :: datatype
         integer :: i
 
@@ -87,4 +87,4 @@ c	lien entre datatype et MPI_datatype
         stop
           
         return
-        end
+        end function RPN_COMM_datyp                             !InTf!

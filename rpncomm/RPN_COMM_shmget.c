@@ -10,6 +10,17 @@
 /* this function needs an explicit fortran interface using ISO_C_BINDING */
 /* because it returns a C pointer */
 
+#ifdef MUST_NEVER_BE_TRUE
+!InTf!
+        function rpn_comm_shmget(comm,size) result(where)     !InTf!
+        use ISO_C_BINDING                                     !InTf!
+        implicit none                                         !InTf!
+          integer(C_INT), intent(IN) :: comm                  !InTf!   ! RPN_COMM communicator
+          integer(C_INT), intent(IN) :: size                  !InTf!   ! size in bytes of shared memory area
+          type(C_PTR) :: where                                !InTf!   ! pointer to shared memory area
+        end function rpn_comm_shmget                          !InTf!
+#endif
+
 void *f_rpn_comm_shmget(int comm, unsigned int shm_size)
 {
   size_t size=shm_size;

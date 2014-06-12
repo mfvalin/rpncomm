@@ -17,15 +17,27 @@
 * * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 * * Boston, MA 02111-1307, USA.
 * */
-
+!InTf!
+!!subroutine RPN_COMM_carac(npex,npey,me,medomm,mex,mey,sizex,sizey,ismaster, mymaster, mybloc, myblocx,myblocy,blocme,domname) !InTf!
       subroutine RPN_COMM_carac(npex,npey,me,medomm,mex,mey,sizex,sizey,
      %     ismaster, mymaster, mybloc, myblocx,myblocy,blocme,domname)
-	use rpn_comm
-      implicit none
-      integer, intent(out) :: npex,npey,me,mex,mey,sizex,sizey,ismaster
-      integer, intent(out) :: mymaster, mybloc, myblocx,myblocy,blocme
-      integer, intent(out) :: medomm
-      character(len=*), intent(out) :: domname
+! npex,npey: Number of PE along x and y
+! me       : Rank in the context of communicator "ALL"
+! medomm   : Rank in the context of communicator "DOMM"
+! mex,mey  : x and y coordinates in domain
+! sizex,sizey: Size of blocks along x and y axis
+! ismaster : Equals 1 if PE is included in communicator "BLOCMASTER", 0 else
+! mymaster : Rank (relative to the domain) of the master of the PE's block
+! mybloc   : Rank of PE's block
+! myblocx,myblocy: Coordinate of PE's block along x and y
+! blocme   : Rank of PE relative to its block
+! domname  : Domain name of the current PE
+      use rpn_comm
+      implicit none                                                             !InTf!
+      integer, intent(out) :: npex,npey,me,mex,mey,sizex,sizey,ismaster         !InTf!
+      integer, intent(out) :: mymaster, mybloc, myblocx,myblocy,blocme          !InTf!
+      integer, intent(out) :: medomm                                            !InTf!
+      character(len=*), intent(out) :: domname                                  !InTf!
 *arguments
 *     I nblocx, nblocy: number of blocks on the subgrid in x-y direction
 *     O RPN_COMM_bloc : error status (-1 if error, else 0)
@@ -48,4 +60,4 @@
       blocme   = BLOC_me
       domname  = 'DOM1'
       return
-      end
+      end subroutine RPN_COMM_carac                                              !InTf!
