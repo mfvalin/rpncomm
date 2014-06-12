@@ -25,7 +25,10 @@ stublib: $(STUB_LIBRARY)
 
 lib: $(LIBRARY) $(VPATH)/includes
 
-$(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f*) $(wildcard $(VPATH)/*.F*) $(wildcard $(VPATH)/*.c) $(wildcard $(VPATH)/*.h)
+$(VPATH)/RPN_COMM_interfaces.inc: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.c)
+	(cd $(VPATH) ; cat RPN_COMM_*.f RPN_COMM_*.f90 RPN_COMM_*.c | ../tools/extract_interface.sh >RPN_COMM_interfaces.inc )
+
+$(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.c) $(wildcard $(VPATH)/*.h)
 	-which gnu_find 2>/dev/null 1>/dev/null || (cd $(VPATH) ; find . -maxdepth 1 -type f | grep -v TEST_0 | ../tools/mk.dependencies.pl >dependencies.mk )
 	-which gnu_find 2>/dev/null 1>/dev/null && (cd $(VPATH) ; gnu_find . -maxdepth 1 -type f | grep -v TEST_0 ../tools/mk.dependencies.pl >dependencies.mk )
 
