@@ -245,4 +245,34 @@
 ! ierr : error code
       end subroutine mpi_comm_rank
 !
+        function RPN_COMM_spread_context(context,com,rootpe,pe,npts)    &
+     &                                 result(status)
+        use ISO_C_BINDING
+        implicit none
+          type(C_PTR), intent(OUT) :: context
+          character (len=*), intent(IN) :: com             ! RPN_COMM communicator
+          integer, intent(IN) :: npts                      ! number of data points
+          integer, intent(IN) :: rootpe                    ! root PE for the spread operation
+          integer, dimension(npts), intent(IN) :: pe       ! destination table, data point i will be sent to PE pe(i)
+          integer :: status                                ! 0 if successful, non zero otherwise
+        end function RPN_COMM_spread_context
+
+        function RPN_COMM_spread(context,source,npts,ndata,dest)        &
+     &                           result(status)
+        use ISO_C_BINDING
+        implicit none
+          type(C_PTR), intent(IN) :: context
+          integer, intent(IN) :: npts, ndata
+          real, dimension(npts,ndata), intent(IN) :: source  ! source array, used only on root PE
+          real, dimension(:,:), pointer, intent(INOUT) :: dest
+          integer :: status
+        end function RPN_COMM_spread
+
+        function rpn_comm_shmget(comm,size) result(where)
+        use ISO_C_BINDING
+        implicit none
+          integer(C_INT), intent(IN) :: comm               ! RPN_COMM communicator
+          integer(C_INT), intent(IN) :: size               ! size in bytes of shared memory area
+          type(C_PTR) :: where                             ! pointer to shared memory area
+        end function rpn_comm_shmget
       end interface
