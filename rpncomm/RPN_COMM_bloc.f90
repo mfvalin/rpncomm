@@ -95,7 +95,7 @@
           pe_gr_bloc      = t%pe_gr_bloc
           pe_blocmaster   = t%pe_blocmaster
           pe_gr_blocmaster = t%pe_gr_blocmaster
-          write(rpn_u,*) 'INFO: using valid block distribution for',nblocx,' by',nblocy
+!          write(rpn_u,*) 'INFO: using valid block distribution for',nblocx,' by',nblocy
 !        else
 !          write(rpn_u,*) 'INFO: found valid block distribution for',nblocx,' by',nblocy
         endif
@@ -129,15 +129,15 @@
 !     test if dimensions are suitable and table is not full
 !
       if(mod(pe_nx,nblocx).ne.0) then
-         write(rpn_u,*) 'ERROR: mod(pe_nx,blocx).ne.0'
+         write(rpn_u,*) 'ERROR: (RPN_COMM_bloc_create) mod(pe_nx,blocx).ne.0'
          return
       endif
       if(mod(pe_ny,nblocy).ne.0) then
-         write(rpn_u,*) 'ERROR: mod(pe_ny,blocy).ne.0'
+         write(rpn_u,*) 'ERROR: (RPN_COMM_bloc_create) mod(pe_ny,blocy).ne.0'
          return
       endif
       if(valid_entries>=MAX_ENTRIES) then ! OOPS no space left in table
-        write(rpn_u,*) 'ERROR: block distribution table full (RPN_COMM_bloc_create)'
+        write(rpn_u,*) 'ERROR: (RPN_COMM_bloc_create) block distribution table full'
         return
       endif
 
@@ -207,7 +207,7 @@
       t%pe_blocmaster    = pe_blocmaster
       t%pe_gr_blocmaster = pe_gr_blocmaster
 
-      write(rpn_u,*) 'INFO: created block distribution for',nblocx,' by',nblocy
+      if(pe_me==0) write(rpn_u,*) 'INFO: (RPN_COMM_bloc_create) created block distribution for',nblocx,' by',nblocy
       RPN_COMM_bloc_create = 0  ! success
 
         

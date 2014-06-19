@@ -30,7 +30,7 @@ program wrap
 101 format(A6,A66,A1)
   end
 EOT
-s.f90 -o ./wrap_code.exe ./wrap_code.f90
+s.f90 -o ./wrap_code.exe ./wrap_code.f90 2>/dev/null 1>/dev/null
 rm -f ./wrap_code.f90
 fi
 grep '!InTf!' | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ./wrap_code.exe
