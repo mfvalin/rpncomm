@@ -1,42 +1,5 @@
       interface
                                                                         
-      subroutine RPN_COMM_mydomain (call_back, mydomain)                
-      implicit none                                                     
-      external :: call_back                                             
-      integer, intent(OUT) :: mydomain                                  
-      end subroutine RPN_COMM_mydomain                                  
-                                                                        
-      subroutine RPN_COMM_world_set(world_comm)                         
-      implicit none                                                     
-      integer, intent(IN) ::  world_comm                                
-      end subroutine RPN_COMM_world_set                                 
-                                                                        
-      SUBROUTINE RPN_COMM_init(Userinit,Pelocal,Petotal,Pex,Pey)        
-      implicit none                                                     
-      integer, intent(out)   :: Pelocal,Petotal                         
-      integer, intent(inout) :: Pex,Pey                                 
-      external Userinit                                                 
-      end SUBROUTINE RPN_COMM_init                                      
-                                                                        
-      INTEGER FUNCTION RPN_COMM_init_multigrid(Userinit,Pelocal,Petotal,&
-     &Pex,Pey,MultiGrids)                                               
-      implicit none                                                     
-      external :: Userinit                                              
-      integer, intent(out)   :: Pelocal,Petotal                         
-      integer, intent(inout) :: Pex,Pey                                 
-      integer, intent(in)    :: MultiGrids                              
-      end FUNCTION RPN_COMM_init_multigrid                              
-                                                                        
-      INTEGER FUNCTION RPN_COMM_init_multi_level(Userinit,Pelocal,Petota&
-     &l,Pex,Pey,MultiGrids,Grids)                                       
-      implicit none                                                     
-      external :: Userinit                                              
-      integer, intent(out)   :: Pelocal,Petotal                         
-      integer, intent(inout) :: Pex,Pey                                 
-      integer, intent(in)    :: MultiGrids                              
-      integer, intent(in)    :: Grids                                   
-      end FUNCTION RPN_COMM_init_multi_level                            
-                                                                        
       integer function RPN_COMM_topo_2(nxg,minx,maxx,nxl,nxlmax,halo,nx0&
      &,alongx,fill,relax,abort)                                         
       implicit none                                                     
@@ -172,6 +135,43 @@
       character(len=*), intent(IN) :: com                               
       end function RPN_COMM_group                                       
                                                                         
+      subroutine RPN_COMM_mydomain (call_back, mydomain)                
+      implicit none                                                     
+      external :: call_back                                             
+      integer, intent(OUT) :: mydomain                                  
+      end subroutine RPN_COMM_mydomain                                  
+                                                                        
+      subroutine RPN_COMM_world_set(world_comm)                         
+      implicit none                                                     
+      integer, intent(IN) ::  world_comm                                
+      end subroutine RPN_COMM_world_set                                 
+                                                                        
+      SUBROUTINE RPN_COMM_init(Userinit,Pelocal,Petotal,Pex,Pey)        
+      implicit none                                                     
+      integer, intent(out)   :: Pelocal,Petotal                         
+      integer, intent(inout) :: Pex,Pey                                 
+      external Userinit                                                 
+      end SUBROUTINE RPN_COMM_init                                      
+                                                                        
+      INTEGER FUNCTION RPN_COMM_init_multigrid(Userinit,Pelocal,Petotal,&
+     &Pex,Pey,MultiGrids)                                               
+      implicit none                                                     
+      external :: Userinit                                              
+      integer, intent(out)   :: Pelocal,Petotal                         
+      integer, intent(inout) :: Pex,Pey                                 
+      integer, intent(in)    :: MultiGrids                              
+      end FUNCTION RPN_COMM_init_multigrid                              
+                                                                        
+      INTEGER FUNCTION RPN_COMM_init_multi_level(Userinit,Pelocal,Petota&
+     &l,Pex,Pey,MultiGrids,Grids)                                       
+      implicit none                                                     
+      external :: Userinit                                              
+      integer, intent(out)   :: Pelocal,Petotal                         
+      integer, intent(inout) :: Pex,Pey                                 
+      integer, intent(in)    :: MultiGrids                              
+      integer, intent(in)    :: Grids                                   
+      end FUNCTION RPN_COMM_init_multi_level                            
+                                                                        
         SUBROUTINE RPN_COMM_UP2LOW(S1,S2)                               
         implicit none                                                   
         character (len=*), intent(IN) :: S1                             
@@ -194,6 +194,14 @@
       implicit none                                                     
       character(len=*), intent(IN) ::  com                              
       end SUBROUTINE RPN_COMM_size                                      
+                                                                        
+      integer function RPN_COMM_split(mex,nx,nxg,minx,maxx,nxl,nxlmax,ha&
+     &lox,nx0,fill)                                                     
+      implicit none                                                     
+      integer, intent(IN) :: nx, mex, nxg, halox                        
+      integer, intent(OUT) :: minx,maxx,nxl,nxlmax,nx0                  
+      logical, intent(IN) :: fill                                       
+      end function RPN_COMM_split                                       
                                                                         
       function RPN_COMM_spread(context,source,npts,ndata,dest) result(st&
      &atus)                                                             

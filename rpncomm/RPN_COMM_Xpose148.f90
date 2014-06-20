@@ -1,34 +1,34 @@
-*/* RMNLIB - Library of useful routines for C and FORTRAN programming
-* * Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
-* *                          Environnement Canada
-* *
-* * This library is free software; you can redistribute it and/or
-* * modify it under the terms of the GNU Lesser General Public
-* * License as published by the Free Software Foundation,
-* * version 2.1 of the License.
-* *
-* * This library is distributed in the hope that it will be useful,
-* * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* * Lesser General Public License for more details.
-* *
-* * You should have received a copy of the GNU Lesser General Public
-* * License along with this library; if not, write to the
-* * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-* * Boston, MA 02111-1307, USA.
-* */
+!/* RMNLIB - Library of useful routines for C and FORTRAN programming
+! * Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
+! *                          Environnement Canada
+! *
+! * This library is free software; you can redistribute it and/or
+! * modify it under the terms of the GNU Lesser General Public
+! * License as published by the Free Software Foundation,
+! * version 2.1 of the License.
+! *
+! * This library is distributed in the hope that it will be useful,
+! * but WITHOUT ANY WARRANTY; without even the implied warranty of
+! * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! * Lesser General Public License for more details.
+! *
+! * You should have received a copy of the GNU Lesser General Public
+! * License along with this library; if not, write to the
+! * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+! * Boston, MA 02111-1307, USA.
+! */
 
-	SUBROUTINE RPN_COMM_Xpose148(npe,pecomm,
-     %   za,min1,max1,n1g,min2,max2,n2l,min3,max3,
-     %   n3g,zb_8,a_8,b_8)
-*
+	SUBROUTINE RPN_COMM_Xpose148(npe,pecomm, &
+        za,min1,max1,n1g,min2,max2,n2l,min3,max3, &
+        n3g,zb_8,a_8,b_8)
+!
 	use rpn_comm
-*	forward transpose, za to zb
-*	gather first dimension into processor,
-*	distribute last dimension
-*	result array has gathered index as last dimension
-*	(last dimension of arrays is always in-processor)
-*
+!	forward transpose, za to zb
+!	gather first dimension into processor,
+!	distribute last dimension
+!	result array has gathered index as last dimension
+!	(last dimension of arrays is always in-processor)
+!
 	implicit none
 
 	integer npe,pecomm
@@ -36,39 +36,39 @@
 	real za(min1:max1,min2:max2,n3g)
 	real*8 zb_8(min2:max2,min3:max3,n1g)
 	real*8 a_8,b_8
-c	integer, allocatable :: za(:,:,:,:)
-c	integer, allocatable :: zb(:,:,:,:)
-*
-c	real*8, allocatable ::  za8(:,:,:,:)
-c	real*8, allocatable ::  zb8(:,:,:,:)
+!	integer, allocatable :: za(:,:,:,:)
+!	integer, allocatable :: zb(:,:,:,:)
+!
+!	real*8, allocatable ::  za8(:,:,:,:)
+!	real*8, allocatable ::  zb8(:,:,:,:)
 
 
-*
+!
 !	include 'rpn_comm.h'
 !	include 'mpif.h'
-*
-c	integer, dimension(size,n2,min3:max3,n1partiel,npe) :: ta
-c	real*8, dimension(size/2,n2,min3:max3,n1partiel,npe) :: ta8
+!
+!	integer, dimension(size,n2,min3:max3,n1partiel,npe) :: ta
+!	real*8, dimension(size/2,n2,min3:max3,n1partiel,npe) :: ta8
 	real, allocatable, dimension(:) :: ta,tb
 	integer, dimension(npe) :: icount,idispl,scount,sdispl
 	integer, dimension(npe) :: kcount,kdispl,rcount,rdispl
 	integer istart,iend,kstart,kend,level,proc
 	integer index0, index1, index2, index3
-*
+!
 	
 	integer i,j,k,ierr, myproc,i0
 	integer nrecv,nsend, nkl, nil
 	integer RPN_COMM_limit
-*
+!
 
-c	allocate(za(size,min1:max1,n2,n3g))
-c	allocate(zb(size,n2,min3:max3,n1g))
-c	allocate(za8(size/2,min1:max1,n2,n3g))
-c	allocate(zb8(size/2,n2,min3:max3,n1g))
-c	za8 => za
-c	zb8 => zb
+!	allocate(za(size,min1:max1,n2,n3g))
+!	allocate(zb(size,n2,min3:max3,n1g))
+!	allocate(za8(size/2,min1:max1,n2,n3g))
+!	allocate(zb8(size/2,n2,min3:max3,n1g))
+!	za8 => za
+!	zb8 => zb
 
-*
+!
 	if(npe.eq.1)then
 	  do k=1,n3g
 	  do j=1,n2l
@@ -87,10 +87,8 @@ c	zb8 => zb
 	endif
 
 
-	ierr = RPN_COMM_limit(myproc,npe,1,n1g,istart,iend,icount,
-     &            idispl)
-	ierr = RPN_COMM_limit(myproc,npe,1,n3g,kstart,kend,kcount,
-     &            kdispl)
+	ierr = RPN_COMM_limit(myproc,npe,1,n1g,istart,iend,icount,idispl)
+	ierr = RPN_COMM_limit(myproc,npe,1,n3g,kstart,kend,kcount,kdispl)
 	nil = icount(myproc+1)
 	nkl = kcount(myproc+1)
 
@@ -123,9 +121,9 @@ c	zb8 => zb
 	enddo
 	enddo
 
-	call mpi_alltoallv(ta,scount,sdispl, MPI_REAL,
-     %                     tb,rcount,rdispl, MPI_REAL,
-     %                     pecomm, ierr)
+	call mpi_alltoallv(ta,scount,sdispl, MPI_REAL, &
+                          tb,rcount,rdispl, MPI_REAL, &
+                          pecomm, ierr)
 
 	level=0
 	
@@ -156,7 +154,6 @@ c	zb8 => zb
 	   enddo
 	enddo
 	deallocate(ta,tb)
-*
 
 	return
 	end

@@ -1,31 +1,31 @@
-*/* RMNLIB - Library of useful routines for C and FORTRAN programming
-* * Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
-* *                          Environnement Canada
-* *
-* * This library is free software; you can redistribute it and/or
-* * modify it under the terms of the GNU Lesser General Public
-* * License as published by the Free Software Foundation,
-* * version 2.1 of the License.
-* *
-* * This library is distributed in the hope that it will be useful,
-* * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* * Lesser General Public License for more details.
-* *
-* * You should have received a copy of the GNU Lesser General Public
-* * License along with this library; if not, write to the
-* * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-* * Boston, MA 02111-1307, USA.
-* */
+!/* RMNLIB - Library of useful routines for C and FORTRAN programming
+! * Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
+! *                          Environnement Canada
+! *
+! ! This library is free software; you can redistribute it and/or
+! ! modify it under the terms of the GNU Lesser General Public
+! ! License as published by the Free Software Foundation,
+! ! version 2.1 of the License.
+! *
+! ! This library is distributed in the hope that it will be useful,
+! ! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! ! Lesser General Public License for more details.
+! *
+! ! You should have received a copy of the GNU Lesser General Public
+! ! License along with this library; if not, write to the
+! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+! ! Boston, MA 02111-1307, USA.
+! */
 
-	SUBROUTINE RPN_COMM_Xpose248(npe,pecomm,
-     %   za,min1,max1,n1g,min2,max2,n2l,min3,max3,n3g,
-     %   zb_8,a_8,b_8)
+	SUBROUTINE RPN_COMM_Xpose248(npe,pecomm, &
+        za,min1,max1,n1g,min2,max2,n2l,min3,max3,n3g, &
+        zb_8,a_8,b_8)
 	use rpn_comm
-*
-*	backward transpose, zb to za
-*	(last dimension of arrays is always in-processor)
-*
+!
+!	backward transpose, zb to za
+!	(last dimension of arrays is always in-processor)
+!
 	implicit none
 
 	integer npe,pecomm
@@ -41,18 +41,18 @@
 	integer, dimension(npe) :: kcount,kdispl,rcount,rdispl
 	integer RPN_COMM_limit
 	integer nil,nkl,istart,iend,kstart,kend
-*
+!
 
-*
+!
 !	include 'rpn_comm.h'
 !	include 'mpif.h'
-*
+!
 
 	integer i,j,k,ierr,n3w
 
 	n3w = max3-min3+1
-*
-*
+!
+!
 	if(npe.eq.1)then
 	  do k=1,n3g
 	  do j=1,n2l
@@ -70,10 +70,8 @@
 	   myproc = pe_mex
 	endif
 
-	ierr = RPN_COMM_limit(myproc,npe,1,n1g,istart,iend,icount,
-     &            idispl)
-	ierr = RPN_COMM_limit(myproc,npe,1,n3g,kstart,kend,kcount,
-     &            kdispl)
+	ierr = RPN_COMM_limit(myproc,npe,1,n1g,istart,iend,icount,idispl)
+	ierr = RPN_COMM_limit(myproc,npe,1,n3g,kstart,kend,kcount,kdispl)
 	nil = icount(myproc+1)
 	nkl = kcount(myproc+1)
 	sdispl(1) = 0
@@ -87,8 +85,8 @@
 	   rcount(i) = nil*n2l*kcount(i)
 	   rdispl(i) = rdispl(i-1) + rcount(i-1)
 	enddo
-*
-*
+!
+!
 	nsend = sdispl(npe)+scount(npe)
 	nrecv = rdispl(npe)+rcount(npe)
 
@@ -105,13 +103,13 @@
 	enddo
 	enddo
 
-*	call tmg_start(99,'COMM XPOSE2')
-	call MPI_ALLTOALLV(
-     %       ta,scount,sdispl,MPI_REAL,
-     %       tb,rcount,rdispl,MPI_REAL,
-     %       pecomm,ierr)
-*	call tmg_stop(99)
-*
+!	call tmg_start(99,'COMM XPOSE2')
+	call MPI_ALLTOALLV( &
+            ta,scount,sdispl,MPI_REAL, &
+            tb,rcount,rdispl,MPI_REAL, &
+            pecomm,ierr)
+!	call tmg_stop(99)
+!
 	level = 0
 	
 	do proc = 1,npe
@@ -143,8 +141,8 @@
 	   level = level + nil*n2l*nkl
 	enddo
 	      
-*
+!
 	deallocate(ta,tb)
-*
+!
 	return
 	end
