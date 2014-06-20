@@ -103,6 +103,13 @@
       integer, intent(IN) :: nblocx, nblocy                             
       end function RPN_COMM_bloc_create                                 
                                                                         
+      subroutine RPN_COMM_bloctopo(blocme,blocmex,blocmey,blocsizex,bloc&
+     &sizey)                                                            
+      implicit none                                                     
+      integer, intent(out) :: blocme,blocmex,blocmey                    
+      integer, intent(out) :: blocsizex, blocsizey                      
+      end subroutine RPN_COMM_bloctopo                                  
+                                                                        
       integer function RPN_COMM_chdir(string)                           
       implicit none                                                     
       character (len=*) :: string                                       
