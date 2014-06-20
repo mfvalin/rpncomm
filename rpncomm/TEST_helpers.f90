@@ -4,8 +4,7 @@
         integer :: iun,ier
         iun=get_a_free_unit()
         if(iun<0)return
-        open(UNIT=iun,FILE='TEST.cfg',STATUS='OLD',
-     %       ACTION='READ',IOSTAT=ier)
+        open(UNIT=iun,FILE='TEST.cfg',STATUS='OLD',ACTION='READ',IOSTAT=ier)
         if(ier<0) return
         read(UNIT=iun,IOSTAT=ier,FMT=*)NX,NY
         close(UNIT=iun)
