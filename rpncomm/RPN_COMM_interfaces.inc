@@ -79,6 +79,14 @@
         real *8, dimension(nvalues), intent(OUT) :: values              
         end function RPN_COMM_barrier_data                              
                                                                         
+      SUBROUTINE RPN_COMM_bcastc(buffer,count,datatype,root,com,ierr)   
+      implicit none                                                     
+      integer, intent(IN) :: count,root                                 
+      integer, intent(OUT) :: ierr                                      
+      character(len=*), intent(INOUT) :: buffer                         
+      character(len=*), intent(IN) :: datatype,com                      
+      end SUBROUTINE RPN_COMM_bcastc                                    
+                                                                        
       integer function RPN_COMM_bloc(nblocx,nblocy)                     
       implicit none                                                     
       integer, intent(IN) :: nblocx, nblocy                             
