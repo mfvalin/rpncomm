@@ -1,34 +1,32 @@
-*/* RMNLIB - Library of useful routines for C and FORTRAN programming
-* * Copyright (C) 1975-2012  Division de Recherche en Prevision Numerique
-* *                          Environnement Canada
-* *
-* * This library is free software; you can redistribute it and/or
-* * modify it under the terms of the GNU Lesser General Public
-* * License as published by the Free Software Foundation,
-* * version 2.1 of the License.
-* *
-* * This library is distributed in the hope that it will be useful,
-* * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* * Lesser General Public License for more details.
-* *
-* * You should have received a copy of the GNU Lesser General Public
-* * License along with this library; if not, write to the
-* * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-* * Boston, MA 02111-1307, USA.
-* */
+!/* RMNLIB - Library of useful routines for C and FORTRAN programming
+! * Copyright (C) 1975-2012  Division de Recherche en Prevision Numerique
+! *                          Environnement Canada
+! *
+! * This library is free software; you can redistribute it and/or
+! * modify it under the terms of the GNU Lesser General Public
+! * License as published by the Free Software Foundation,
+! * version 2.1 of the License.
+! *
+! * This library is distributed in the hope that it will be useful,
+! * but WITHOUT ANY WARRANTY; without even the implied warranty of
+! * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! * Lesser General Public License for more details.
+! *
+! * You should have received a copy of the GNU Lesser General Public
+! * License along with this library; if not, write to the
+! * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+! * Boston, MA 02111-1307, USA.
+! */
 
-      SUBROUTINE RPN_COMM_xch_halosl(g,minx,maxx,miny,maxy,
-     %             ni,nj,nk,halox,haloy,periodx,periody,
-     %             gni,npol_row,nimax)
+      SUBROUTINE RPN_COMM_xch_halosl(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody,gni,npol_row,nimax)
 !     nj, haloy, periody, npol_row : NOT USED
       use rpn_comm
       implicit none
 !      include 'mpif.h'
-*     
-*     exchange a halo with neighbours, semi-lagrangian fashion for E-W part of exchange
-*     (really an allgather, G needs to be large enough for the entire E-W dimension)
-*
+!     
+!     exchange a halo with neighbours, semi-lagrangian fashion for E-W part of exchange
+!     (really an allgather, G needs to be large enough for the entire E-W dimension)
+!
       integer minx,maxx,miny,maxy,ni,nj,nk,halox,haloy
       integer gni,npol_row
       logical periodx,periody
@@ -85,12 +83,12 @@
       recvtag= recvpe
 
       do proc = 1,pe_nx-1 
-*	 call tmg_start(93,'COMM SEMI-LAG')
-         call mpi_sendrecv(tempo(1,miny,1,sendi),nijk,MPI_integer, 
-     $                     sendpe,sendtag,
-     $                     tempo(1,miny,1,recvi),nijk,MPI_integer,
-     $                     recvpe,recvtag, PE_DEFCOMM,status,ierr)
-*	 call tmg_stop(93)
+!	 call tmg_start(93,'COMM SEMI-LAG')
+         call mpi_sendrecv(tempo(1,miny,1,sendi),nijk,MPI_integer,   &
+                           sendpe,sendtag,                           &
+                           tempo(1,miny,1,recvi),nijk,MPI_integer,   &
+                           recvpe,recvtag, PE_DEFCOMM,status,ierr)
+!	 call tmg_stop(93)
          offset = depl(procx+1) - 1
          do k=1,nk  ! data coming in was from PE numbered procx
             do j=miny,maxy

@@ -59,10 +59,10 @@
       maxx = lmaxx+halox ; maxx1 = maxx - lminx + 1
       miny = lminy-haloy ; miny1 = miny - lminy + 1
       maxy = lmaxy+haloy ; maxy1 = maxy - lminy + 1
-      if(pe_me==pe_nx*pe_ny-1) write(rpn_u,100)
-     %    'grid halo exchange test',
-     %    pe_tot_grid,pe_nx,pe_ny,lminx,lmaxx,lminy,lmaxy,countx,county,
-     %    minx1,maxx1,miny1,maxy1
+      if(pe_me==pe_nx*pe_ny-1) write(rpn_u,100)  &
+          'grid halo exchange test',  &
+          pe_tot_grid,pe_nx,pe_ny,lminx,lmaxx,lminy,lmaxy,countx,county,  &
+          minx1,maxx1,miny1,maxy1
 100   format(A,25I5)
       allocate(localarray(minx:maxx,miny:maxy,nk))
       allocate(localarray2(minx:maxx,miny:maxy,nk))
@@ -81,9 +81,9 @@
 !
       npol_row = 0
 !      return
-      call RPN_COMM_xch_halo(localarray,minx1,maxx1,miny1,maxy1,
-     %             lni,lnj,nk,halox,haloy,periodx,periody,
-     %             gni,npol_row)
+      call RPN_COMM_xch_halo(localarray,minx1,maxx1,miny1,maxy1, &
+                   lni,lnj,nk,halox,haloy,periodx,periody,  &
+                  gni,npol_row)
 
       call mpi_barrier(MPI_COMM_WORLD,ierr)
       if(pe_mex==0 .and. pe_mey==0)then
@@ -120,9 +120,7 @@
       return
       end function RPN_COMM_xch_halo_test
 !=======================================================================
-      SUBROUTINE RPN_COMM_xch_halo(g,minx,maxx,miny,maxy,
-     %             ni,nj,nk,halox,haloy,periodx,periody,
-     %             gni,npol_row)
+      SUBROUTINE RPN_COMM_xch_halo(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody,gni,npol_row)
 !=======================================================================
 !
 !  +=======================================================================================+___maxy
@@ -213,9 +211,11 @@
 !
         integer, dimension(halox*nj*nk) :: BR_CR_TR, BL_CL_TL  ! send to East/West
         integer, dimension(halox*nj*nk) :: iBR_iCR_iTR, iBL_iCL_iTL   ! recv from East/West
-        integer, dimension(haloy*(ni+2*halox)*nk) ::
-     %           iBL_BLCR_iBR, iTL_TLCR_iTR,    ! send to South/North
-     %           cBL_iBLCR_cBR, cTL_iTLCR_cTR   ! recv from South/North
+         ! send to South/North
+         ! recv from South/North
+        integer, dimension(haloy*(ni+2*halox)*nk) ::   &
+                 iBL_BLCR_iBR, iTL_TLCR_iTR,  & 
+                 cBL_iBLCR_cBR, cTL_iTLCR_cTR  
         integer :: bl,bc,br,cl,cr,tl,tc,tr
         integer :: cbl,iblcr,cbr,ibl,ibr,icl,icr
         integer :: itl,itr,ctl,itlcr,ctr
@@ -372,33 +372,28 @@
 !       use new fullly asynchronous code only if pe_nx and pe_ny both >1
 !       and polarrows = 0
 !
-      if(pe_nx>1 .and. pe_ny>1 
-     %           .and. polarrows<=0 
-     %           .and. full_async_exch
-     %           .and. (.not. rpn_ew_ext_L) ) goto 2
+      if(pe_nx>1 .and. pe_ny>1              &
+                 .and. polarrows<=0         &
+                 .and. full_async_exch      &
+                 .and. (.not. rpn_ew_ext_L) ) goto 2
 !
 !       if no halo along x, bypass
 !     call tmg_start(90,'RPN_COMM_haloew')
       if (halox .gt. 0) then
            if (.not.(min(pe_mey+1,pe_ny-pe_mey).le.polarrows)) then
-              call RPN_COMM_xch_haloew(g,minx,maxx,miny,maxy,
-     %             ni,jmin,jmax,nk,halox,haloy,periodx,periody)
+              call RPN_COMM_xch_haloew(g,minx,maxx,miny,maxy,ni,jmin,jmax,nk,halox,haloy,periodx,periody)
               endif
       endif
 !     call tmg_stop(90)
 !     call tmg_start(91,'RPN_COMM_halons')
       if (haloy .gt. 0) then
-              call RPN_COMM_xch_halons(g,minx,maxx,miny,maxy,
-     %             ni,nj,nk,halox,haloy,periodx,periody)
+              call RPN_COMM_xch_halons(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody)
       endif
 !     call tmg_stop(91)
       if (min(pe_mey+1,pe_ny-pe_mey).le.polarrows) then
-           ierr = RPN_COMM_topo(gni,mini,maxi,nil,nilmax,
-     %          halox,ni0,.TRUE.,.FALSE.)
+           ierr = RPN_COMM_topo(gni,mini,maxi,nil,nilmax,halox,ni0,.TRUE.,.FALSE.)
 !          call tmg_start(92,'RPN_COMM_xch_halosl')
-           call RPN_COMM_xch_halosl(g,minx,maxx,miny,maxy,
-     %             ni,nj,nk,halox,haloy,periodx,periody,
-     %             gni,npol_row,nilmax)
+           call RPN_COMM_xch_halosl(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody,gni,npol_row,nilmax)
 !          call tmg_stop(92)
 
       endif
@@ -412,12 +407,14 @@
 !
 2       continue
         if(.not. west) then
-          call MPI_IRECV(iBL_iCL_iTL,nwds_ew,MPI_INTEGER,westpe, ! get from west neighbor unless i am west PE
-     %         100000+westpe,PE_DEFCOMM,from_west,ierr)          ! sender was westpe, tag is westpe+100000
+          ! get from west neighbor unless i am west PE
+          call MPI_IRECV(iBL_iCL_iTL,nwds_ew,MPI_INTEGER,westpe, &
+               100000+westpe,PE_DEFCOMM,from_west,ierr)          ! sender was westpe, tag is westpe+100000
         endif
         if(.not. east) then
-          call MPI_IRECV(iBR_iCR_iTR,nwds_ew,MPI_INTEGER,eastpe, ! get from east neighbor unless i am east PE
-     %         eastpe,PE_DEFCOMM,from_east,ierr)                 ! sender was eastpe, tag is eastpe
+          ! get from east neighbor unless i am east PE
+          call MPI_IRECV(iBR_iCR_iTR,nwds_ew,MPI_INTEGER,eastpe, &
+               eastpe,PE_DEFCOMM,from_east,ierr)                 ! sender was eastpe, tag is eastpe
         endif
 !
 !       step 2 fill East/West send buffers from inner halo
@@ -470,12 +467,14 @@
 !       step 3 non blocking send to East/West partners
 !
         if(.not. east) then
-          call MPI_ISEND(BR_CR_TR,nwds_ew,MPI_INTEGER,eastpe,   ! send to east neighbor unless i am east PE
-     %         100000+pe_medomm,PE_DEFCOMM,to_east,ierr)         ! tag is PE grid ordinal of sender+100000
+          ! send to east neighbor unless i am east PE
+          call MPI_ISEND(BR_CR_TR,nwds_ew,MPI_INTEGER,eastpe,   &
+               100000+pe_medomm,PE_DEFCOMM,to_east,ierr)         ! tag is PE grid ordinal of sender+100000
         endif
         if(.not. west) then
-          call MPI_ISEND(BL_CL_TL,nwds_ew,MPI_INTEGER,westpe,  ! send to west neighbor unless i am west PE
-     %         pe_medomm,PE_DEFCOMM,to_west,ierr)      ! tag is PE grid ordinal of sender
+          ! send to west neighbor unless i am west PE
+          call MPI_ISEND(BL_CL_TL,nwds_ew,MPI_INTEGER,westpe,  &
+               pe_medomm,PE_DEFCOMM,to_west,ierr)      ! tag is PE grid ordinal of sender
         endif
 !
 !       step 4 start filling the North/South send buffers
@@ -518,20 +517,24 @@
 !       step 6 post North/South non blocking receives, post North/South non blocking sends
 !
         if(.not. north) then
-          call MPI_IRECV(cTL_iTLCR_cTR,nwds_ns,MPI_INTEGER,northpe,! recv from north neighbor unless I am north PE
-     %         100000+northpe,PE_DEFCOMM,from_north,ierr)          ! sender was northpe therefore tag is northpe+100000
+          ! recv from north neighbor unless I am north PE
+          call MPI_IRECV(cTL_iTLCR_cTR,nwds_ns,MPI_INTEGER,northpe, &
+               100000+northpe,PE_DEFCOMM,from_north,ierr)          ! sender was northpe therefore tag is northpe+100000
         endif
         if(.not. south) then
-          call MPI_IRECV(cBL_iBLCR_cBR,nwds_ns,MPI_INTEGER,southpe,! recv from south neighbor unless I am south PE
-     %         southpe,PE_DEFCOMM,from_south,ierr)                 ! sender was southpe therefore tag is southpe
+          ! recv from south neighbor unless I am south PE
+          call MPI_IRECV(cBL_iBLCR_cBR,nwds_ns,MPI_INTEGER,southpe, &
+               southpe,PE_DEFCOMM,from_south,ierr)                 ! sender was southpe therefore tag is southpe
         endif
         if(.not. south) then
-          call MPI_ISEND(iBL_BLCR_iBR,nwds_ns,MPI_INTEGER,southpe, ! send to south neighbor unless I am south PE
-     %         100000+pe_medomm,PE_DEFCOMM,to_south,ierr)          ! tag is PE grid ordinal of sender+100000
+          ! send to south neighbor unless I am south PE
+          call MPI_ISEND(iBL_BLCR_iBR,nwds_ns,MPI_INTEGER,southpe, &
+               100000+pe_medomm,PE_DEFCOMM,to_south,ierr)          ! tag is PE grid ordinal of sender+100000
         endif
         if(.not. north) then
-          call MPI_ISEND(iTL_TLCR_iTR,nwds_ns,MPI_INTEGER,northpe, ! send to north neighbor unless I am north PE
-     %         pe_medomm,PE_DEFCOMM,to_north,ierr)                 ! tag is PE grid ordinal of sender
+          ! send to north neighbor unless I am north PE
+          call MPI_ISEND(iTL_TLCR_iTR,nwds_ns,MPI_INTEGER,northpe, &
+               pe_medomm,PE_DEFCOMM,to_north,ierr)                 ! tag is PE grid ordinal of sender
         endif
 !
 !       step 7  put East/West outer halos into array
@@ -545,20 +548,20 @@
          do j=1,haloy
           do i=1,halox
 !           if(.not.east)g(ni+i,j,k)   =iBR_iCR_iTR(m)      ! iBR part
-           g(ni+i,j,k)    = iand(east_m,  g(ni+i,j,k)) + 
-     %                      iand(east_m_n,iBR_iCR_iTR(m1))
+           g(ni+i,j,k)    = iand(east_m,  g(ni+i,j,k)) +  &
+                            iand(east_m_n,iBR_iCR_iTR(m1))
 !           if(.not.west)g(i-halox,j,k)=iBL_iCL_iTL(m)      ! iBL part
-           g(i-halox,j,k) = iand(west_m,  g(i-halox,j,k)) +
-     %                      iand(west_m_n,iBL_iCL_iTL(m1))
+           g(i-halox,j,k) = iand(west_m,  g(i-halox,j,k)) + &
+                            iand(west_m_n,iBL_iCL_iTL(m1))
            m1=m1+1
 !           if(.not.east)g(ni+i,j,k)   =iBR_iCR_iTR(m)      ! iTR part
-           g(ni+i,nj-haloy+j,k)    = 
-     %                      iand(east_m,  g(ni+i,nj-haloy+j,k)) + 
-     %                      iand(east_m_n,iBR_iCR_iTR(m3))
+           g(ni+i,nj-haloy+j,k)    =  &
+                            iand(east_m,  g(ni+i,nj-haloy+j,k)) + &
+                            iand(east_m_n,iBR_iCR_iTR(m3))
 !           if(.not.west)g(i-halox,j,k)=iBL_iCL_iTL(m)      ! iTL part
-           g(i-halox,nj-haloy+j,k) = 
-     %                      iand(west_m,  g(i-halox,nj-haloy+j,k)) +
-     %                      iand(west_m_n,iBL_iCL_iTL(m3))
+           g(i-halox,nj-haloy+j,k) = &
+                            iand(west_m,  g(i-halox,nj-haloy+j,k)) + &
+                            iand(west_m_n,iBL_iCL_iTL(m3))
            m3=m3+1
            m=m+2
           enddo
@@ -568,11 +571,11 @@
          do j=1+haloy,nj-haloy
           do i=1,halox
 !           if(.not.east)g(ni+i,j,k)   =iBR_iCR_iTR(m)      ! iCR part
-           g(ni+i,j,k)    = iand(east_m,  g(ni+i,j,k)) + 
-     %                      iand(east_m_n,iBR_iCR_iTR(m2))
+           g(ni+i,j,k)    = iand(east_m,  g(ni+i,j,k)) + &
+                            iand(east_m_n,iBR_iCR_iTR(m2))
 !           if(.not.west)g(i-halox,j,k)=iBL_iCL_iTL(m)      ! iCL part
-           g(i-halox,j,k) = iand(west_m,g(i-halox,j,k)) +
-     %                      iand(west_m_n,iBL_iCL_iTL(m2))
+           g(i-halox,j,k) = iand(west_m,g(i-halox,j,k)) + &
+                            iand(west_m_n,iBL_iCL_iTL(m2))
            m=m+1
            m2=m2+1
           enddo
@@ -610,12 +613,12 @@
             do j=nj+1,nj+haloy
             do i=1,halox
 !               g(i-halox,j,k) = cTL_iTLCR_cTR(m1)  ! cTL part
-               g(i-halox,j,k) = iand(west_m,  g(i-halox,j,k)) +
-     %                          iand(west_m_n,cTL_iTLCR_cTR(m1))
+               g(i-halox,j,k) = iand(west_m,  g(i-halox,j,k)) + &
+                                iand(west_m_n,cTL_iTLCR_cTR(m1))
                m1=m1+1
 !               g(ni+i,j,k) = cTL_iTLCR_cTR(m1)     ! cTR part
-               g(ni+i,j,k) = iand(east_m,  g(ni+i,j,k)) +
-     %                       iand(east_m_n,cTL_iTLCR_cTR(m3))
+               g(ni+i,j,k) = iand(east_m,  g(ni+i,j,k)) + &
+                             iand(east_m_n,cTL_iTLCR_cTR(m3))
                m3=m3+1
                m=m+2
             enddo
@@ -671,12 +674,12 @@
             do j=1-haloy,0
             do i=1,halox
 !               g(i-halox,j,k) = cBL_iBLCR_cBR(m3) ! cBL part
-               g(i-halox,j,k) = iand(west_m,  g(i-halox,j,k)) +
-     %                          iand(west_m_n,cBL_iBLCR_cBR(m1))
+               g(i-halox,j,k) = iand(west_m,  g(i-halox,j,k)) + &
+                                iand(west_m_n,cBL_iBLCR_cBR(m1))
                m1=m1+1
 !               g(ni+i,j,k) = cBL_iBLCR_cBR(m3)    ! cBR part
-               g(ni+i,j,k) = iand(east_m,  g(ni+i,j,k)) +
-     %                       iand(east_m_n,cBL_iBLCR_cBR(m3))
+               g(ni+i,j,k) = iand(east_m,  g(ni+i,j,k)) + &
+                             iand(east_m_n,cBL_iBLCR_cBR(m3))
                m3=m3+1
                m=m+3
             enddo
@@ -724,8 +727,7 @@
 !
         return
 !
-        entry xch_halo(g,minx,maxx,miny,maxy,
-     %             ni,nj,nk,halox,haloy,periodx,periody)
+        entry xch_halo(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody)
         globalni=ni
         polarrows=0
 

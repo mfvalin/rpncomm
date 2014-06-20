@@ -1,6 +1,4 @@
-      subroutine RPN_COMM_xch_halo_8(g,minx,maxx,miny,maxy,
-     %             ni,nj,nk,halox,haloy,periodx,periody,
-     %             gni,npol_row)
+      subroutine RPN_COMM_xch_halo_8(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody,gni,npol_row)
       implicit none
 !
 !     exchange a halo with N/S/E/W neighbours for 64 bit items
@@ -14,13 +12,13 @@
 !     integer*8  g(minx:maxx,miny:maxy,nk)
 !
       if(npol_row /=0) then
-        print *,"ERROR:", 
-     %       "npol_row must be zero when calling RPN_COMM_xch_halo_8"
+        print *,"ERROR: (RPN_COMM_xch_halo_8)",   &
+             "npol_row must be zero when calling RPN_COMM_xch_halo_8"
         return  ! must figure out something sensible to signal errors
       endif
 !
-      call RPN_COMM_xch_halo(g,2*minx-1,2*maxx,miny,maxy,
-     %             2*ni,nj,nk,2*halox,haloy,periodx,periody,
-     %             2*gni,0)
+      call RPN_COMM_xch_halo(g,2*minx-1,2*maxx,miny,maxy,  &
+                   2*ni,nj,nk,2*halox,haloy,periodx,periody,  &
+                   2*gni,0)
       return
       end subroutine RPN_COMM_xch_halo_8
