@@ -1,22 +1,22 @@
-*/* RMNLIB - Library of useful routines for C and FORTRAN programming
-* * Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
-* *                          Environnement Canada
-* *
-* * This library is free software; you can redistribute it and/or
-* * modify it under the terms of the GNU Lesser General Public
-* * License as published by the Free Software Foundation,
-* * version 2.1 of the License.
-* *
-* * This library is distributed in the hope that it will be useful,
-* * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* * Lesser General Public License for more details.
-* *
-* * You should have received a copy of the GNU Lesser General Public
-* * License along with this library; if not, write to the
-* * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-* * Boston, MA 02111-1307, USA.
-* */
+!/! RMNLIB - Library of useful routines for C and FORTRAN programming
+! ! Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
+! !                          Environnement Canada
+! !
+! ! This library is free software; you can redistribute it and/or
+! ! modify it under the terms of the GNU Lesser General Public
+! ! License as published by the Free Software Foundation,
+! ! version 2.1 of the License.
+! !
+! ! This library is distributed in the hope that it will be useful,
+! ! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! ! Lesser General Public License for more details.
+! !
+! ! You should have received a copy of the GNU Lesser General Public
+! ! License along with this library; if not, write to the
+! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+! ! Boston, MA 02111-1307, USA.
+! !/
       integer function RPN_COMM_grid_redist_test(nparams,params)
       use rpn_comm
       implicit none
@@ -68,8 +68,8 @@
       allocate(outpe_x(nox),outpe_y(noy))
       allocate(zlist(nk),zlist2(nk))
       maxz = (nk+nox+noy-1)/(nox*noy)
-      if(pe_me==0) write(rpn_u,*)'grid redistribution test',
-     %    pe_tot_grid,pe_nx,pe_ny
+      if(pe_me==0) write(rpn_u,*)'grid redistribution test',&
+     &    pe_tot_grid,pe_nx,pe_ny
 
       outpe_x(nox) = pe_nx-1
       outpe_y(noy) = pe_ny-1
@@ -97,8 +97,8 @@
       endif
       call mpi_barrier(MPI_COMM_WORLD,ierr)
       if(pe_me==(pe_nx*pe_ny-1)) then
-        write(rpn_u,100)'local array allocated',pe_mex,pe_mey,
-     %                lminx,lmaxx,lminy,lmaxy,nk
+        write(rpn_u,100)'local array allocated',pe_mex,pe_mey,&
+     &                lminx,lmaxx,lminy,lmaxy,nk
         do j = lmaxy,lminy,-1
 !          write(rpn_u,100)' ',localarray(lminx:lmaxx,j,max(1,nk-1))
         enddo
@@ -128,9 +128,9 @@
       globalarray = 0
       do i=1,pe_nx*pe_ny
         call mpi_barrier(MPI_COMM_WORLD,ierr)
-        if(.false. .and. pe_me==i-1)
-     %  write(rpn_u,101)'global array dims',
-     %                pe_mex,pe_mey,shape(globalarray)
+        if(.false. .and. pe_me==i-1)&
+     &  write(rpn_u,101)'global array dims',&
+     &                pe_mex,pe_mey,shape(globalarray)
 101     format(A,10I5)
       enddo
       call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -139,20 +139,20 @@
       nz = maxz
       ltok = 1
       t1=mpi_wtime()
-      status = RPN_COMM_grid_redist_n(
-     % localarray,1-1,lni+2,i0,in,1-2,lnj+1,j0,jn,nk,
-     % globalarray,ix0,ixn,jy0,jyn,nz,zlist,
-     % gni,gnj,outpe_x,nox,outpe_y,noy,1)
+      status = RPN_COMM_grid_redist_n(&
+     & localarray,1-1,lni+2,i0,in,1-2,lnj+1,j0,jn,nk,&
+     & globalarray,ix0,ixn,jy0,jyn,nz,zlist,&
+     & gni,gnj,outpe_x,nox,outpe_y,noy,1)
       t2=mpi_wtime()
       RPN_COMM_grid_redist_test = status
       if(pe_me==0)write(rpn_u,*)'status=',status,' time=',t2-t1
       if(status==-1)goto 777
       
       goto 1111
-      status2 = RPN_COMM_grid_redist_n(
-     % localarray2,1-1,lni+2,i0,in,1-2,lnj+1,j0,jn,nk,
-     % globalarray2,ix0,ixn,jy0,jyn,nz,zlist2,
-     % gni,gnj,outpe_x,nox,outpe_y,noy,2)
+      status2 = RPN_COMM_grid_redist_n(&
+     & localarray2,1-1,lni+2,i0,in,1-2,lnj+1,j0,jn,nk,&
+     & globalarray2,ix0,ixn,jy0,jyn,nz,zlist2,&
+     & gni,gnj,outpe_x,nox,outpe_y,noy,2)
       RPN_COMM_grid_redist_test = status2
       if(pe_me==0)write(rpn_u,*)'status2=',status2
       if(status2==-1)goto 777
@@ -174,8 +174,8 @@
         if(zlist(k0)>0) then
           k=zlist(k0)
           ierr=vfy_array(globalarray,ix0,ixn,jy0,jyn,2,k0,k)
-          write(rpn_u,102)'pe=',pe_mex,pe_mey,
-     %         ',  level=',k,',  errors=',ierr
+          write(rpn_u,102)'pe=',pe_mex,pe_mey,&
+     &         ',  level=',k,',  errors=',ierr
 102       format(A,2I3,A,I3,a,I3)
         endif
         call mpi_barrier(MPI_COMM_WORLD,ierr)
@@ -187,8 +187,8 @@
         if(zlist2(k0)>0) then
           k=zlist2(k0)
           ierr=vfy_array2(globalarray2,ix0,ixn,jy0,jyn,2,k0,k)
-          write(rpn_u,102)'pe2=',pe_mex,pe_mey,
-     %         ',  level=',k,',  errors=',ierr
+          write(rpn_u,102)'pe2=',pe_mex,pe_mey,&
+     &         ',  level=',k,',  errors=',ierr
         endif
         call mpi_barrier(MPI_COMM_WORLD,ierr)
       enddo
@@ -197,8 +197,8 @@
       do k = 1,nk
         call mpi_barrier(MPI_COMM_WORLD,ierr)
         if(any(k==zlist)) then
-          write(rpn_u,103)'global array =',
-     %          pe_mex,pe_mey,ix0,ixn,jy0,jyn
+          write(rpn_u,103)'global array =',&
+     &          pe_mex,pe_mey,ix0,ixn,jy0,jyn
 103       format(A,20(1X,I5.5))
           do k0=1,2   ! size(zlist)
             if(zlist(k0)==k)then
@@ -220,8 +220,8 @@
       integer function vfy_array(zin,mini,maxi,minj,maxj,nk,k,ref)
       implicit none
       integer, intent(IN) :: mini,maxi,minj,maxj,nk,k,ref
-      integer, dimension(mini:maxi,minj:maxj,nk),
-     %         intent(IN) :: zin
+      integer, dimension(mini:maxi,minj:maxj,nk),&
+     &         intent(IN) :: zin
 !
       integer :: i,j,nerr
 !
@@ -242,8 +242,8 @@
       integer function vfy_array2(zin,mini,maxi,minj,maxj,nk,k,ref)
       implicit none
       integer, intent(IN) :: mini,maxi,minj,maxj,nk,k,ref
-      integer*8, dimension(mini:maxi,minj:maxj,nk),
-     %         intent(IN) :: zin
+      integer*8, dimension(mini:maxi,minj:maxj,nk),&
+     &         intent(IN) :: zin
 !
       integer :: i,j,nerr
 !
@@ -264,17 +264,17 @@
       end function RPN_COMM_grid_redist_test
 !=======================================================================
 !=======================================================================
-      integer function RPN_COMM_grid_redist(
-     %           zin,mini,maxi,i0,in,minj,maxj,j0,jn,nk,
-     %           zout,ix0,ixn,jy0,jyn,nz,zlist,
-     %           gni,gnj,outpe_x,noutpe_x,outpe_y,noutpe_y,ltok)
+      integer function RPN_COMM_grid_redist(&
+     &           zin,mini,maxi,i0,in,minj,maxj,j0,jn,nk,&
+     &           zout,ix0,ixn,jy0,jyn,nz,zlist,&
+     &           gni,gnj,outpe_x,noutpe_x,outpe_y,noutpe_y,ltok)
       use rpn_comm
       implicit none
       integer, intent(IN) :: mini,maxi,i0,in,minj,maxj,j0,jn,nk,ltok
       integer, intent(IN) :: ix0,ixn,jy0,jyn,nz
       integer, intent(IN) :: noutpe_x,noutpe_y,gni,gnj
-      integer, dimension(mini:maxi,minj:maxj,nk),   ! (ltok,mini:maxi,minj:maxj,nk)
-     %         intent(IN) :: zin  ! zin(:,io:in,j0:jn,:) is useful
+      integer, dimension(mini:maxi,minj:maxj,nk),&   ! (ltok,mini:maxi,minj:maxj,nk)
+     &         intent(IN) :: zin  ! zin(:,io:in,j0:jn,:) is useful
       integer, dimension(ix0:ixn,jy0:jyn,nz), intent(OUT) :: zout  ! (ltok,ix0:ixn,jy0:jyn,nz)
       integer, dimension(nz), intent(OUT) :: zlist  ! list of 2D fields returned to this processor
       integer, dimension(noutpe_x), intent(IN) :: outpe_x    ! list of columns where there are PEs doing IO
@@ -362,20 +362,20 @@
       if((in-i0).ne.(iend-istart) .or. (jn-j0).ne.(jend-jstart)) then  ! size consistency problem ?
         if(istart<=iend) then
           size_error = .true.  ! add error message 
-          write(rpn_u,100)'error on pe',pe_mex,pe_mey,' =',
-     %          i0,in,istart,iend,j0,jn,jstart,jend
+          write(rpn_u,100)'error on pe',pe_mex,pe_mey,' =',&
+     &          i0,in,istart,iend,j0,jn,jstart,jend
 100       format(A,2I2,A,10I8)
         endif
       endif
 !     check if a size error occurred somewhere in pe_grid, if so return -1
-      call MPI_allreduce(MPI_IN_PLACE,size_error,1,MPI_LOGICAL,MPI_LOR,
-     %                   pe_grid,ierr)
+      call MPI_allreduce(MPI_IN_PLACE,size_error,1,MPI_LOGICAL,MPI_LOR,&
+     &                   pe_grid,ierr)
       if(size_error) goto 8888
 !
       if(jstart <= jend) then  ! there is something to do during pass 1 for this PE row
         do i = 1 , pe_nx                                  ! horizontal size of 2D fragments
-          gsize_x(i)  = max(0,iend_g(i)-istart_g(i)+1) *  ! gsize_x may be zero for some PEs
-     %                  max(0,jend-jstart+1)
+          gsize_x(i)  = max(0,iend_g(i)-istart_g(i)+1) *&  ! gsize_x may be zero for some PEs
+     &                  max(0,jend-jstart+1)
         enddo
 !
         kbot = 1
@@ -394,8 +394,8 @@
             if(associated(source)) deallocate(source)
             allocate(source(istart:iend,jstart:jend,kbot:ktop))     ! source buffer
             source=77777
-            source(istart:iend,jstart:jend,kbot:ktop) = 
-     %         zin(i0:in,j0:jn,kbot:ktop)   ! extract subarray from input array
+            source(istart:iend,jstart:jend,kbot:ktop) = &
+     &         zin(i0:in,j0:jn,kbot:ktop)   ! extract subarray from input array
           endif
           if(pe_mex == outpe_x(l)) then  ! PEs doing gathering on this column
             if(associated(dest))deallocate(dest)
@@ -405,9 +405,9 @@
             allocate( source2(ix0:ixn,jstart:jend) )  ! reallocate with proper dimensions
             source2=88888
           endif
-          call MPI_Gatherv(source,gcounts_x(pe_mex+1),MPI_INTEGER,
-     %                     dest,gcounts_x,gdispl_x,MPI_INTEGER,
-     %                     outpe_x(l),pe_myrow,ierr)
+          call MPI_Gatherv(source,gcounts_x(pe_mex+1),MPI_INTEGER,&
+     &                     dest,gcounts_x,gdispl_x,MPI_INTEGER,&
+     &                     outpe_x(l),pe_myrow,ierr)
           kbot = kbot + level_x(l)
         enddo
         deallocate(source)
@@ -456,24 +456,24 @@
           do i = 1 , pe_nx   ! pe_nx pieces to reassemble
             if(jstart<=jend) then
               ptr1d => dest(gdispl_x(i)+1:gdispl_x(i)+gcounts_x(i))
-              call place(
-     %           ptr1d,istart_g(i),iend_g(i),jstart,jend,n2d,
-     %           source2,ix0,ixn,k)
+              call place(&
+     &           ptr1d,istart_g(i),iend_g(i),jstart,jend,n2d,&
+     &           source2,ix0,ixn,k)
               endif
           enddo
           kout = 1 + (k-1)/noutpe_y
           l = 1 + mod(k-1,noutpe_y)
           if(pe_mey == outpe_y(l)) zlist(kout) = level_table(k)
           if(no_holes) then  ! all PEs contribute, can gather directly into zout
-            call MPI_Gatherv(
-     %         source2,gcounts_y(pe_mey+1),MPI_INTEGER,
-     %         zout(ix0,jy0,kout),gcounts_y,gdispl_y,MPI_INTEGER,
-     %         outpe_y(l),pe_mycol,ierr)
+            call MPI_Gatherv(&
+     &         source2,gcounts_y(pe_mey+1),MPI_INTEGER,&
+     &         zout(ix0,jy0,kout),gcounts_y,gdispl_y,MPI_INTEGER,&
+     &         outpe_y(l),pe_mycol,ierr)
           else  ! not all PEs contribute, nedd an intermediate array
-            call MPI_Gatherv(         !  gatherv, then copy into zout
-     %         source2,gcounts_y(pe_mey+1),MPI_INTEGER,
-     %         dest2,gcounts_y,gdispl_y,MPI_INTEGER,
-     %         outpe_y(l),pe_mycol,ierr)
+            call MPI_Gatherv(&         !  gatherv, then copy into zout
+     &         source2,gcounts_y(pe_mey+1),MPI_INTEGER,&
+     &         dest2,gcounts_y,gdispl_y,MPI_INTEGER,&
+     &         outpe_y(l),pe_mycol,ierr)
             if(pe_mey == outpe_y(l)) then  ! we are on root PE of gather
               temp = 1 + gdispl_y(lev0) ! point to start of useful data
               do j = jy0 , jyn          ! copy reassembled data into zout
@@ -507,18 +507,18 @@
       end function RPN_COMM_grid_redist
 !=======================================================================
 !=======================================================================
-      integer function RPN_COMM_grid_redist_n(
-     %           zin,mini,maxi,i0,in,minj,maxj,j0,jn,nk,
-     %           zout,ix0,ixn,jy0,jyn,nz,zlist,
-     %           gni,gnj,outpe_x,noutpe_x,outpe_y,noutpe_y,
-     %           ltok)
+      integer function RPN_COMM_grid_redist_n(&
+     &           zin,mini,maxi,i0,in,minj,maxj,j0,jn,nk,&
+     &           zout,ix0,ixn,jy0,jyn,nz,zlist,&
+     &           gni,gnj,outpe_x,noutpe_x,outpe_y,noutpe_y,&
+     &           ltok)
       use rpn_comm
       implicit none
       integer, intent(IN) :: mini,maxi,i0,in,minj,maxj,j0,jn,nk,ltok
       integer, intent(IN) :: ix0,ixn,jy0,jyn,nz
       integer, intent(IN) :: noutpe_x,noutpe_y,gni,gnj
-      integer, dimension(ltok,mini:maxi,minj:maxj,nk), 
-     %         intent(IN) :: zin  ! zin(:,io:in,j0:jn,:) is useful
+      integer, dimension(ltok,mini:maxi,minj:maxj,nk), &
+     &         intent(IN) :: zin  ! zin(:,io:in,j0:jn,:) is useful
       integer, dimension(ltok,ix0:ixn,jy0:jyn,nz), intent(OUT) :: zout
       integer, dimension(nz), intent(OUT) :: zlist  ! list of 2D fields returned to this processor
       integer, dimension(noutpe_x), intent(IN) :: outpe_x    ! list of columns where there are PEs doing IO
@@ -540,14 +540,14 @@
 !     ltok is passed to RPN_COMM_grid_redist tht may need it to compute data
 !     distribution correctly (where all tiles do not have the same size along X)
 !
-      RPN_COMM_grid_redist_n=RPN_COMM_grid_redist(zin,
-     %           1+(mini-1)*ltok,1+(maxi-1)*ltok+ltok-1,
-     %           1+(i0-1)*ltok,1+(in-1)*ltok+ltok-1,
-     %           minj,maxj,j0,jn,nk,
-     %           zout,1+(ix0-1)*ltok,1+(ixn-1)*ltok+ltok-1,
-     %           jy0,jyn,nz,zlist,
-     %           gni*ltok,gnj,
-     %           outpe_x,noutpe_x,outpe_y,noutpe_y,ltok)
+      RPN_COMM_grid_redist_n=RPN_COMM_grid_redist(zin,&
+     &           1+(mini-1)*ltok,1+(maxi-1)*ltok+ltok-1,&
+     &           1+(i0-1)*ltok,1+(in-1)*ltok+ltok-1,&
+     &           minj,maxj,j0,jn,nk,&
+     &           zout,1+(ix0-1)*ltok,1+(ixn-1)*ltok+ltok-1,&
+     &           jy0,jyn,nz,zlist,&
+     &           gni*ltok,gnj,&
+     &           outpe_x,noutpe_x,outpe_y,noutpe_y,ltok)
 !
       return
       end function RPN_COMM_grid_redist_n

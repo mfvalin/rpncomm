@@ -1,25 +1,25 @@
-*/* RMNLIB - Library of useful routines for C and FORTRAN programming
-* * Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
-* *                          Environnement Canada
-* *
-* * This library is free software; you can redistribute it and/or
-* * modify it under the terms of the GNU Lesser General Public
-* * License as published by the Free Software Foundation,
-* * version 2.1 of the License.
-* *
-* * This library is distributed in the hope that it will be useful,
-* * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* * Lesser General Public License for more details.
-* *
-* * You should have received a copy of the GNU Lesser General Public
-* * License along with this library; if not, write to the
-* * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-* * Boston, MA 02111-1307, USA.
-* */
+!/! RMNLIB - Library of useful routines for C and FORTRAN programming
+! ! Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
+! !                          Environnement Canada
+! !
+! ! This library is free software; you can redistribute it and/or
+! ! modify it under the terms of the GNU Lesser General Public
+! ! License as published by the Free Software Foundation,
+! ! version 2.1 of the License.
+! !
+! ! This library is distributed in the hope that it will be useful,
+! ! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! ! Lesser General Public License for more details.
+! !
+! ! You should have received a copy of the GNU Lesser General Public
+! ! License along with this library; if not, write to the
+! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+! ! Boston, MA 02111-1307, USA.
+! !/
 
-	SUBROUTINE RPN_COMM_gather_e1y3(srca,srcc,srcr,
-     %        min1,max1,min2,max2, n1,n2,n3,dest,size)
+	SUBROUTINE RPN_COMM_gather_e1y3(srca,srcc,srcr,&
+     &        min1,max1,min2,max2, n1,n2,n3,dest,size)
 	use rpn_comm
 	implicit none
 	integer min1,max1,min2,max2,n1,n2,n3,size
@@ -27,36 +27,36 @@
 	real srca(size,min1:max1,min2:max2,n3)
 	real srcc(size,min1:max1,min2:max2,n3)
 	real srcr(size,min1:max1,min2:max2,n3)
-*
+!
 !	include 'rpn_comm.h'
 !	include 'mpif.h'
-*
+!
 	real, allocatable :: zxij(:,:,:)
-c	real, dimension(size,2*((n2*n3)/2)+1,6) :: zxij
-c	pointer (zij_,zxij)
+!	real, dimension(size,2*((n2*n3)/2)+1,6) :: zxij
+!	pointer (zij_,zxij)
 	real *8, dimension(size/2,2*((n2*n3)/2)+1,6) :: zxij8
 	pointer (zij8_,zxij8)
-*
+!
 	real, dimension(size,2*((n1*n3)/2)+1,6) :: zyij
 	pointer (zyij_,zyij)
 	real *8, dimension(size/2,2*((n1*n3)/2)+1,6) :: zyij8
 	pointer (zyij8_,zyij8)
-*
+!
 	real *8 srca8(size/2,min1:max1,min2:max2,n3)
 	real *8 srcc8(size/2,min1:max1,min2:max2,n3)
 	real *8 srcr8(size/2,min1:max1,min2:max2,n3)
 	pointer (srca8_,srca8)
 	pointer (srcc8_,srcc8)
 	pointer (srcr8_,srcr8)
-*
+!
 	integer i,j,k,ie,isz,incr,ierr,nwords,mode,direction
 	integer size2
-*
+!
 	nwords=6*(2*((n2*n3)/2)+1)*size
 	allocate(zxij(size,2*((n2*n3)/2)+1,6))
 	mode=1
 	direction=pe_mycol
-*
+!
  1	continue
 
 	zij8_=loc(zxij)
@@ -65,10 +65,10 @@ c	pointer (zij_,zxij)
 	srca8_=loc(srca)
 	srcc8_=loc(srcc)
 	srcr8_=loc(srcr)
-*
+!
 	size2 = size
 	if(mod(size,2).eq.0) size2 = size/2
-*
+
 	if(mode.eq.1)then    ! edge 1 (along x or y )
 	  do isz=1,size2
 	   incr=0
@@ -122,38 +122,38 @@ c	pointer (zij_,zxij)
 	   enddo
 	  enddo
 	endif
-*
-	call MPI_ALLGATHER(zxij,nwords,MPI_REAL,
-     %                     dest,nwords,MPI_REAL,
-     %                     direction,ierr)
+
+	call MPI_ALLGATHER(zxij,nwords,MPI_REAL,&
+     &                     dest,nwords,MPI_REAL,&
+     &                     direction,ierr)
 	deallocate(zxij)
 	return
-*
-	entry RPN_COMM_gather_e1x3(srca,srcc,srcr,
-     %        min1,max1,min2,max2, n1,n2,n3,dest,size)
-*
+
+	entry RPN_COMM_gather_e1x3(srca,srcc,srcr,&
+     &        min1,max1,min2,max2, n1,n2,n3,dest,size)
+
 	nwords=6*(2*((n2*n3)/2)+1)*size
 	allocate(zxij(size,2*((n2*n3)/2)+1,6))
 	mode=1
 	direction=pe_myrow
 	goto 1
-*
-	entry RPN_COMM_gather_e2y3(srca,srcc,srcr,
-     %        min1,max1,min2,max2, n1,n2,n3,dest,size)
-*
+
+	entry RPN_COMM_gather_e2y3(srca,srcc,srcr,&
+     &        min1,max1,min2,max2, n1,n2,n3,dest,size)
+
 	nwords=6*(2*((n1*n3)/2)+1)*size
 	allocate(zxij(size,2*((n1*n3)/2)+1,6))
 	mode=2
 	direction=pe_mycol
 	goto 1
-*
-	entry RPN_COMM_gather_e2x3(srca,srcc,srcr,
-     %        min1,max1,min2,max2, n1,n2,n3,dest,size)
-*
+
+	entry RPN_COMM_gather_e2x3(srca,srcc,srcr,&
+     &        min1,max1,min2,max2, n1,n2,n3,dest,size)
+
 	nwords=6*(2*((n1*n3)/2)+1)*size
 	allocate(zxij(size,2*((n1*n3)/2)+1,6))
 	mode=2
 	direction=pe_myrow
 	goto 1
-*
+
 	end

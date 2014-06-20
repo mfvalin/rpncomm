@@ -1,35 +1,35 @@
-*/* RMNLIB - Library of useful routines for C and FORTRAN programming
-* * Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
-* *                          Environnement Canada
-* *
-* * This library is free software; you can redistribute it and/or
-* * modify it under the terms of the GNU Lesser General Public
-* * License as published by the Free Software Foundation,
-* * version 2.1 of the License.
-* *
-* * This library is distributed in the hope that it will be useful,
-* * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* * Lesser General Public License for more details.
-* *
-* * You should have received a copy of the GNU Lesser General Public
-* * License along with this library; if not, write to the
-* * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-* * Boston, MA 02111-1307, USA.
-* */
-
-      integer function RPN_COMM_group(com)
-c      Luc Corbeil, 2000-11-21
-c
-c      lien entre chaine de caractere de groupe
-c      GRID, EW et NS et leur numero assigne par
-c      MPI.
-c
+!/! RMNLIB - Library of useful routines for C and FORTRAN programming
+! ! Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
+! !                          Environnement Canada
+! !
+! ! This library is free software; you can redistribute it and/or
+! ! modify it under the terms of the GNU Lesser General Public
+! ! License as published by the Free Software Foundation,
+! ! version 2.1 of the License.
+! !
+! ! This library is distributed in the hope that it will be useful,
+! ! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! ! Lesser General Public License for more details.
+! !
+! ! You should have received a copy of the GNU Lesser General Public
+! ! License along with this library; if not, write to the
+! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+! ! Boston, MA 02111-1307, USA.
+! !/
+!InTf!
+      integer function RPN_COMM_group(com)         !InTf!
+!      Luc Corbeil, 2000-11-21
+!
+!      lien entre chaine de caractere de groupe
+!      GRID, EW et NS et leur numero assigne par
+!      MPI.
+!
       use rpn_comm
-      implicit none
+      implicit none                                 !InTf!
 !      include mpif.h
 !      include rpn_comm.h
-      character(len=*) com
+      character(len=*), intent(IN) :: com           !InTf!
       character(len=32) comm
       integer ierr,world_group
       call rpn_comm_low2up(com,comm)
@@ -99,4 +99,4 @@ c
         stop
         
       return
-      end
+      end function RPN_COMM_group                  !InTf!

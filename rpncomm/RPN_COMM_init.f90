@@ -1,22 +1,22 @@
-*/* RMNLIB - Library of useful routines for C and FORTRAN programming
-* * Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
-* *                          Environnement Canada
-* *
-* * This library is free software; you can redistribute it and/or
-* * modify it under the terms of the GNU Lesser General Public
-* * License as published by the Free Software Foundation,
-* * version 2.1 of the License.
-* *
-* * This library is distributed in the hope that it will be useful,
-* * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* * Lesser General Public License for more details.
-* *
-* * You should have received a copy of the GNU Lesser General Public
-* * License along with this library; if not, write to the
-* * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-* * Boston, MA 02111-1307, USA.
-* */
+!/! RMNLIB - Library of useful routines for C and FORTRAN programming
+! ! Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
+! !                          Environnement Canada
+! !
+! ! This library is free software; you can redistribute it and/or
+! ! modify it under the terms of the GNU Lesser General Public
+! ! License as published by the Free Software Foundation,
+! ! version 2.1 of the License.
+! !
+! ! This library is distributed in the hope that it will be useful,
+! ! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! ! Lesser General Public License for more details.
+! !
+! ! You should have received a copy of the GNU Lesser General Public
+! ! License along with this library; if not, write to the
+! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+! ! Boston, MA 02111-1307, USA.
+! !/
 !InTf!
       subroutine RPN_COMM_mydomain (call_back, mydomain)             !InTf!
       use rpn_comm
@@ -28,7 +28,7 @@
 !      include 'mpif.h'
 
       logical mpi_started
-      integer ierr, err, err_all, pe_tot2, pe_me2, npe_per_domain,
+      integer ierr, err, err_all, pe_tot2, pe_me2, npe_per_domain,&
      &        offset, ndomains
 !
       if(RPM_COMM_IS_INITIALIZED) then
@@ -43,7 +43,7 @@
 
       call call_back (ndomains, offset, err)
 
-      call mpi_allreduce 
+      call mpi_allreduce &
      &   (err,err_all,1,MPI_INTEGER,MPI_MIN,MPI_COMM_WORLD,ierr)
 
       if (err_all.lt.0) then
@@ -55,12 +55,10 @@
       npe_per_domain = pe_tot2 / ndomains
       mydomain       = pe_me2  / npe_per_domain + offset
 !
- 1001 format 
-     &(/'===> rpn_comm_mydomain:
-     & FATAL error in call_back --- ABORTING ---'/)
- 1002 format 
-     &(/'===> rpn_comm_mydomain:
-     & RPN_COMM already initialized --- ABORTING ---'/)
+ 1001 format &
+     &(/'===> rpn_comm_mydomain: FATAL error in call_back --- ABORTING ---'/)
+ 1002 format &
+     &(/'===> rpn_comm_mydomain: RPN_COMM already initialized --- ABORTING ---'/)
       return
       end subroutine RPN_COMM_mydomain                               !InTf!
 !===================================================================
@@ -83,14 +81,14 @@
       external Userinit                                              !InTf!
       integer junk, RPN_COMM_init_multigrid
       external RPN_COMM_init_multigrid
-      junk = RPN_COMM_init_multigrid
+      junk = RPN_COMM_init_multigrid&
      &      (Userinit,Pelocal,Petotal,Pex,Pey,1)
       return
       end SUBROUTINE RPN_COMM_init                                   !InTf!
 !===================================================================
 !InTf!
 !!INTEGER FUNCTION RPN_COMM_init_multigrid(Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids) !InTf!
-      INTEGER FUNCTION RPN_COMM_init_multigrid
+      INTEGER FUNCTION RPN_COMM_init_multigrid&
      &      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids)
       use rpn_comm
       implicit none                                                  !InTf!
@@ -100,14 +98,14 @@
       integer, intent(in)    :: MultiGrids                           !InTf!
       integer rpn_comm_init_multi_level
       external rpn_comm_init_multi_level
-      RPN_COMM_init_multigrid=RPN_COMM_init_multi_level
+      RPN_COMM_init_multigrid=RPN_COMM_init_multi_level&
      &      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,1)
       return
       end FUNCTION RPN_COMM_init_multigrid                           !InTf!
 !===================================================================
 !InTf!
 !!INTEGER FUNCTION RPN_COMM_init_multi_level(Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids)  !InTf!
-      INTEGER FUNCTION RPN_COMM_init_multi_level
+      INTEGER FUNCTION RPN_COMM_init_multi_level&
      &      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids)
       use rpn_comm
       implicit none                                                  !InTf!
@@ -116,26 +114,26 @@
       integer, intent(inout) :: Pex,Pey                              !InTf!
       integer, intent(in)    :: MultiGrids                           !InTf!
       integer, intent(in)    :: Grids                                !InTf!
-*arguments
-*  I	Userinit	User routine that will be called by PE 0 to
-*		get the processor grid topology if it is not supplied
-*		(Pex .eq. 0 ) or (Pey .eq. 0)
-*  O	Pelocal	PE rank (number) of local PE
-*  O	Petotal	Number of PEs in job
-*  I/O	Pex	Number of PEs along the X axis. If Pex=0 upon entry
-*		it will be set to the proper value upon exit
-*  I/O	Pey	Number of PEs along the Y axis. If Pey=0 upon entry
-*		it will be set to the proper value upon exit
-*  I    MultiGrids  number of simultaneous MultiGrids
-*
-*notes
-*	processor topology common /pe/ will be filled here
-*	positions are calculated from 0 (ORIGIN 0)
-**
-*
-*	include 'rpn_comm.h'
+!arguments
+!  I	Userinit	User routine that will be called by PE 0 to
+!		get the processor grid topology if it is not supplied
+!		(Pex .eq. 0 ) or (Pey .eq. 0)
+!  O	Pelocal	PE rank (number) of local PE
+!  O	Petotal	Number of PEs in job
+!  I/O	Pex	Number of PEs along the X axis. If Pex=0 upon entry
+!		it will be set to the proper value upon exit
+!  I/O	Pey	Number of PEs along the Y axis. If Pey=0 upon entry
+!		it will be set to the proper value upon exit
+!  I    MultiGrids  number of simultaneous MultiGrids
+!
+!notes
+!	processor topology common /pe/ will be filled here
+!	positions are calculated from 0 (ORIGIN 0)
+!!
+!
+!	include 'rpn_comm.h'
 !	include 'mpif.h'
-*
+!
 	integer ierr, i, j, count, npe, reste, nslots, key
 	logical mpi_started
 	integer gr1, gr2
@@ -157,9 +155,9 @@
       integer version_marker, version_max, version_min
       integer pe_my_location(8)
       external RPN_COMM_unbind_process
-*
-*      if(RPM_COMM_IS_INITIALIZED) then ! ignore with warning message or abort ?
-*      endif
+!
+!      if(RPM_COMM_IS_INITIALIZED) then ! ignore with warning message or abort ?
+!      endif
       pe_indomm=-1
       pe_indomms=-1
       pe_dommtot=-1
@@ -186,11 +184,11 @@
 
       version_marker=RPN_COMM_version()
 !     check that all participants use the same version of rpn_comm
-      call mpi_allreduce(version_marker, version_max, 1, MPI_INTEGER,
+      call mpi_allreduce(version_marker, version_max, 1, MPI_INTEGER,&
      &                   MPI_BOR, WORLD_COMM_MPI, ierr)
 !      write(rpn_u,*)"Version=",version_marker
       if(version_max .ne. version_marker)then
-        write(rpn_u,*)
+        write(rpn_u,*)&
      &       'FATAL ERROR: RPN_COMM version mismatch , STOPPING'
         call mpi_finalize(ierr)
         stop
@@ -219,10 +217,10 @@
       else
           diag_mode=1
       endif
-*
-*     if environment variable RPN_COMM_DOM is set, split into domains
-*     this is used mainly by the r.mpirun family of scsripts
-*
+!
+!     if environment variable RPN_COMM_DOM is set, split into domains
+!     this is used mainly by the r.mpirun family of scsripts
+!
       SYSTEM_COMMAND=" "
       call RPN_COMM_env_var("RPN_COMM_DOM",SYSTEM_COMMAND)
       if( SYSTEM_COMMAND .ne. " " ) then
@@ -230,7 +228,7 @@
         call RPN_COMM_env_var("RPN_COMM_DIRS",SYSTEM_COMMAND_2) ! get list of directories
         read(SYSTEM_COMMAND,*) ncolors  ! ABS(ncolors) is number of subdomains
         if( abs(ncolors) .gt. pe_tot ) then
-           write(rpn_u,*)'ERROR: there are more subdomains (',
+           write(rpn_u,*)'ERROR: there are more subdomains (',&
      &                   abs(ncolors),') than PEs (',pe_tot,')'
            call RPN_COMM_finalize(ierr)
            stop
@@ -249,10 +247,10 @@
           my_color=colortab(pe_me)        ! my_color = 0 is an errror at this point
           if( my_color .eq. 0) then       ! it means that there are holes in the subdomain table
              ok=.false.
-             write(rpn_u,*)'ERROR: pe ',pe_me,
+             write(rpn_u,*)'ERROR: pe ',pe_me,&
      &                     ' belongs to no subdomain'
           endif
-          call MPI_ALLREDUCE(ok,allok,1,MPI_LOGICAL,
+          call MPI_ALLREDUCE(ok,allok,1,MPI_LOGICAL,&
      &                       MPI_LAND,WORLD_COMM_MPI,ierr)
           if( .not. allok ) then
              if(.not. ok) write(rpn_u,*)'ERROR DETECTED'
@@ -269,7 +267,7 @@
              ok=.false.
              write(rpn_u,*)'ERROR: subdomains have different sizes'
           endif
-          call MPI_ALLREDUCE(ok,allok,1,MPI_LOGICAL,
+          call MPI_ALLREDUCE(ok,allok,1,MPI_LOGICAL,&
      &                       MPI_LAND,WORLD_COMM_MPI,ierr)
           if( .not. allok ) then
              if(.not. ok) write(rpn_u,*)'ERROR DETECTED'
@@ -287,10 +285,10 @@
               exit
             endif
           enddo
-!          ierr=fnom(directory_file_num,trim(my_directory_file),
+!          ierr=fnom(directory_file_num,trim(my_directory_file),&
 !     &              'SEQ+OLD+FTN',0)                        ! open file containing directory list
-         open(UNIT=directory_file_num,file=trim(my_directory_file),
-     %        FORM='FORMATTED',STATUS='OLD')                 ! this file MUST exist
+         open(UNIT=directory_file_num,file=trim(my_directory_file),&
+     &        FORM='FORMATTED',STATUS='OLD')                 ! this file MUST exist
          do i=0,my_color-1
             read(directory_file_num,*)my_directory           ! skip unwanted entries
           enddo
@@ -299,11 +297,11 @@
           close(directory_file_num)
         endif  ! (ncolors .gt.0)
 
-        call MPI_COMM_SPLIT(WORLD_COMM_MPI,my_color,         ! split using my color
+        call MPI_COMM_SPLIT(WORLD_COMM_MPI,my_color, &       ! split using my color
      &                     pe_me,pe_wcomm,ierr)
         RPN_COMM_init_multi_level = my_color
         call RPN_COMM_chdir(trim(my_directory))              ! cd to my directory
-        if(diag_mode.ge.2)
+        if(diag_mode.ge.2)&
      &       write(rpn_u,*)"my directory is:",trim(my_directory)
         call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)               ! my rank
         call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)              ! size of my subdomain
@@ -317,9 +315,9 @@
       pe_me_a_domain = pe_me
       pe_tot_a_domain = pe_tot
 
-      if(pe_me_a_domain .eq.0 .and. diag_mode .ge. 1) 
+      if(pe_me_a_domain .eq.0 .and. diag_mode .ge. 1) &
      &   write(rpn_u,1000)my_color,pe_tot,MultiGrids,Grids
-1000  format('domain=',I1,I4,' PEs,',I3,' SuperGrids with',
+1000  format('domain=',I1,I4,' PEs,',I3,' SuperGrids with',&
      &       I3,' Grids each')
 !      write(rpn_u, *)'pe_tot_a_domain=',pe_tot_a_domain
       call MPI_COMM_GROUP(pe_a_domain,pe_gr_a_domain,ierr)
@@ -335,16 +333,16 @@
         write(rpn_u,*)'ERROR: leftover PEs in domain'
       endif
 !      write(rpn_u,*)'ok=',ok
-      call mpi_allreduce(ok, allok, 1, MPI_LOGICAL,
+      call mpi_allreduce(ok, allok, 1, MPI_LOGICAL,&
      &                   MPI_LAND,WORLD_COMM_MPI,ierr)
       if(.not.allok) then
            if(.not. ok) write(rpn_u,*)'ERROR DETECTED'
            call RPN_COMM_finalize(ierr)
            stop
       endif
-*
-*     if multiple grid program, (re)split domain into multigrids
-*
+!
+!     if multiple grid program, (re)split domain into multigrids
+!
       my_color = 0
 !      pe_wcomms = pe_a_domain
 !      write(rpn_u,*)'before multigrid split'
@@ -364,12 +362,12 @@
       call MPI_COMM_GROUP(pe_multi_grid,pe_gr_multi_grid,ierr)
       pe_indomms = pe_multi_grid
       call MPI_COMM_GROUP(pe_indomms,pe_gr_indomms,ierr)
-*
-*     domain split done, each domain is now on its own
-*
-*
-*     if there are subgrids, (re)split multigrid into grids
-*
+!
+!     domain split done, each domain is now on its own
+!
+!
+!     if there are subgrids, (re)split multigrid into grids
+!
 !      write(rpn_u,*)'before grid split'
       my_color = 0
       if(Grids .gt. 1) then
@@ -378,7 +376,7 @@
 !        pe_wcomms = pe_multi_grid
         my_color=pe_me/(pe_tot/Grids)
         RPN_COMM_init_multi_level = my_color
-        call MPI_COMM_SPLIT(pe_multi_grid,my_color,
+        call MPI_COMM_SPLIT(pe_multi_grid,my_color,&
      &                      pe_me_multi_grid,pe_wcomm,ierr)
         call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)               ! my rank
         call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)              ! size of my subdomain
@@ -390,18 +388,18 @@
       pe_tot_grid = pe_tot
 !      write(rpn_u,*)'pe_tot_grid=',pe_tot_grid
       call MPI_COMM_GROUP(pe_grid,pe_gr_grid,ierr)
-*
-*     make communicator for PEs on same host
-*
+!
+!     make communicator for PEs on same host
+!
       my_color = abs(f_gethostid())  ! coloring by host identifier
-      call MPI_COMM_SPLIT(pe_grid,my_color,
+      call MPI_COMM_SPLIT(pe_grid,my_color,&
      &                    pe_me_grid,pe_grid_host,ierr)        ! same (sub)grid, same host node communicator
       call MPI_COMM_RANK(pe_grid_host,pe_me_grid_host,ierr)    ! my rank on this host
       call MPI_COMM_SIZE(pe_grid_host,pe_tot_grid_host,ierr)   ! population of this host
       call MPI_COMM_GROUP(pe_grid_host,pe_gr_grid_host,ierr)   ! group communicator
-*
-*     subgrid split done, each sub domain is now on its own
-*
+!
+!     subgrid split done, each sub domain is now on its own
+!
       Pelocal = pe_me   ! me in my domain
       Petotal = pe_tot  ! number of pes in my grid
       call MPI_COMM_GROUP(pe_wcomm,pe_gr_wcomm,ierr)
@@ -410,18 +408,18 @@
       pe_gr_indomm = pe_gr_grid
       pe_pe0 = 0
       pe_dommtot = pe_tot
-*
-*     create peer to peer communicators between grids within a multigrid
-*
+!
+!     create peer to peer communicators between grids within a multigrid
+!
       my_color = pe_me_grid
-      call MPI_COMM_SPLIT(pe_multi_grid,my_color,
+      call MPI_COMM_SPLIT(pe_multi_grid,my_color,&
      &                    pe_me_multi_grid,pe_grid_peers,ierr)
       call MPI_COMM_SIZE(pe_grid_peers,pe_tot_peer,ierr)  ! This must be equal to the number of grids
       call MPI_COMM_RANK(pe_grid_peers,pe_me_peer,ierr)   ! in a multigrid (or else...)
       call MPI_COMM_GROUP(pe_grid_peers,pe_gr_grid_peers,ierr)
-*
-*     Grid initialization, get PEs along X and Y
-*
+!
+!     Grid initialization, get PEs along X and Y
+!
 !      write(rpn_u,*)'READY to call UserInit'
 	if(pe_me .eq. pe_pe0)then
 	  if ( Pex.eq.0 .or. Pey.eq.0  ) then ! get processor topology
@@ -435,9 +433,9 @@
             write(rpn_u,*) 'of PE: please check'
 	    endif
 	    if(diag_mode.ge.1) then
-            write(rpn_u,*)'Requested topology = ',
+            write(rpn_u,*)'Requested topology = ',&
      &                    WORLD_pe(1),' by ',WORLD_pe(2)
-	      write(rpn_u,*)'Grid will use ',
+	      write(rpn_u,*)'Grid will use ',&
      &                    pe_dommtot,' processes'
           endif
         else ! ( Pex.eq.0 .or. Pey.eq.0  )
@@ -450,33 +448,33 @@
 	       write(rpn_u,*) 'and Pey args and total number of PE: '
 	       write(rpn_u,*) 'please check'
 	    endif
-	    if(diag_mode.ge.1)
-     &       write(rpn_u,*)'Requested topology = ',WORLD_pe(1),' by '
+	    if(diag_mode.ge.1)&
+     &       write(rpn_u,*)'Requested topology = ',WORLD_pe(1),' by '&
      &             ,WORLD_pe(2)
 	  endif ! ( Pex.eq.0 .or. Pey.eq.0  )
-*
+!
 	  if(WORLD_pe(1)*WORLD_pe(2) .gt. pe_dommtot) then
 	    write(rpn_u,*)' ERROR: not enough PEs for decomposition '
-	    write(rpn_u,*)' REQUESTED=',WORLD_pe(1)*WORLD_pe(2),
+	    write(rpn_u,*)' REQUESTED=',WORLD_pe(1)*WORLD_pe(2),&
      &                  ' AVAILABLE=',pe_dommtot
 	    ok = .false.
 	  endif
 
 	endif  ! (pe_me .eq. pe_pe0)
-*
+!
 !        write(rpn_u,*)'after UserInit'
-      call mpi_allreduce(ok, allok, 1, MPI_LOGICAL,
+      call mpi_allreduce(ok, allok, 1, MPI_LOGICAL,&
      &                   MPI_LAND,WORLD_COMM_MPI,ierr)
       if(.not.allok) then
            if(.not. ok) write(rpn_u,*)'ERROR DETECTED'
            call RPN_COMM_finalize(ierr)
            stop
       endif
-*
-*	send WORLD topology to all PEs. That will allow all PEs
-*	to compute other PE topology parameters locally.
-*       for doing this, we need to define some basic domains
-*       communicators.
+!
+!	send WORLD topology to all PEs. That will allow all PEs
+!	to compute other PE topology parameters locally.
+!       for doing this, we need to define some basic domains
+!       communicators.
 
 	call MPI_COMM_rank(pe_indomm,pe_medomm,ierr)
 	pe_defcomm = pe_indomm
@@ -487,25 +485,25 @@
 !
         WORLD_pe(3) = deltai
         WORLD_pe(4) = deltaj
-	call MPI_BCAST(WORLD_pe,size(WORLD_pe),MPI_INTEGER,0,
+	call MPI_BCAST(WORLD_pe,size(WORLD_pe),MPI_INTEGER,0,&
      &	               pe_indomm,ierr)
 	pe_nx  = WORLD_pe(1)
 	pe_ny  = WORLD_pe(2)
 	deltai = WORLD_pe(3)
 	deltaj = WORLD_pe(4)
-*
+!
 	if ( Pex.eq.0 .or. Pey.eq.0  ) then ! return processor topology
 	  Pex = WORLD_pe(1)
 	  Pey = WORLD_pe(2)
 	endif
-*
-*	pe_pe0 is not equal to 0 if there are more than one domain
-*	computational grid
-*
+!
+!	pe_pe0 is not equal to 0 if there are more than one domain
+!	computational grid
+!
 	count = pe_pe0
-*
-*	fill tables containing the position along the X axis (pe_xtab)
-*	and along the Y axis (pe_ytab) for all processors
+!
+!	fill tables containing the position along the X axis (pe_xtab)
+!	and along the Y axis (pe_ytab) for all processors
 !        write(rpn_u,*)'calling petopo'
 	ierr = RPN_COMM_petopo(WORLD_pe(1),WORLD_pe(2))
 !        write(rpn_u,*)'after petopo'
@@ -518,13 +516,13 @@
       pe_my_location(6) = my_colors(2)
       pe_my_location(7) = pe_me_a_domain
       pe_my_location(8) = my_colors(1)
-      call MPI_allgather(
-     &     pe_my_location,8,MPI_INTEGER,
-     &     pe_location,   8,MPI_INTEGER,WORLD_COMM_MPI,
+      call MPI_allgather(&
+     &     pe_my_location,8,MPI_INTEGER,&
+     &     pe_location,   8,MPI_INTEGER,WORLD_COMM_MPI,&
      &     ierr)
       if( pe_me_all_domains .eq. 0 .and. diag_mode .ge.3) then
         write(rpn_u,*)'                         FULL PE MAP'
-        write(rpn_u,*)
+        write(rpn_u,*)&
      & '    mex     mey   me(g)    grid  me(sg)   sgrid   me(d)  domain'
         do j=0,pe_tot_all_domains-1
            write(rpn_u,1001)(pe_location(i,j),i=1,8)
@@ -550,43 +548,43 @@
       pe_bloc = pe_indomm
 
       call MPI_Group_incl(pe_gr_indomm, 1, 0, pe_gr_blocmaster, ierr) 
-      call MPI_Comm_create(pe_indomm,pe_gr_blocmaster, 
+      call MPI_Comm_create(pe_indomm,pe_gr_blocmaster, &
      &            pe_blocmaster, ierr)
 
-*       for each communicator, store the corresponding group
-*
+!       for each communicator, store the corresponding group
+!
       call MPI_COMM_GROUP(pe_myrow,pe_gr_myrow,ierr)
       call MPI_COMM_GROUP(pe_mycol,pe_gr_mycol,ierr)
       call MPI_COMM_GROUP(pe_bloc,pe_gr_bloc,ierr)
-*      write(rpn_u,*)'peer communicator =',pe_grid_peers
-*      write(rpn_u,*)'peer grid size =',pe_tot_peer
-*      write(rpn_u,*)'peer rank =',pe_me_peer
-*
-*      ! what follows has to be added to rpn_comm or another module
-*
-*      integer, pointer, dimension(:,:) :: grid_id_table
-*      integer, dimension(3) :: id_table
-*      integer :: pe_pe0s, pe_me_pe0s  ! communicator for PE0 set and rank within
-*
-*      ! end of addition to rpn_comm or another module
-*
-*      my_color = min(1,pe_me_grid)  ! i am a PE 0 or not
-*      call MPI_COMM_SPLIT(pe_all_domains,my_color,
-*     &                    pe_me_all_domains,pe_pe0s,ierr)
-*      call MPI_COMM_rank(pe_pe0s,pe_me_pe0s,ierr) ! communicator nicknamed RPN_COMM_PE0='PE_00'
-*      if(pe_me_grid /= 0) then  ! make sure it is invalid if not a PE0
-*        pe_pe0s = -1
-*        pe_me_pe0 = -1
-*      endif
-*
-*      allocate(grid_id_table(3,pe_tot_all_domains))
-*      id_table(1) = my_colors(1)*1024*1024 
-*      id_table(1) = id_table(1) + my_colors(2)*1024
-*      id_table(1) = id_table(1) + my_colors(3)   ! this will become a "grid id"
-*      id_table(2) = pe_me_grid   ! local rank in grid
-*      id_table(3) = pe_me_all_domains  ! global rank in "universe"
-*      call MPI_allgather(id_table,3,MPI_INTEGER,
-*     &                    grid_id_table,3,MPI_INTEGER,
-*     &                    pe_all_domains,ierr)   ! progagate grid_id/local_rank/global_rank table
+!      write(rpn_u,*)'peer communicator =',pe_grid_peers
+!      write(rpn_u,*)'peer grid size =',pe_tot_peer
+!      write(rpn_u,*)'peer rank =',pe_me_peer
+!
+!      ! what follows has to be added to rpn_comm or another module
+!
+!      integer, pointer, dimension(:,:) :: grid_id_table
+!      integer, dimension(3) :: id_table
+!      integer :: pe_pe0s, pe_me_pe0s  ! communicator for PE0 set and rank within
+!
+!      ! end of addition to rpn_comm or another module
+!
+!      my_color = min(1,pe_me_grid)  ! i am a PE 0 or not
+!      call MPI_COMM_SPLIT(pe_all_domains,my_color,&
+!     &                    pe_me_all_domains,pe_pe0s,ierr)
+!      call MPI_COMM_rank(pe_pe0s,pe_me_pe0s,ierr) ! communicator nicknamed RPN_COMM_PE0='PE_00'
+!      if(pe_me_grid /= 0) then  ! make sure it is invalid if not a PE0
+!        pe_pe0s = -1
+!        pe_me_pe0 = -1
+!      endif
+!
+!      allocate(grid_id_table(3,pe_tot_all_domains))
+!      id_table(1) = my_colors(1)*1024*1024 
+!      id_table(1) = id_table(1) + my_colors(2)*1024
+!      id_table(1) = id_table(1) + my_colors(3)   ! this will become a "grid id"
+!      id_table(2) = pe_me_grid   ! local rank in grid
+!      id_table(3) = pe_me_all_domains  ! global rank in "universe"
+!      call MPI_allgather(id_table,3,MPI_INTEGER,&
+!     &                    grid_id_table,3,MPI_INTEGER,&
+!     &                    pe_all_domains,ierr)   ! progagate grid_id/local_rank/global_rank table
       return
       end FUNCTION RPN_COMM_init_multi_level                        !InTf!

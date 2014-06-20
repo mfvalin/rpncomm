@@ -167,6 +167,11 @@
         integer, intent(IN) :: group                                    
         end function RPN_COMM_ngrank                                    
                                                                         
+      integer function RPN_COMM_group(com)                              
+      implicit none                                                     
+      character(len=*), intent(IN) :: com                               
+      end function RPN_COMM_group                                       
+                                                                        
         SUBROUTINE RPN_COMM_UP2LOW(S1,S2)                               
         implicit none                                                   
         character (len=*), intent(IN) :: S1                             
