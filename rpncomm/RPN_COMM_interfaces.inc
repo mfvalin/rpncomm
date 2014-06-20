@@ -9,23 +9,6 @@
       character(len=*), intent(out) :: domname                          
       end subroutine RPN_COMM_carac                                     
                                                                         
-      integer function RPN_COMM_comm(com)                               
-      implicit none                                                     
-      character(len=*), intent(IN) :: com                               
-      end function RPN_COMM_comm                                        
-                                                                        
-      integer function RPN_COMM_custom_comm(com,name,mode)              
-      implicit none                                                     
-      character(len=*), intent(IN) :: name                              
-      integer, intent(IN) :: com                                        
-      integer, intent(IN) :: mode                                       
-      end function RPN_COMM_custom_comm                                 
-                                                                        
-        integer function RPN_COMM_datyp(data_int)                       
-        implicit none                                                   
-        character(len=*), intent(IN) :: data_int                        
-        end function RPN_COMM_datyp                                     
-                                                                        
       SUBROUTINE RPN_COMM_finalize(ierr)                                
       implicit none                                                     
       integer, intent(OUT) ::  ierr                                     
@@ -67,13 +50,6 @@
       integer, intent(in)    :: MultiGrids                              
       integer, intent(in)    :: Grids                                   
       end FUNCTION RPN_COMM_init_multi_level                            
-                                                                        
-      SUBROUTINE RPN_COMM_rank( com, rank ,ierr )                       
-      implicit none                                                     
-      character(len=*),intent(in) :: com                                
-      integer, intent(out) :: rank                                      
-      integer, intent(out) :: ierr                                      
-      end SUBROUTINE RPN_COMM_rank                                      
                                                                         
       integer function RPN_COMM_topo_2(nxg,minx,maxx,nxl,nxlmax,halo,nx0&
      &,alongx,fill,relax,abort)                                         
@@ -119,15 +95,47 @@
       integer, intent(IN) :: nblocx, nblocy                             
       end function RPN_COMM_bloc_create                                 
                                                                         
+      integer function RPN_COMM_chdir(string)                           
+      implicit none                                                     
+      character (len=*) :: string                                       
+      end function RPN_COMM_chdir                                       
+                                                                        
+      subroutine RPN_COMM_env_var(varname,value)                        
+      implicit none                                                     
+      character (len=*), intent(IN) :: varname                          
+      character (len=*), intent(OUT) :: value                           
+      end subroutine RPN_COMM_env_var                                   
+                                                                        
+      integer function RPN_COMM_hostid()                                
+      implicit none                                                     
+      end function RPN_COMM_hostid                                      
+                                                                        
       integer function RPN_COMM_colors(comm)                            
       implicit none                                                     
       character(len=*) :: comm                                          
       end function RPN_COMM_colors                                      
                                                                         
+      integer function RPN_COMM_comm(com)                               
+      implicit none                                                     
+      character(len=*), intent(IN) :: com                               
+      end function RPN_COMM_comm                                        
+                                                                        
+      integer function RPN_COMM_custom_comm(com,name,mode)              
+      implicit none                                                     
+      character(len=*), intent(IN) :: name                              
+      integer, intent(IN) :: com                                        
+      integer, intent(IN) :: mode                                       
+      end function RPN_COMM_custom_comm                                 
+                                                                        
           subroutine RPN_COMM_const(IER)                                
           implicit none                                                 
           integer, intent(OUT) :: IER                                   
           end   subroutine RPN_COMM_const                               
+                                                                        
+        integer function RPN_COMM_datyp(data_int)                       
+        implicit none                                                   
+        character(len=*), intent(IN) :: data_int                        
+        end function RPN_COMM_datyp                                     
                                                                         
         SUBROUTINE RPN_COMM_UP2LOW(S1,S2)                               
         implicit none                                                   
@@ -139,6 +147,13 @@
       implicit none                                                     
       integer, intent(OUT) ::  Me,Me_x,Me_y                             
       end  function RPN_COMM_mype                                       
+                                                                        
+      SUBROUTINE RPN_COMM_rank( com, rank ,ierr )                       
+      implicit none                                                     
+      character(len=*),intent(in) :: com                                
+      integer, intent(out) :: rank                                      
+      integer, intent(out) :: ierr                                      
+      end SUBROUTINE RPN_COMM_rank                                      
                                                                         
         SUBROUTINE RPN_COMM_size( com, size ,ierr )                     
       implicit none                                                     
