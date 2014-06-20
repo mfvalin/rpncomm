@@ -17,15 +17,28 @@
 ! * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! * Boston, MA 02111-1307, USA.
 ! */
+!InTf!
+      SUBROUTINE RPN_COMM_rank( com, rank ,ierr )                   !InTf!
+! Return rank of PE in specified domname/communicator
+! com     : Domain/communicator name
+! rank    : rank of process in domname
+! ierr    : error code
+!	Luc Corbeil, 2002-11-21
+!	mpi reduce
 
-      integer function RPN_COMM_colors(comm)
-      use rpn_comm
-      implicit none
-      character(len=*) comm
-      RPN_COMM_colors=-1
-      if (comm(1:9).eq.'ALLGRIDS') RPN_COMM_colors=my_colors(1)
-      if (comm(1:5).eq.'WORLD')    RPN_COMM_colors=my_colors(1)
-      if (comm(1:9).eq.'MULTIGRID')RPN_COMM_colors=my_colors(2)
-      if (comm(1:4).eq.'GRID')     RPN_COMM_colors=my_colors(3)
+      implicit none                                                 !InTf!
+      character(len=*),intent(in) :: com                            !InTf!
+      integer, intent(out) :: rank                                  !InTf!
+      integer, intent(out) :: ierr                                  !InTf!
+      integer comm
+      integer, external :: RPN_COMM_datyp,RPN_COMM_oper,RPN_COMM_comm
+      logical, external :: RPN_COMM_grank
+!*
+!        include 'mpif.h'
+
+      comm=rpn_comm_comm(com)
+      if(.not.RPN_COMM_grank(com)) return
+      call mpi_comm_rank(comm, rank, ierr)
+
       return
-      end
+      end SUBROUTINE RPN_COMM_rank                                 !InTf!

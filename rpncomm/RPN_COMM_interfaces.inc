@@ -68,11 +68,6 @@
       integer, intent(in)    :: Grids                                   
       end FUNCTION RPN_COMM_init_multi_level                            
                                                                         
-      integer function RPN_COMM_mype(Me,Me_x,Me_y)                      
-      implicit none                                                     
-      integer, intent(OUT) ::  Me,Me_x,Me_y                             
-      end  function RPN_COMM_mype                                       
-                                                                        
       SUBROUTINE RPN_COMM_rank( com, rank ,ierr )                       
       implicit none                                                     
       character(len=*),intent(in) :: com                                
@@ -124,6 +119,32 @@
       integer, intent(IN) :: nblocx, nblocy                             
       end function RPN_COMM_bloc_create                                 
                                                                         
+      integer function RPN_COMM_colors(comm)                            
+      implicit none                                                     
+      character(len=*) :: comm                                          
+      end function RPN_COMM_colors                                      
+                                                                        
+          subroutine RPN_COMM_const(IER)                                
+          implicit none                                                 
+          integer, intent(OUT) :: IER                                   
+          end   subroutine RPN_COMM_const                               
+                                                                        
+        SUBROUTINE RPN_COMM_UP2LOW(S1,S2)                               
+        implicit none                                                   
+        character (len=*), intent(IN) :: S1                             
+        character (len=*), intent(OUT) :: S2                            
+        END SUBROUTINE RPN_COMM_UP2LOW                                  
+                                                                        
+      integer function RPN_COMM_mype(Me,Me_x,Me_y)                      
+      implicit none                                                     
+      integer, intent(OUT) ::  Me,Me_x,Me_y                             
+      end  function RPN_COMM_mype                                       
+                                                                        
+        SUBROUTINE RPN_COMM_size( com, size ,ierr )                     
+      implicit none                                                     
+      character(len=*), intent(IN) ::  com                              
+      end SUBROUTINE RPN_COMM_size                                      
+                                                                        
       function RPN_COMM_spread(context,source,npts,ndata,dest) result(st&
      &atus)                                                             
         use ISO_C_BINDING                                               
@@ -146,6 +167,10 @@
         integer, dimension(npts), intent(IN) :: pe                      
         integer :: status                                               
       end function RPN_COMM_spread_context                              
+                                                                        
+        real*8 function RPN_COMM_wtime()                                
+        implicit none                                                   
+        end function RPN_COMM_wtime                                     
                                                                         
         function rpn_comm_shmget(comm,size) result(where)               
         use ISO_C_BINDING                                               
