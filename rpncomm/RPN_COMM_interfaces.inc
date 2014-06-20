@@ -1,21 +1,5 @@
       interface
                                                                         
-      integer function RPN_COMM_topo_2(nxg,minx,maxx,nxl,nxlmax,halo,nx0&
-     &,alongx,fill,relax,abort)                                         
-      implicit none                                                     
-      integer, intent(in) :: nxg,halo,relax                             
-      logical, intent(in) :: alongx,fill,abort                          
-      integer, intent(out):: minx,maxx,nxl,nxlmax,nx0                   
-        end  function RPN_COMM_topo_2                                   
-                                                                        
-      integer function RPN_COMM_topo(nxg,minx,maxx,nxl,nxlmax,halo,nx0,a&
-     &longx,fill)                                                       
-      implicit none                                                     
-      integer, intent(in) :: nxg,halo                                   
-      logical, intent(in) :: alongx,fill                                
-      integer, intent(out):: minx,maxx,nxl,nxlmax,nx0                   
-        end function RPN_COMM_topo                                      
-                                                                        
         SUBROUTINE RPN_COMM_barrier(com,ierr)                           
         implicit none                                                   
         integer, intent(OUT) :: ierr                                    
@@ -287,6 +271,44 @@
         integer, dimension(npts), intent(IN) :: pe                      
         integer :: status                                               
       end function RPN_COMM_spread_context                              
+                                                                        
+        subroutine RPN_COMM_status_size(status_size)                    
+        implicit none                                                   
+        integer, intent(OUT) :: status_size                             
+      end subroutine RPN_COMM_status_size                               
+                                                                        
+      SUBROUTINE RPN_COMM_tmg_wrt(Iun)                                  
+      implicit none                                                     
+      integer,intent(IN) :: Iun                                         
+      end SUBROUTINE RPN_COMM_tmg_wrt                                   
+                                                                        
+      integer function RPN_COMM_topo_2(nxg,minx,maxx,nxl,nxlmax,halo,nx0&
+     &,alongx,fill,relax,abort)                                         
+      implicit none                                                     
+      integer, intent(in) :: nxg,halo,relax                             
+      logical, intent(in) :: alongx,fill,abort                          
+      integer, intent(out):: minx,maxx,nxl,nxlmax,nx0                   
+        end  function RPN_COMM_topo_2                                   
+                                                                        
+      integer function RPN_COMM_topo(nxg,minx,maxx,nxl,nxlmax,halo,nx0,a&
+     &longx,fill)                                                       
+      implicit none                                                     
+      integer, intent(in) :: nxg,halo                                   
+      logical, intent(in) :: alongx,fill                                
+      integer, intent(out):: minx,maxx,nxl,nxlmax,nx0                   
+        end function RPN_COMM_topo                                      
+                                                                        
+      integer function RPN_COMM_topo_xy(nig,njg,mini,maxi,minj,maxj,nil,&
+     &njl,haloi,haloj,peri,perj)                                        
+      implicit none                                                     
+      integer, intent(IN) :: nig,njg,haloi,haloj                        
+      integer, intent(OUT) :: nil,njl,mini,maxi,minj,maxj               
+      logical, intent(IN) ::  peri,perj                                 
+      end function RPN_COMM_topo_xy                                     
+                                                                        
+        subroutine RPN_COMM_unit(unit)                                  
+        implicit none                                                   
+        end subroutine RPN_COMM_unit                                    
                                                                         
         real*8 function RPN_COMM_wtime()                                
         implicit none                                                   
