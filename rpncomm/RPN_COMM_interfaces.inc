@@ -183,6 +183,28 @@
       integer, intent(OUT) ::  Me,Me_x,Me_y                             
       end  function RPN_COMM_mype                                       
                                                                         
+      subroutine RPN_COMM_set_petopo(sizx,sizy)                         
+      implicit none                                                     
+      integer, intent(IN) :: sizx,sizy                                  
+      end subroutine RPN_COMM_set_petopo                                
+                                                                        
+      integer function RPN_COMM_petopo(pex,pey)                         
+      implicit none                                                     
+      integer, intent(IN) :: pex,pey                                    
+      end function RPN_COMM_petopo                                      
+                                                                        
+      integer function RPN_COMM_get_pe(x,y,grd,sgrd,communicator)       
+      implicit none                                                     
+      integer, intent(IN) :: x,y,grd,sgrd                               
+      character *(*), intent(IN) :: communicator                        
+      end function RPN_COMM_get_pe                                      
+                                                                        
+      subroutine RPN_COMM_qadl(ipe,ni,nj,i0,in,j0,jn)                   
+      implicit none                                                     
+          integer, intent(OUT) :: i0,in,j0,jn                           
+          integer, intent(IN) :: ipe,ni,nj                              
+      end subroutine RPN_COMM_qadl                                      
+                                                                        
       SUBROUTINE RPN_COMM_rank( com, rank ,ierr )                       
       implicit none                                                     
       character(len=*),intent(in) :: com                                
