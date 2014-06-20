@@ -172,6 +172,22 @@
       integer, intent(in)    :: Grids                                   
       end FUNCTION RPN_COMM_init_multi_level                            
                                                                         
+      integer function RPN_COMM_limit_2(my_id, npe, gmin, gmax,lmini,lma&
+     &xi,count, offset,relax)                                           
+      implicit none                                                     
+      integer, intent(IN) ::  my_id, npe, gmin, gmax, relax             
+      integer, intent(OUT) :: lmini,lmaxi                               
+      integer, intent(OUT) :: count(npe),offset(npe)                    
+      end function RPN_COMM_limit_2                                     
+                                                                        
+      integer function RPN_COMM_limit(my_id, npe, gmin, gmax, lminilmaxi&
+     &,count, offset)                                                   
+      implicit none                                                     
+      integer, intent(IN) ::  my_id, npe, gmin, gmax                    
+      integer, intent(OUT) :: lmini,lmaxi                               
+      integer, intent(OUT) :: count(npe),offset(npe)                    
+      end function RPN_COMM_limit                                       
+                                                                        
         SUBROUTINE RPN_COMM_UP2LOW(S1,S2)                               
         implicit none                                                   
         character (len=*), intent(IN) :: S1                             
@@ -182,6 +198,30 @@
       implicit none                                                     
       integer, intent(OUT) ::  Me,Me_x,Me_y                             
       end  function RPN_COMM_mype                                       
+                                                                        
+        integer function RPN_COMM_oper(op)                              
+        implicit none                                                   
+        character(len=*), intent(IN) :: op                              
+        end function RPN_COMM_oper                                      
+                                                                        
+      integer function RPN_COMM_option_L(name_S,value_L)                
+      implicit none                                                     
+      character(len=*), intent(IN) :: name_S                            
+      logical, intent(IN) :: value_L                                    
+      end function RPN_COMM_option_L                                    
+                                                                        
+      integer function RPN_COMM_option(name_S,value)                    
+      implicit none                                                     
+      character(len=*), intent(IN) :: name_S                            
+      integer, intent(IN) :: value                                      
+      end function RPN_COMM_option                                      
+                                                                        
+      SUBROUTINE RPN_COMM_optn(op_type,op_ival,op_rval,op_cval)         
+      implicit none                                                     
+      character(len=*), intent(IN) :: op_type, op_cval                  
+      integer, intent(IN) :: op_ival                                    
+      real *4, intent(IN) :: op_rval                                    
+      end SUBROUTINE RPN_COMM_optn                                      
                                                                         
       subroutine RPN_COMM_set_petopo(sizx,sizy)                         
       implicit none                                                     

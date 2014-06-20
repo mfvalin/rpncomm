@@ -7,8 +7,8 @@
 !
 !	no underscore version  (C style)
 !
-	function f_omp_get_max_threads() result(r)
-     %                 bind(C,name='f_omp_get_max_threads')
+	function f_omp_get_max_threads() result(r)&
+     &                 bind(C,name='f_omp_get_max_threads')
 	use iso_c_binding
 	implicit none
         integer(C_INT) :: r
@@ -18,8 +18,8 @@
 	r=omp_get_max_threads()
 	end function f_omp_get_max_threads
 !
-	subroutine f_omp_set_num_threads(nthreads)
-     %                 bind(C,name='f_omp_set_num_threads')
+	subroutine f_omp_set_num_threads(nthreads)&
+     &                 bind(C,name='f_omp_set_num_threads')
 	use iso_c_binding
 	implicit none
 	integer(C_INT), intent(IN) :: nthreads
@@ -29,8 +29,8 @@
 !
 !	one underscore version
 !
-	function f_omp_get_max_threads_() result(r)
-     %                 bind(C,name='f_omp_get_max_threads_')
+	function f_omp_get_max_threads_() result(r)&
+     &                 bind(C,name='f_omp_get_max_threads_')
 	use iso_c_binding
 	implicit none
         integer(C_INT) :: r
@@ -40,8 +40,8 @@
 	r=omp_get_max_threads()
 	end function f_omp_get_max_threads_
 !
-	subroutine f_omp_set_num_threads_(nthreads)
-     %                 bind(C,name='f_omp_set_num_threads_')
+	subroutine f_omp_set_num_threads_(nthreads)&
+     &                 bind(C,name='f_omp_set_num_threads_')
 	use iso_c_binding
 	implicit none
 	integer(C_INT), intent(IN) :: nthreads
@@ -51,8 +51,8 @@
 !
 !	two underscores version
 !
-	function f_omp_get_max_threads__() result(r)
-     %                 bind(C,name='f_omp_get_max_threads__')
+	function f_omp_get_max_threads__() result(r)&
+     &                 bind(C,name='f_omp_get_max_threads__')
 	use iso_c_binding
 	implicit none
         integer(C_INT) :: r
@@ -62,8 +62,8 @@
 	r=omp_get_max_threads()
 	end function f_omp_get_max_threads__
 !
-	subroutine f_omp_set_num_threads__(nthreads)
-     %                 bind(C,name='f_omp_set_num_threads__')
+	subroutine f_omp_set_num_threads__(nthreads)&
+     &                 bind(C,name='f_omp_set_num_threads__')
 	use iso_c_binding
 	implicit none
 	integer(C_INT), intent(IN) :: nthreads
