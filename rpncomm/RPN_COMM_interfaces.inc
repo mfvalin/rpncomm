@@ -1,19 +1,5 @@
       interface
                                                                         
-      subroutine RPN_COMM_carac(npex,npey,me,medomm,mex,mey,sizex,sizey,&
-     &ismaster, mymaster, mybloc, myblocx,myblocy,blocme,domname)       
-      implicit none                                                     
-      integer, intent(out) :: npex,npey,me,mex,mey,sizex,sizey,ismaster 
-      integer, intent(out) :: mymaster, mybloc, myblocx,myblocy,blocme  
-      integer, intent(out) :: medomm                                    
-      character(len=*), intent(out) :: domname                          
-      end subroutine RPN_COMM_carac                                     
-                                                                        
-      SUBROUTINE RPN_COMM_finalize(ierr)                                
-      implicit none                                                     
-      integer, intent(OUT) ::  ierr                                     
-      end SUBROUTINE RPN_COMM_finalize                                  
-                                                                        
       subroutine RPN_COMM_mydomain (call_back, mydomain)                
       implicit none                                                     
       external :: call_back                                             
@@ -110,6 +96,15 @@
       integer, intent(out) :: blocsizex, blocsizey                      
       end subroutine RPN_COMM_bloctopo                                  
                                                                         
+      subroutine RPN_COMM_carac(npex,npey,me,medomm,mex,mey,sizex,sizey,&
+     &ismaster, mymaster, mybloc, myblocx,myblocy,blocme,domname)       
+      implicit none                                                     
+      integer, intent(out) :: npex,npey,me,mex,mey,sizex,sizey,ismaster 
+      integer, intent(out) :: mymaster, mybloc, myblocx,myblocy,blocme  
+      integer, intent(out) :: medomm                                    
+      character(len=*), intent(out) :: domname                          
+      end subroutine RPN_COMM_carac                                     
+                                                                        
       integer function RPN_COMM_chdir(string)                           
       implicit none                                                     
       character (len=*) :: string                                       
@@ -151,6 +146,26 @@
         implicit none                                                   
         character(len=*), intent(IN) :: data_int                        
         end function RPN_COMM_datyp                                     
+                                                                        
+      SUBROUTINE RPN_COMM_defo(com)                                     
+      implicit none                                                     
+      character(len=*), intent(IN) ::  com                              
+      end SUBROUTINE RPN_COMM_defo                                      
+                                                                        
+      SUBROUTINE RPN_COMM_finalize(ierr)                                
+      implicit none                                                     
+      integer, intent(OUT) ::  ierr                                     
+      end SUBROUTINE RPN_COMM_finalize                                  
+                                                                        
+        logical function RPN_COMM_grank(com)                            
+        implicit none                                                   
+        character(len=*), intent(IN) :: com                             
+        end function RPN_COMM_grank                                     
+                                                                        
+        logical function RPN_COMM_ngrank(group)                         
+        implicit none                                                   
+        integer, intent(IN) :: group                                    
+        end function RPN_COMM_ngrank                                    
                                                                         
         SUBROUTINE RPN_COMM_UP2LOW(S1,S2)                               
         implicit none                                                   

@@ -1,25 +1,25 @@
-*/* RMNLIB - Library of useful routines for C and FORTRAN programming
-* * Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
-* *                          Environnement Canada
-* *
-* * This library is free software; you can redistribute it and/or
-* * modify it under the terms of the GNU Lesser General Public
-* * License as published by the Free Software Foundation,
-* * version 2.1 of the License.
-* *
-* * This library is distributed in the hope that it will be useful,
-* * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* * Lesser General Public License for more details.
-* *
-* * You should have received a copy of the GNU Lesser General Public
-* * License along with this library; if not, write to the
-* * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-* * Boston, MA 02111-1307, USA.
-* */
+!/! RMNLIB - Library of useful routines for C and FORTRAN programming
+! ! Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
+! !                          Environnement Canada
+! !
+! ! This library is free software; you can redistribute it and/or
+! ! modify it under the terms of the GNU Lesser General Public
+! ! License as published by the Free Software Foundation,
+! ! version 2.1 of the License.
+! !
+! ! This library is distributed in the hope that it will be useful,
+! ! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! ! Lesser General Public License for more details.
+! !
+! ! You should have received a copy of the GNU Lesser General Public
+! ! License along with this library; if not, write to the
+! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+! ! Boston, MA 02111-1307, USA.
+! !/
 
-      subroutine RPN_COMM_globalsum(array,minx,maxx,miny,maxy,
-     %       nptsz,nil,njl,njlmax,gnj,sum)
+      subroutine RPN_COMM_globalsum(array,minx,maxx,miny,maxy,&
+     &       nptsz,nil,njl,njlmax,gnj,sum)
       use rpn_comm
       implicit none
 
@@ -74,8 +74,8 @@
 
          if (pe_mex.eq.pe_nx-1) then
 
-            call MPI_Gather(vsum,njlmax*nptsz,mpi_real,vlsum,
-     %         njlmax*nptsz,mpi_real,pe_ny-1,pe_mycol,ierr)
+            call MPI_Gather(vsum,njlmax*nptsz,mpi_real,vlsum,&
+     &         njlmax*nptsz,mpi_real,pe_ny-1,pe_mycol,ierr)
          
             if(pe_me.eq.pe_id(pe_nx-1,pe_ny-1)) then
                do j=1,gnj
@@ -85,13 +85,13 @@
                enddo
             endif
          else
-            call mpi_send(vsum,njlmax*nptsz,mpi_real,1,pe_mex
-     %                   ,pe_myrow,ierr)
+            call mpi_send(vsum,njlmax*nptsz,mpi_real,1,pe_mex&
+     &                   ,pe_myrow,ierr)
          endif
       else if(pe_mex.eq.pe_nx-1) then
 
-         call mpi_recv(vsum,njlmax*nptsz,mpi_real,pe_mex-1,pe_mex-1
-     %          ,pe_myrow,status,ierr)
+         call mpi_recv(vsum,njlmax*nptsz,mpi_real,pe_mex-1,pe_mex-1&
+     &          ,pe_myrow,status,ierr)
          do k=1,nptsz
          do i=1,nil
          do j=1,njl
@@ -107,8 +107,8 @@
              enddo
          else
 
-            call MPI_Gather(vsum,njlmax*nptsz,mpi_real,vlsum
-     %         ,njlmax*nptsz,mpi_real,pe_ny-1,pe_mycol,ierr)
+            call MPI_Gather(vsum,njlmax*nptsz,mpi_real,vlsum&
+     &         ,njlmax*nptsz,mpi_real,pe_ny-1,pe_mycol,ierr)
          
             if(pe_me.eq.pe_id(pe_nx-1,pe_ny-1)) then
                do j=1,gnj
@@ -121,8 +121,8 @@
          
       else
       
-         call mpi_recv(vsum,njlmax*nptsz,mpi_real,pe_mex-1,pe_mex-1
-     %      ,pe_myrow,status,ierr )
+         call mpi_recv(vsum,njlmax*nptsz,mpi_real,pe_mex-1,pe_mex-1&
+     &      ,pe_myrow,status,ierr )
          
          do k=1,nptsz
          do i=1,nil
@@ -132,13 +132,13 @@
          enddo
          enddo
 
-         call mpi_send(vsum,njlmax*nptsz,mpi_real,pe_mex+1,pe_mex,
-     %      pe_myrow,ierr)
+         call mpi_send(vsum,njlmax*nptsz,mpi_real,pe_mex+1,pe_mex,&
+     &      pe_myrow,ierr)
 
       endif
 
-      call mpi_bcast(sum,nptsz,mpi_real,pe_id(pe_nx-1,pe_ny-1),
-     %         pe_defcomm,ierr)
+      call mpi_bcast(sum,nptsz,mpi_real,pe_id(pe_nx-1,pe_ny-1),&
+     &         pe_defcomm,ierr)
 
       return
       end
