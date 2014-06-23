@@ -1,11 +1,11 @@
 #!/bin/ksh
-[[ "$1" == fortran || "$1" == all ]] && echo "CREATING: rpn_comm_fortran_stubs.f" && cat <<EOT >rpn_comm_fortran_stubs.f
+[[ "$1" == fortran || "$1" == all ]] && echo "CREATING: rpn_comm_fortran_stubs.f" && cat <<EOT >rpn_comm_fortran_stubs.f90
       subroutine MPI_abort
       write(6,*) 'MPI_abort is called, ABORT'
       call ABORT
       return
       end
-*
+!
       subroutine MPI_allgather (a, cnt, b, c, cnt2, d, e, ierr )
         implicit none
         include 'mpif.h'
@@ -17,19 +17,18 @@
         ierr=MPI_SUCCESS
         return
       end
-*
+!
       subroutine MPI_allgatherv
-      write(6,*) 
-     %         'MPI_allgatherv not authorized in non-mpi mode, ABORT'
+      write(6,*) 'MPI_allgatherv not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
+!
       subroutine MPI_allreduce(send,recv,ni,l,m,n,ierr)
       implicit none
-*
+!
       include 'mpif.h'
-*
+!
       integer MPI_STUBS_length
       integer i,l,m,n,ierr
       integer send(*),recv(*),ni
@@ -39,21 +38,19 @@
       ierr=MPI_SUCCESS
       return
       end
-*
+!
       subroutine MPI_alltoall
-      write(6,*)
-     %         'MPI_alltoall not authorized in non-mpi mode, ABORT'
+      write(6,*)'MPI_alltoall not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
+!
       subroutine MPI_alltoallv
-      write(6,*)
-     %         'MPI_alltoallv not authorized in non-mpi mode, ABORT'
+      write(6,*)'MPI_alltoallv not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
+!
       subroutine MPI_barrier(i,ierr)
       implicit none
       include 'mpif.h'
@@ -61,76 +58,74 @@
       ierr=MPI_SUCCESS
       return
       end
-*
+!
       subroutine MPI_bcast(i,j,k,l,m,ierr)
       implicit none
-*
+!
       include 'mpif.h'
-*
+!
       integer i,j,k,l,m,ierr
       ierr=MPI_SUCCESS
       return
       end
-*
-      subroutine mpi_comm_create(pe_indomm,pe_gr_blocmaster, 
-     &            pe_blocmaster, ierr)
+!
+      subroutine mpi_comm_create(pe_indomm,pe_gr_blocmaster, pe_blocmaster, ierr)
       implicit none
       include 'mpif.h'
-      integer pe_indomm,pe_gr_blocmaster, 
-     &            pe_blocmaster, ierr
+      integer pe_indomm,pe_gr_blocmaster,  pe_blocmaster, ierr
       pe_blocmaster = 0
       ierr = MPI_SUCCESS
       return
       end
-*
+!
       subroutine MPI_comm_group(i,group,ierr)
       implicit none
       integer i,group,ierr
-*
+!
       include 'mpif.h'
-*
+!
       group=-1
       ierr=MPI_SUCCESS
       return
       end
-*
+!
       subroutine MPI_COMM_RANK(comm,pe_me,ierr)
       implicit none
-*
+!
       include 'mpif.h'
-*
+!
       integer comm,pe_me,ierr
       ierr=MPI_SUCCESS
       pe_me=0
       return
       end
-*
+!
       subroutine MPI_COMM_SIZE(comm,pe_tot,ierr)
       implicit none
-*
+!
       include 'mpif.h'
-*
+!
       integer comm,pe_tot,ierr
       ierr=MPI_SUCCESS
       pe_tot=1
       return
       end
-*
+!
       subroutine MPI_comm_split(i,j,k,newcomm,ierr)
       implicit none
       integer i,j,k,newcomm,ierr
-*
+!
       include 'mpif.h'
-*
+!
       newcomm=-1
       ierr=MPI_SUCCESS
       return
       end
-*
+!
       subroutine MPI_finalize
       return
       end
-*
+!
       subroutine MPI_gather(a, cnt, b, c, cnt2, d, e, f,ierr )
       implicit none
       include 'mpif.h'
@@ -142,7 +137,7 @@
       ierr=MPI_SUCCESS
       return
       end
-*
+!
       subroutine MPI_gatherv(a, cnt, b, c, cnt2s, displ, d, e, f,ierr )
       implicit none
       include 'mpif.h'
@@ -155,101 +150,95 @@
       ierr=MPI_SUCCESS
       return
       end
-*
+!
       subroutine MPI_get_count
-      write(6,*) 
-     %         'MPI_get_count not authorized in non-mpi mode, ABORT'
+      write(6,*) 'MPI_get_count not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
-      subroutine MPI_GROUP_incl(pe_gr_wcomm, pe_dommtot,proc_indomm,
-     %   	   pe_gr_indomm,ierr)
+!
+      subroutine MPI_GROUP_incl(pe_gr_wcomm, pe_dommtot,proc_indomm,pe_gr_indomm,ierr)
       implicit none
       include 'mpif.h'
-      integer pe_gr_wcomm, pe_dommtot,proc_indomm,
-     %   	   pe_gr_indomm,ierr
+      integer pe_gr_wcomm, pe_dommtot,proc_indomm,pe_gr_indomm,ierr
       pe_gr_indomm = 0
       ierr = MPI_SUCCESS
       return
       end
-*
+!
       subroutine MPI_GROUP_RANK(comm,pe_me,ierr)
       implicit none
-*
+!
       include 'mpif.h'
-*
+!
       integer comm,pe_me,ierr
       ierr=MPI_SUCCESS
       pe_me=0
       return
       end
-*
+!
       subroutine MPI_GROUP_SIZE(comm,pe_tot,ierr)
       implicit none
-*
+!
       include 'mpif.h'
-*
+!
       integer comm,pe_tot,ierr
       ierr=MPI_SUCCESS
       pe_tot=1
       return
       end
-*
+!
       subroutine MPI_init(ierr)
       implicit none
       integer pe_tot
       save pe_tot
-*
+!
       include 'mpif.h'
-*
+!
       integer ierr
       data pe_tot / -1/
       ierr=0
-c     if(pe_tot .ne. -1) call ABORT
+!     if(pe_tot .ne. -1) call ABORT
       pe_tot=0
       return
       end
-*
+!
       subroutine MPI_INITIALIZED(mpi_started,ierr)
       implicit none
-*
+!
       include 'mpif.h'
-*
+!
       logical mpi_started
       integer ierr
-*
+!
       ierr=MPI_SUCCESS
       mpi_started=.false.
       return
       end
-*
+!
       subroutine MPI_irecv
-      write(6,*) 
-     %         'MPI_irecv not authorized in non-mpi mode, ABORT'
+      write(6,*) 'MPI_irecv not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
+!
       subroutine MPI_isend
-      write(6,*) 
-     %         'MPI_isend not authorized in non-mpi mode, ABORT'
+      write(6,*) 'MPI_isend not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
+!
       subroutine MPI_recv
-      write(6,*) 
-     %         'MPI_recv not authorized in non-mpi mode, ABORT'
+      write(6,*) 'MPI_recv not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
+!
       subroutine MPI_reduce(send,recv,ni,l,m,n,o,ierr)
       implicit none
-*
+!
       include 'mpif.h'
-*
+!
       integer MPI_STUBS_length
       integer i,l,m,n,o,ierr
       integer send(*),recv(*),ni
@@ -259,35 +248,31 @@ c     if(pe_tot .ne. -1) call ABORT
       ierr=MPI_SUCCESS
       return
       end
-*
+!
       subroutine MPI_scatterv
-      write(6,*) 
-     %         'MPI_scatterv not authorized in non-mpi mode, ABORT'
+      write(6,*) 'MPI_scatterv not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
+!
       subroutine MPI_send
-      write(6,*) 
-     %         'MPI_send not authorized in non-mpi mode, ABORT'
+      write(6,*) 'MPI_send not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
+!
       subroutine MPI_sendrecv
-      write(6,*) 
-     %         'MPI_sendrecv not authorized in non-mpi mode, ABORT'
+      write(6,*)  'MPI_sendrecv not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
+!
       subroutine MPI_ssend
-      write(6,*) 
-     %         'MPI_ssend not authorized in non-mpi mode, ABORT'
+      write(6,*) 'MPI_ssend not authorized in non-mpi mode, ABORT'
       call ABORT
       return
       end
-*
+!
       integer function MPI_STUBS_length(itype)
       implicit none
       include 'mpif.h'
@@ -315,15 +300,15 @@ c     if(pe_tot .ne. -1) call ABORT
       endif
       return
       end
-*
+!
       subroutine MPI_wait
       return
       end
-*
+!
       subroutine MPI_waitall
       return
       end
-*
+!
       REAL*8 function  MPI_wtick()
       MPI_wtick = 1.0E-9
       return
@@ -332,7 +317,7 @@ c     if(pe_tot .ne. -1) call ABORT
       PMPI_wtick = 1.0E-9
       return
       end
-*
+!
       REAL*8 function  MPI_wtime()
       real *8, save :: dummy_time=1.0E-9
       MPI_wtime=dummy_time
@@ -345,7 +330,7 @@ c     if(pe_tot .ne. -1) call ABORT
       dummy_time=dummy_time+1.0E-9
       return
       end
-*
+!
 EOT
 [[ "$1" == c || "$1" == all ]] && echo "CREATING: rpn_comm_c_stubs.c" && cat <<EOT >rpn_comm_c_stubs.c
 #include <stdio.h>
@@ -372,7 +357,7 @@ int MPI_Allgather(void *outx, int nout, MPI_Datatype outtype, void *inx, int nin
 EOT
 if [[ "$1" == "none" ]] ; then
 echo "CREATING: rpn_comm_fortran_stubs.f and rpn_comm_c_stubs.c with NO stubs"
-cat <<EOT >rpn_comm_fortran_stubs.f
+cat <<EOT >rpn_comm_fortran_stubs.f90
       subroutine no_mpi_ftn_stubs
       return
       end

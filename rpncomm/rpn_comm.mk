@@ -18,13 +18,17 @@ LIBRARY  = $(LIBDIR)/lib$(LIBNAME).a
 STUB_LIBRARY = $(LIBDIR)/lib$(LIB)stubs_$(RPN_COMM_version).a
 SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
 
-ALL:  lib stublib tests $(VPATH)/includes $(VPATH)/RPN_COMM_interfaces.inc
+ALL:  lib stublib tests inc itf
 
 tests:	$(TESTS)
 
 stublib: $(STUB_LIBRARY)
 
 lib: $(LIBRARY) $(VPATH)/includes
+
+inc: $(VPATH)/includes
+
+itf: $(VPATH)/RPN_COMM_interfaces.inc
 
 $(VPATH)/RPN_COMM_interfaces.inc: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.c)
 	(cd $(VPATH) ; cat RPN_COMM_*.f RPN_COMM_*.f90 RPN_COMM_*.c | ../tools/extract_interface.sh >RPN_COMM_interfaces.inc )
@@ -41,7 +45,7 @@ ssm-package:
 	    rpn-comm_$(RPN_COMM_version_s)_multi/src/.)
 	(cd $(VPATH) ; tar zcf rpn-comm_$(RPN_COMM_version_s)_multi.ssm rpn-comm_$(RPN_COMM_version_s)_multi)
 
-rpn_comm_fortran_stubs.f: $(VPATH)/rpn_comm_stubs.sh
+rpn_comm_fortran_stubs.f90: $(VPATH)/rpn_comm_stubs.sh
 	$(SHELL) $(VPATH)/rpn_comm_stubs.sh fortran
 
 rpn_comm_c_stubs.c: $(VPATH)/rpn_comm_stubs.sh
