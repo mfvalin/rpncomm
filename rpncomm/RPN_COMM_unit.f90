@@ -23,7 +23,7 @@
 !
         use rpn_comm
         implicit none                  !InTf!
-        integer, intent(IN) ::  unit
+        integer, intent(IN) ::  unit   !InTf!
       
         rpn_u = unit
 

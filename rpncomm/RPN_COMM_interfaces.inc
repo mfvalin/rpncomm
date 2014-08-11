@@ -164,7 +164,7 @@
       integer, intent(OUT) :: count(npe),offset(npe)                    
       end function RPN_COMM_limit_2                                     
                                                                         
-      integer function RPN_COMM_limit(my_id, npe, gmin, gmax, lminilmaxi&
+      integer function RPN_COMM_limit(my_id, npe, gmin, gmax,lmini,lmaxi&
      &,count, offset)                                                   
       implicit none                                                     
       integer, intent(IN) ::  my_id, npe, gmin, gmax                    
@@ -237,7 +237,8 @@
       end SUBROUTINE RPN_COMM_rank                                      
                                                                         
         SUBROUTINE RPN_COMM_size( com, size ,ierr )                     
-      implicit none                                                     
+      implicit none
+      integer, intent(OUT) :: ierr,size 
       character(len=*), intent(IN) ::  com                              
       end SUBROUTINE RPN_COMM_size                                      
                                                                         
@@ -307,7 +308,8 @@
       end function RPN_COMM_topo_xy                                     
                                                                         
         subroutine RPN_COMM_unit(unit)                                  
-        implicit none                                                   
+        implicit none
+        integer, intent(IN) ::  unit
         end subroutine RPN_COMM_unit                                    
                                                                         
         real*8 function RPN_COMM_wtime()                                

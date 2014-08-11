@@ -143,7 +143,7 @@
 !InTf!
 !     old function, calls newer RPN_COMM_limit_2 forcing STRICT decomposition mode
 !     kept for compatibility with older versions of this library
-!!integer function RPN_COMM_limit(my_id, npe, gmin, gmax, lminilmaxi,count, offset) !InTf!
+!!integer function RPN_COMM_limit(my_id, npe, gmin, gmax, lmini,lmaxi,count, offset) !InTf!
       integer function RPN_COMM_limit(my_id, npe, gmin, gmax, lmini,&   ! old entry point
      &     lmaxi,count, offset)
       implicit none                                        !InTf!

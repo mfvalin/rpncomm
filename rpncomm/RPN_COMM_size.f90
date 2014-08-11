@@ -23,7 +23,7 @@
 !	mpi reduce
 
       implicit none                                 !InTf!
-      integer, intent(OUT) :: ierr,size
+      integer, intent(OUT) :: ierr,size             !InTf!
       character(len=*), intent(IN) ::  com          !InTf!
       integer :: comm
       integer, external :: RPN_COMM_datyp,RPN_COMM_oper,RPN_COMM_comm
