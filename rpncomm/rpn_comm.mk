@@ -10,7 +10,7 @@ LIB      = rpn_comm
 CLEAN    = rpn_comm_fortran_stubs.f rpn_comm_c_stubs.c \
            $(STUB_LIBRARY) $(LIBRARY) $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi.ssm
 CLEANDIRS= $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi $(LIBDIR)
-TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs TEST_005.Abs TEST_006.Abs TEST_007.Abs
+TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs TEST_005.Abs TEST_006.Abs TEST_007.Abs TEST_009.Abs
 #TEST_008.Abs
 FMODULES = RPN_COMM_mod.o
 LIBNAME  = $(LIB)_$(RPN_COMM_version)
@@ -79,4 +79,5 @@ TEST_005.Abs: $(LIBRARY) TEST_005.o
 TEST_006.Abs: $(LIBRARY) TEST_006.o
 TEST_007.Abs: $(LIBRARY) TEST_007.o
 TEST_008.Abs: $(LIBRARY) TEST_008.o
+TEST_009.Abs: $(LIBRARY) TEST_009.o
 

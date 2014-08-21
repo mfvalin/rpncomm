@@ -90,9 +90,9 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
     l_offset = 1 - low
     gis = max(low,start)             ! this PE looks for start thru finish in global index space
     gie = min(high,finish)
-!    print *,'low=',low,' high=',high
-    if (gis <= gie) then             ! there is an overlap, collect points for gis thru gie in global index space
-!      print *,'%gis=',gis,gis+g_offset,' gie=',gie,gie+g_offset
+    if(gni < 25)print *,'low=',low,' high=',high
+    if (gis <= gie) then
+      if(gni < 25)print *,'%gis=',gis,gis+g_offset,' gie=',gie,gie+g_offset
       do k=1,nk
       do j=1,haloy
       do i=gis,gie
@@ -105,7 +105,7 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
 !      print *,'low=',low,' finish2=',finish2,' high=',high
       gis = low
       gie = min(high,finish2)
-      print *,'+gis=',gis,gis+minx+finish-start,' +gie=',gie,gie+minx+finish-start
+      if(gni < 25)print *,'+gis=',gis,gis+minx+finish-start,' +gie=',gie,gie+minx+finish-start
       do k=1,nk
       do j=1,haloy
       do i=gis,gie
@@ -141,39 +141,45 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
 1 format(20I7.6)
   return
 end subroutine RPN_COMM_haloflip                           !InTf!
-subroutine RPN_COMM_haloflip_test   ! basic test for RPN_COMM_haloflip
+subroutine RPN_COMM_haloflip_test(halox, haloy, ni, nj, nk)   ! test routine for RPN_COMM_haloflip
   use rpn_comm
   implicit none
   include 'RPN_COMM_interfaces.inc'
-  integer :: ierr
-  integer, parameter :: halox=1, haloy=2, ni=5, nj=7, nk=1
-  integer, parameter :: minx=1-halox-1
-  integer, parameter :: maxx=ni+halox+1
-  integer, parameter :: miny=1-haloy-1
-  integer, parameter :: maxy=nj+haloy+1
+  integer, intent(IN) :: halox, haloy, ni, nj, nk
+  integer :: ierr, errors, errorn, terrs, terrn
+!  integer, parameter :: halox=3, haloy=3, ni=55, nj=27, nk=80
+!  integer, parameter :: halox=1, haloy=2, ni=5, nj=6, nk=1
+  integer :: minx
+  integer :: maxx
+  integer :: miny
+  integer :: maxy
   integer, dimension(:,:,:), allocatable :: g
   integer :: gni, i, j, k, ipe, gmin, gmax
   integer, dimension(0:100) :: count, depl
+  integer :: iexpect, jexpect
 
-  call mpi_init(ierr)
-  pe_defcomm = MPI_COMM_WORLD
+  minx=1-halox-1
+  maxx=ni+halox+1
+  miny=1-haloy-1
+  maxy=nj+haloy+1
+  pe_defcomm = MPI_COMM_WORLD   ! value for module rpn_comm
   call mpi_comm_rank(MPI_COMM_WORLD,pe_mex,ierr)
-  pe_me = pe_mex
-  pe_mey = 0
+  pe_me = pe_mex   ! value for module rpn_comm
+  pe_mey = 0       ! value for module rpn_comm
   call mpi_comm_size(MPI_COMM_WORLD,pe_nx,ierr)
-  pe_ny = 1
-  allocate(pe_id(-1:pe_nx,0:0))
+  pe_ny = 1        ! value for module rpn_comm
+  allocate(pe_id(-1:pe_nx,0:0))     ! value for module rpn_comm
   do i = 0,pe_nx-1
-    pe_id(i,0) = i
+    pe_id(i,0) = i                  ! value for module rpn_comm
   enddo
-  pe_id(-1,0) = pe_nx-1
-  pe_id(pe_nx,0) = 0
+  pe_id(-1,0) = pe_nx-1             ! value for module rpn_comm
+  pe_id(pe_nx,0) = 0                ! value for module rpn_comm
   allocate(g(minx:maxx,miny:maxy,nk))
   gni = ni*pe_nx
   gni = gni -  mod(gni,2)   ! must be even
   ierr = RPN_COMM_limit(pe_mex,pe_nx,1,gni,gmin,gmax,count,depl)
   if(pe_mex == 0) then
-    write(6,1)'gni   =',gni
+    write(6,*)'gni=',gni,' nj=',nj,' nk=',nk
     write(6,1)'count =',count(0:pe_nx-1)
     write(6,1)'depl  =',depl(0:pe_nx-1)
     call flush(6)
@@ -182,14 +188,15 @@ subroutine RPN_COMM_haloflip_test   ! basic test for RPN_COMM_haloflip
   do k=1,nk
   do j=1,nj
   do i=1,count(pe_mex)
-    g(i,j,k) = 10000*(i+pe_mex*ni) + 100*j + k
+!    g(i,j,k) = 10000*(i+pe_mex*ni) + 100*j + k
+    g(i,j,k) = 10000*(i+gmin-1) + 100*j + k
   enddo
   enddo
   enddo
   bnd_south = .false.
   bnd_north = .true.
   call RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)
-  goto 9
+!  goto 2
   bnd_south = .true.
   bnd_north = .false.
 !  do k=nk,1,-1
@@ -199,7 +206,7 @@ subroutine RPN_COMM_haloflip_test   ! basic test for RPN_COMM_haloflip
 !  enddo
 !  print *,"========================================================="
   call RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)
-9 continue
+2 if(gni > 25) goto 3
   do ipe = 0,pe_nx
     if(ipe == pe_mex) then
       write(6,*)'============',pe_mex,'============'
@@ -212,11 +219,29 @@ subroutine RPN_COMM_haloflip_test   ! basic test for RPN_COMM_haloflip
     call flush(6)
     call mpi_barrier(MPI_COMM_WORLD,ierr)
   enddo
-  call mpi_finalize(ierr)
-1 format(A,20I7.6)
+3 continue
+  errors = 0
+  errorn = 0
+  do k=1,nk
+  do j=1,haloy
+  do i=minx,maxx
+    iexpect = gmin - 1 + i + gni/2
+    if(iexpect > gni) iexpect = iexpect - gni
+    jexpect = nj + 1 - j       ! north side
+    if(g(i,nj+j,k) .ne. iexpect*10000+jexpect*100+k) errorn = errorn + 1
+    if(errorn == 1) write(6,*)'expected',iexpect*10000+jexpect*100+k,' got',g(i,nj+j,k),i,nj+j,k
+    jexpect = j            ! south side
+    if(g(i,1-j,k) .ne. iexpect*10000+jexpect*100+k) errors = errors + 1
+    if(errors == 1) write(6,*)'expected',iexpect*10000+jexpect*100+k,' got',g(i,1-j,k),i,1-j,k
+  enddo
+  enddo
+  enddo
+  if(errors+errorn > 0) write(6,*) 'errors=',errors,' errorn=',errorn
+  call mpi_allreduce(errors,terrs,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+  call mpi_allreduce(errorn,terrn,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
+  if(pe_mex == 0) write(6,*)'total erors (south,north) =',terrs,terrn
+  deallocate(g)
+  deallocate(pe_id)
+1 format(A,(20I7.6))
   return
 end subroutine RPN_COMM_haloflip_test
-program my_test
-  call RPN_COMM_haloflip_test
-  stop
-end
