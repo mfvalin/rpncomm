@@ -22,7 +22,7 @@
 subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !InTf!
   use rpn_comm                                                                 !InTf!
   implicit none                                                                !InTf!
-  include 'RPN_COMM_interfaces.inc'
+!  include 'RPN_COMM_interfaces.inc'
 !ARGUMENTS
   integer, intent(IN) :: minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni          !InTf!
   integer, intent(INOUT) :: g(minx:maxx,miny:maxy,nk)                          !InTf!
@@ -40,11 +40,19 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
   integer :: ipe
   integer :: gis, gie, l_offset, g_offset
   integer, dimension(MPI_STATUS_SIZE) :: status
+  integer, external :: RPN_COMM_limit
+  real *8 :: t0,t1,t2,t3,t4,t5
 !NOTES
 ! each PE starts by collecting its polar halo area
 ! this area is then circulated ring fashion in the x direction between PEs
 ! each PE will pick on the fly from this circulated data what it needs for its transpolar area
 
+  t0 = mpi_wtime()
+  t1 = 0
+  t2 = 0
+  t3 = 0
+  t4 = 0
+  t5 = 0
   if(.not. bnd_south .and. .not. bnd_north) return ! nothing to do if not containing north or south pole
   if(bnd_south) then                               ! south pole
     j_src = 1             ! first source row
@@ -84,7 +92,9 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
   nwds = nk * haloy * (maxx-minx+1)  ! number of elements of said halo
   g_offset = minx - start
 !
+  t0 = mpi_wtime() - t0
   do ipe = 1, pe_nx
+    t1 = mpi_wtime()
     low = depl(ihave) + 1            ! the incoming data goes from low to high in global index space
     high = low + count(ihave) -1
     l_offset = 1 - low
@@ -114,6 +124,7 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
       enddo
       enddo
     endif
+    t2 = mpi_wtime()
     send_to = pe_id(pe_mex+1,pe_mey)      ! send to east neighbor
     send_tag = pe_me
     recv_from = pe_id(pe_mex-1,pe_mey)     ! recv from west neighbor
@@ -127,7 +138,11 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
     recv = 1 - recv
     ihave = ihave - 1                    ! update ihave by shifting on poition towards west
     if(ihave<0) ihave = ihave + pe_nx    ! wrap around
+    t3 = mpi_wtime()
+    t4 = t4 + t2-t1
+    t5 = t5 + t3-t2
   enddo
+  if(pe_me==0) print *,'TIMES=',nint(t0*1000000),nint(t4*1000000),nint(t5*1000000)
 
 !  i0 = 1
 !  in = count(pe_mex)
@@ -157,6 +172,7 @@ subroutine RPN_COMM_haloflip_test(halox, haloy, ni, nj, nk)   ! test routine for
   integer :: gni, i, j, k, ipe, gmin, gmax
   integer, dimension(0:100) :: count, depl
   integer :: iexpect, jexpect
+  real *8 :: t0,t1,t2,t3,t4
 
   minx=1-halox-1
   maxx=ni+halox+1

@@ -1,10 +1,29 @@
       interface
                                                                         
+      integer function RPN_COMM_chdir(string)                           
+      implicit none                                                     
+      character (len=*) :: string                                       
+      end function RPN_COMM_chdir                                       
+                                                                        
+      subroutine RPN_COMM_env_var(varname,value)                        
+      implicit none                                                     
+      character (len=*), intent(IN) :: varname                          
+      character (len=*), intent(OUT) :: value                           
+      end subroutine RPN_COMM_env_var                                   
+                                                                        
+      integer function RPN_COMM_hostid()                                
+      implicit none                                                     
+      end function RPN_COMM_hostid                                      
+                                                                        
+        real*8 function RPN_COMM_wtime()                                
+        implicit none                                                   
+        end function RPN_COMM_wtime                                     
+                                                                        
         SUBROUTINE RPN_COMM_barrier(com,ierr)                           
         implicit none                                                   
         integer, intent(OUT) :: ierr                                    
         character(len=*), intent(IN) ::  com                            
-      end SUBROUTINE RPN_COMM_barrier                                   
+      	end SUBROUTINE RPN_COMM_barrier                                  
                                                                         
         integer function RPN_COMM_barrier_data(level,values,nvalues)    
         integer , intent(IN) :: level                                   
@@ -52,21 +71,6 @@
       character(len=*), intent(out) :: domname                          
       end subroutine RPN_COMM_carac                                     
                                                                         
-      integer function RPN_COMM_chdir(string)                           
-      implicit none                                                     
-      character (len=*) :: string                                       
-      end function RPN_COMM_chdir                                       
-                                                                        
-      subroutine RPN_COMM_env_var(varname,value)                        
-      implicit none                                                     
-      character (len=*), intent(IN) :: varname                          
-      character (len=*), intent(OUT) :: value                           
-      end subroutine RPN_COMM_env_var                                   
-                                                                        
-      integer function RPN_COMM_hostid()                                
-      implicit none                                                     
-      end function RPN_COMM_hostid                                      
-                                                                        
       integer function RPN_COMM_colors(comm)                            
       implicit none                                                     
       character(len=*) :: comm                                          
@@ -94,10 +98,10 @@
         character(len=*), intent(IN) :: data_int                        
         end function RPN_COMM_datyp                                     
                                                                         
-      SUBROUTINE RPN_COMM_defo(com)                                     
-      implicit none                                                     
-      character(len=*), intent(IN) ::  com                              
-      end SUBROUTINE RPN_COMM_defo                                      
+      	SUBROUTINE RPN_COMM_defo(com)                                    
+      	implicit none                                                    
+      	character(len=*), intent(IN) ::  com                             
+      	end SUBROUTINE RPN_COMM_defo                                     
                                                                         
       SUBROUTINE RPN_COMM_finalize(ierr)                                
       implicit none                                                     
@@ -118,6 +122,15 @@
       implicit none                                                     
       character(len=*), intent(IN) :: com                               
       end function RPN_COMM_group                                       
+                                                                        
+      subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,&
+     &haloy,gni)                                                        
+        use rpn_comm                                                    
+        implicit none                                                   
+        integer, intent(IN) :: minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,&
+     &gni                                                               
+        integer, intent(INOUT) :: g(minx:maxx,miny:maxy,nk)             
+      end subroutine RPN_COMM_haloflip                                  
                                                                         
       subroutine RPN_COMM_mydomain (call_back, mydomain)                
       implicit none                                                     
@@ -164,8 +177,8 @@
       integer, intent(OUT) :: count(npe),offset(npe)                    
       end function RPN_COMM_limit_2                                     
                                                                         
-      integer function RPN_COMM_limit(my_id, npe, gmin, gmax,lmini,lmaxi&
-     &,count, offset)                                                   
+      integer function RPN_COMM_limit(my_id, npe, gmin, gmax, lmini,lmax&
+     &i,count, offset)                                                  
       implicit none                                                     
       integer, intent(IN) ::  my_id, npe, gmin, gmax                    
       integer, intent(OUT) :: lmini,lmaxi                               
@@ -178,34 +191,34 @@
         character (len=*), intent(OUT) :: S2                            
         END SUBROUTINE RPN_COMM_UP2LOW                                  
                                                                         
-      integer function RPN_COMM_mype(Me,Me_x,Me_y)                      
-      implicit none                                                     
-      integer, intent(OUT) ::  Me,Me_x,Me_y                             
-      end  function RPN_COMM_mype                                       
+      	integer function RPN_COMM_mype(Me,Me_x,Me_y)                     
+      	implicit none                                                    
+      	integer, intent(OUT) ::  Me,Me_x,Me_y                            
+      	end  function RPN_COMM_mype                                      
                                                                         
         integer function RPN_COMM_oper(op)                              
         implicit none                                                   
         character(len=*), intent(IN) :: op                              
         end function RPN_COMM_oper                                      
                                                                         
-      integer function RPN_COMM_option_L(name_S,value_L)                
-      implicit none                                                     
-      character(len=*), intent(IN) :: name_S                            
-      logical, intent(IN) :: value_L                                    
-      end function RPN_COMM_option_L                                    
+      	integer function RPN_COMM_option_L(name_S,value_L)               
+      	implicit none                                                    
+      	character(len=*), intent(IN) :: name_S                           
+      	logical, intent(IN) :: value_L                                   
+      	end function RPN_COMM_option_L                                   
                                                                         
-      integer function RPN_COMM_option(name_S,value)                    
-      implicit none                                                     
-      character(len=*), intent(IN) :: name_S                            
-      integer, intent(IN) :: value                                      
-      end function RPN_COMM_option                                      
+      	integer function RPN_COMM_option(name_S,value)                   
+      	implicit none                                                    
+      	character(len=*), intent(IN) :: name_S                           
+      	integer, intent(IN) :: value                                     
+      	end function RPN_COMM_option                                     
                                                                         
-      SUBROUTINE RPN_COMM_optn(op_type,op_ival,op_rval,op_cval)         
-      implicit none                                                     
-      character(len=*), intent(IN) :: op_type, op_cval                  
-      integer, intent(IN) :: op_ival                                    
-      real *4, intent(IN) :: op_rval                                    
-      end SUBROUTINE RPN_COMM_optn                                      
+      	SUBROUTINE RPN_COMM_optn(op_type,op_ival,op_rval,op_cval)        
+      	implicit none                                                    
+      	character(len=*), intent(IN) :: op_type, op_cval                 
+      	integer, intent(IN) :: op_ival                                   
+      	real *4, intent(IN) :: op_rval                                   
+      	end SUBROUTINE RPN_COMM_optn                                     
                                                                         
       subroutine RPN_COMM_set_petopo(sizx,sizy)                         
       implicit none                                                     
@@ -223,11 +236,11 @@
       character *(*), intent(IN) :: communicator                        
       end function RPN_COMM_get_pe                                      
                                                                         
-      subroutine RPN_COMM_qadl(ipe,ni,nj,i0,in,j0,jn)                   
-      implicit none                                                     
+      	subroutine RPN_COMM_qadl(ipe,ni,nj,i0,in,j0,jn)                  
+      	implicit none                                                    
           integer, intent(OUT) :: i0,in,j0,jn                           
           integer, intent(IN) :: ipe,ni,nj                              
-      end subroutine RPN_COMM_qadl                                      
+      	end subroutine RPN_COMM_qadl                                     
                                                                         
       SUBROUTINE RPN_COMM_rank( com, rank ,ierr )                       
       implicit none                                                     
@@ -237,18 +250,18 @@
       end SUBROUTINE RPN_COMM_rank                                      
                                                                         
         SUBROUTINE RPN_COMM_size( com, size ,ierr )                     
-      implicit none
-      integer, intent(OUT) :: ierr,size 
+      implicit none                                                     
+      integer, intent(OUT) :: ierr,size                                 
       character(len=*), intent(IN) ::  com                              
       end SUBROUTINE RPN_COMM_size                                      
                                                                         
       integer function RPN_COMM_split(mex,nx,nxg,minx,maxx,nxl,nxlmax,ha&
      &lox,nx0,fill)                                                     
-      implicit none                                                     
-      integer, intent(IN) :: nx, mex, nxg, halox                        
-      integer, intent(OUT) :: minx,maxx,nxl,nxlmax,nx0                  
-      logical, intent(IN) :: fill                                       
-      end function RPN_COMM_split                                       
+      	implicit none                                                    
+      	integer, intent(IN) :: nx, mex, nxg, halox                       
+      	integer, intent(OUT) :: minx,maxx,nxl,nxlmax,nx0                 
+      	logical, intent(IN) :: fill                                      
+      	end function RPN_COMM_split                                      
                                                                         
       function RPN_COMM_spread(context,source,npts,ndata,dest) result(st&
      &atus)                                                             
@@ -308,13 +321,9 @@
       end function RPN_COMM_topo_xy                                     
                                                                         
         subroutine RPN_COMM_unit(unit)                                  
-        implicit none
-        integer, intent(IN) ::  unit
-        end subroutine RPN_COMM_unit                                    
-                                                                        
-        real*8 function RPN_COMM_wtime()                                
         implicit none                                                   
-        end function RPN_COMM_wtime                                     
+        integer, intent(IN) ::  unit                                    
+        end subroutine RPN_COMM_unit                                    
                                                                         
         function rpn_comm_shmget(comm,size) result(where)               
         use ISO_C_BINDING                                               
