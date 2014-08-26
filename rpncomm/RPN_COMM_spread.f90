@@ -21,10 +21,10 @@
 function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)   !InTf!
   use ISO_C_BINDING                                                       !InTf!
   implicit none                                                           !InTf!
-  include 'RPN_COMM_spread.inc'
+  include 'RPN_COMM_spread.inc'                                           !InTf!
   include 'mpif.h'
 
-  type(c_ptr), intent(IN) :: context                   ! blind pointer obtained from RPN_COMM_spread_context         !InTf!
+  type(contextp), intent(IN) :: context                   ! blind pointer obtained from RPN_COMM_spread_context         !InTf!
   integer, intent(IN) :: npts, ndata                   ! dimensions of source array (used only on root PE)           !InTf!
   real, dimension(npts,ndata), intent(IN) :: source    ! source array (used only on root PE)                         !InTf!
   real, dimension(:,:), pointer, intent(INOUT) :: dest ! pointer to output data                                      !InTf!
@@ -52,7 +52,7 @@ function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)   !InTf!
   logical :: debug
 
   debug = .false.
-  call c_f_pointer( context, context_entry)   ! convert C pointer passed by user into a Fortran pointer
+  call c_f_pointer( context%p, context_entry)   ! convert C pointer passed by user into a Fortran pointer
   npoints = max(1,context_entry%npoints)      ! 0 length might disturb scatterv, using length of one (1)
   if(context_entry%ntotal .ne. npts .and. context_entry%rootpe == context_entry%myrank) then  ! number of data samples is not consistent
     goto 111
@@ -113,10 +113,10 @@ end function RPN_COMM_spread                                                    
 function RPN_COMM_spread_context(context,com,rootpe,pe,npts) result(status)                          !InTf!
   use ISO_C_BINDING                                                                                  !InTf!
   implicit none                                                                                      !InTf!
-  include "RPN_COMM_spread.inc"
+  include 'RPN_COMM_spread.inc'                                                                      !InTf!
   include 'mpif.h'
 
-  type(c_ptr), intent(OUT) :: context              ! C pointer to metadata describing "spread" operation         !InTf!
+  type(contextp), intent(OUT) :: context              ! C pointer to metadata describing "spread" operation         !InTf!
   character (len=*), intent(IN) :: com             ! RPN_COMM communicator                                       !InTf!
   integer, intent(IN) :: npts                      ! number of data points                                       !InTf!
   integer, intent(IN) :: rootpe                    ! root PE for the spread operation                            !InTf!
@@ -145,7 +145,7 @@ function RPN_COMM_spread_context(context,com,rootpe,pe,npts) result(status)     
   call mpi_comm_rank( comm, myrank ,ierr ) ! my rank in communicator
 
   allocate(context_entry)
-  context = c_loc(context_entry)   ! blind pointer returned to user (to be passed later to RPN_COMM_spread)
+  context%p = c_loc(context_entry)   ! blind pointer returned to user (to be passed later to RPN_COMM_spread)
   context_entry%comm    = comm                    ! MPI communicator
   context_entry%myrank  = myrank                  ! my rank in MPI communicator
   context_entry%rootpe  = rootpe                  ! root PE rank in MPI communicator
@@ -205,7 +205,7 @@ function RPN_COMM_spread_context(context,com,rootpe,pe,npts) result(status)     
   deallocate(offset)
   deallocate(nlocal)
   deallocate(context_entry)
-  context = C_NULL_PTR           ! and return a NULL context pointer
+  context%p = C_NULL_PTR           ! and return a NULL context pointer
   return
   
 1 format(A,20I5)
