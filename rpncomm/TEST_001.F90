@@ -36,3 +36,4 @@
         call RPN_COMM_finalize(ierr)
 	stop
 	end
+#include 'TEST_helpers.inc'
