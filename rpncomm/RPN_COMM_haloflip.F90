@@ -22,7 +22,8 @@
 subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !InTf!
   use rpn_comm                                                                 !InTf!
   implicit none                                                                !InTf!
-!  include 'RPN_COMM_interfaces.inc'
+#define IN_RPN_COMM_haloflip
+#include 'RPN_COMM_interfaces_int.inc'
 !ARGUMENTS
   integer, intent(IN) :: minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni          !InTf!
   integer, intent(INOUT) :: g(minx:maxx,miny:maxy,nk)                          !InTf!
@@ -40,7 +41,7 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
   integer :: ipe
   integer :: gis, gie, l_offset, g_offset
   integer, dimension(MPI_STATUS_SIZE) :: status
-  integer, external :: RPN_COMM_limit
+!  integer, external :: RPN_COMM_limit
   real *8 :: t0,t1,t2,t3,t4,t5
 !NOTES
 ! each PE starts by collecting its polar halo area
