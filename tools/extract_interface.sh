@@ -1,6 +1,7 @@
 #!/bin/bash
-if [[ ! -x ./wrap_code.exe ]] ; then
-cat <<EOT >./wrap_code.f90
+mkdir -p ../tools
+if [[ ! -x ../tools/wrap_code.exe ]] ; then
+cat <<EOT >../tools/wrap_code.f90
 program wrap
   implicit none
   character (len=256) :: line, temp
@@ -30,16 +31,16 @@ program wrap
 101 format(A6,A66,A1)
   end
 EOT
-s.f90 -o ./wrap_code.exe ./wrap_code.f90 2>/dev/null 1>/dev/null
-rm -f ./wrap_code.f90
+s.f90 -o ../tools/wrap_code.exe ../tools/wrap_code.f90 2>/dev/null 1>/dev/null
+rm -f ../tools/wrap_code.f90
 fi
 if [[ -z $1 ]] ; then
-  grep '!InTf!' | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ./wrap_code.exe
+  grep '!InTf!' | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ../tools/wrap_code.exe
 else
   [[ -f $1 ]] || exit 0
   if grep -q '!InTf!' $1 ; then
     echo "#ifndef IN_${1%.*}"
-    grep '!InTf!' $1 | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ./wrap_code.exe
+    grep '!InTf!' $1 | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ../tools/wrap_code.exe
     echo "#endif"
   fi
 fi

@@ -19,7 +19,6 @@ STUB_LIBRARY = $(LIBDIR)/lib$(LIB)stubs_$(RPN_COMM_version).a
 SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
 
 ALL:  $(VPATH)/dependencies.mk itf lib stublib tests inc
-	rm $(VPATH)/dependencies.mk
 
 tests:	$(TESTS)
 
@@ -37,7 +36,7 @@ $(VPATH)/RPN_COMM_interfaces.inc: $(wildcard $(VPATH)/*.?90) $(wildcard $(VPATH)
 $(VPATH)/RPN_COMM_interfaces_int.inc: $(wildcard $(VPATH)/*.?90) $(wildcard $(VPATH)/*.c)
 	(cd $(VPATH) ; rm -f RPN_COMM_interfaces_int.inc; for target in RPN_COMM_*.?90 RPN_COMM_*.c ; do ../tools/extract_interface.sh $$target >>RPN_COMM_interfaces_int.inc ; done; rm -f ../tools/wrap_code.exe)
 
-$(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.c) $(wildcard $(VPATH)/*.h)
+$(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.c) $(wildcard $(VPATH)/*.h) $(wildcard $(VPATH)/*.inc)
 	-which gnu_find 2>/dev/null 1>/dev/null || (cd $(VPATH) ; find . -maxdepth 1 -type f | grep -v TEST_0 | ../tools/mk.dependencies.pl >dependencies.mk )
 	-which gnu_find 2>/dev/null 1>/dev/null && (cd $(VPATH) ; gnu_find . -maxdepth 1 -type f | grep -v TEST_0 ../tools/mk.dependencies.pl >dependencies.mk )
 
@@ -62,8 +61,9 @@ $(STUB_LIBRARY): rpn_comm_fortran_stubs.o rpn_comm_c_stubs.o
 
 $(LIBRARY): $(OBJECTS)
 	mkdir -p $(LIBDIR)
-	ar rcv $(LIBRARY)_ $(OBJECTS)
-	ar d $(LIBRARY)_ TEST_stubs.o rpn_comm_c_stubs.o rpn_comm_fortran_stubs.o
+	ar rcv $(LIBRARY)_ RPN_COMM*.o
+#	ar rcv $(LIBRARY)_ $(OBJECTS)
+#	ar dv $(LIBRARY)_ TEST_stubs.o rpn_comm_c_stubs.o rpn_comm_fortran_stubs.o
 	mv $(LIBRARY)_ $(LIBRARY)
 	(cd $(LIBDIR) ; ln -sf lib$(LIB)_$(RPN_COMM_version).a  lib$(LIB).a)
 	mkdir -p $(INCDIR)
