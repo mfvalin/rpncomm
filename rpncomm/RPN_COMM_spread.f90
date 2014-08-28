@@ -18,30 +18,30 @@
 ! * Boston, MA 02111-1307, USA.
 ! */
 !InTf!
-function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)   !InTf!
+function RPN_COMM_spread(contxt,source,npts,ndata,dest) result(status)   !InTf!
   use ISO_C_BINDING                                                       !InTf!
   implicit none                                                           !InTf!
   include 'RPN_COMM_spread.inc'                                           !InTf!
   include 'mpif.h'
 
-  type(contextp), intent(IN) :: context                   ! blind pointer obtained from RPN_COMM_spread_context         !InTf!
+  type(rc_context), intent(IN) :: contxt                   ! blind pointer obtained from RPN_COMM_spread_context         !InTf!
   integer, intent(IN) :: npts, ndata                   ! dimensions of source array (used only on root PE)           !InTf!
   real, dimension(npts,ndata), intent(IN) :: source    ! source array (used only on root PE)                         !InTf!
   real, dimension(:,:), pointer, intent(INOUT) :: dest ! pointer to output data                                      !InTf!
   integer :: status                                    ! < 0 : error,  >=0 : number of valid npoints in dest array   !InTf!
 !
 ! NOTES:
-!   context is a C pointer (see ISO_C_BINDING documentation) obtained from function RPN_COMM_spread_context
+!   contxt  is a C pointer (see ISO_C_BINDING documentation) obtained from function RPN_COMM_spread_context
 !           that describes how the data will be spread from the "root" PE (who has the data) and the "client" PEs
 !           who will receive some (or none) of that data
 !           the application code is responsible for preserving this pointer (save attribute strongly recommended)
 !   source  is the data to be "spread". there are npts samples (of ndata values each) to be spread between the PEs
-!   npts    number of data samples (must be consistent with metadata from "context")
+!   npts    number of data samples (must be consistent with metadata from "contxt")
 !   ndata   number of values in each sample (must be consistent with dimensions of dest)
 !   dest    is a Fortran pointer to a real 2D array supplied by the user. If said pointer is "NULL", it will be allocated
 !           with the proper dimensions by RPN_COMM_spread. If said pointer is already associated upon entry, its dimensions
 !           will be checked to make sure that the first dimension is ndata and the secon dimension corresponds to the
-!           number of samples that this node will receive (information found in the metadata pointed to by "context")
+!           number of samples that this node will receive (information found in the metadata pointed to by "contxt")
 !   status  contains the number of valid data samples received. a negative value indocates an error. some PEs may receive no
 !           data from the "spread" operation in which case a status value of zero will be returned
 
@@ -52,7 +52,7 @@ function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)   !InTf!
   logical :: debug
 
   debug = .false.
-  call c_f_pointer( context%p, context_entry)   ! convert C pointer passed by user into a Fortran pointer
+  call c_f_pointer( contxt%p, context_entry)   ! convert C pointer passed by user into a Fortran pointer
   npoints = max(1,context_entry%npoints)      ! 0 length might disturb scatterv, using length of one (1)
   if(context_entry%ntotal .ne. npts .and. context_entry%rootpe == context_entry%myrank) then  ! number of data samples is not consistent
     goto 111
@@ -61,7 +61,7 @@ function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)   !InTf!
     if(debug) write(0,1)'allocating dest with dimensions',ndata,npoints
     allocate(dest(ndata,npoints))
   else
-    if( .not. all(shape(dest) == (/ndata,npoints/) ) ) then  ! check that the dimensions of dest are consistent with ndata and "context" metadata
+    if( .not. all(shape(dest) == (/ndata,npoints/) ) ) then  ! check that the dimensions of dest are consistent with ndata and "contxt" metadata
       write(0,*)'SIZE ERROR: (RPN_COMM_spread) (dest) expected',shape(dest),' got',(/ndata,npoints/)
       goto 111
     endif
@@ -90,7 +90,7 @@ function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)   !InTf!
   else
     allocate(source2(1,1))  ! dummy allocate to ensure that pointer is valid
   endif
-  call mpi_scatterv(source2, max(1,nlocal)*ndata, offset*ndata , MPI_REAL,     &   ! "spread" data samples across PEs as per "context"
+  call mpi_scatterv(source2, max(1,nlocal)*ndata, offset*ndata , MPI_REAL,     &   ! "spread" data samples across PEs as per "contxt"
                     dest   , npoints*ndata                     , MPI_REAL,     &
                     context_entry%rootpe, context_entry%comm, ierr)
   if(debug) then
@@ -110,13 +110,13 @@ function RPN_COMM_spread(context,source,npts,ndata,dest) result(status)   !InTf!
 
 end function RPN_COMM_spread                                                                         !InTf!
 !InTf!
-function RPN_COMM_spread_context(context,com,rootpe,pe,npts) result(status)                          !InTf!
+function RPN_COMM_spread_context(contxt,com,rootpe,pe,npts) result(status)                          !InTf!
   use ISO_C_BINDING                                                                                  !InTf!
   implicit none                                                                                      !InTf!
   include 'RPN_COMM_spread.inc'                                                                      !InTf!
   include 'mpif.h'
 
-  type(contextp), intent(OUT) :: context              ! C pointer to metadata describing "spread" operation         !InTf!
+  type(rc_context), intent(OUT) :: contxt              ! C pointer to metadata describing "spread" operation         !InTf!
   character (len=*), intent(IN) :: com             ! RPN_COMM communicator                                       !InTf!
   integer, intent(IN) :: npts                      ! number of data points                                       !InTf!
   integer, intent(IN) :: rootpe                    ! root PE for the spread operation                            !InTf!
@@ -124,10 +124,10 @@ function RPN_COMM_spread_context(context,com,rootpe,pe,npts) result(status)     
   integer :: status                                ! 0 if successful, non zero otherwise                         !InTf!
 !
 ! NOTES:
-!   context    C pointer (see ISO_C_BINBING documentation) to metadata describing the "spread" operation to be performed
+!   contxt     C pointer (see ISO_C_BINBING documentation) to metadata describing the "spread" operation to be performed
 !              the application code is expected to keep this information (save attribute strongly recommended)
 !              this C pointer is expected to be passed to subsequent RPN_COMM_spread operations
-!              each spread pattern (pe,rootpe,com,npts) needs its own "context"
+!              each spread pattern (pe,rootpe,com,npts) needs its own "contxt"
 !   com        RPN_COMM style communicator for the "spread" operation (e.g. "GRID")
 !   rootpe     ordinal of PE that "spreads" the data to the client PEs in communicator com
 !   npts       number of data samples to be "spread"
@@ -145,7 +145,7 @@ function RPN_COMM_spread_context(context,com,rootpe,pe,npts) result(status)     
   call mpi_comm_rank( comm, myrank ,ierr ) ! my rank in communicator
 
   allocate(context_entry)
-  context%p = c_loc(context_entry)   ! blind pointer returned to user (to be passed later to RPN_COMM_spread)
+  contxt%p = c_loc(context_entry)   ! blind pointer returned to user (to be passed later to RPN_COMM_spread)
   context_entry%comm    = comm                    ! MPI communicator
   context_entry%myrank  = myrank                  ! my rank in MPI communicator
   context_entry%rootpe  = rootpe                  ! root PE rank in MPI communicator
@@ -205,7 +205,7 @@ function RPN_COMM_spread_context(context,com,rootpe,pe,npts) result(status)     
   deallocate(offset)
   deallocate(nlocal)
   deallocate(context_entry)
-  context%p = C_NULL_PTR           ! and return a NULL context pointer
+  contxt%p = C_NULL_PTR           ! and return a NULL contxt pointer
   return
   
 1 format(A,20I5)

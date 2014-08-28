@@ -1,5 +1,5 @@
 !
-! spread metadata (private information for RPN_COMM_spread and associated)
+! spread metadata (private information for RPN_COMM_spread and associates)
 !                 (application code gets a bind C pointer to this information)
 !
   type, bind(C)    :: spread_context
@@ -13,6 +13,4 @@
     integer(C_INT) :: myrank     ! rank ot this PE in comm
     integer(C_INT) :: rootpe     ! rank of root pe for "spread" operration
   end type spread_context
-  type, bind(C)    :: contextp
-    type(c_ptr)    :: p
-  end type contextp
+include 'RPN_COMM_types.inc'
