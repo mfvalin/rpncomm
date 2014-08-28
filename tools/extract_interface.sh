@@ -1,5 +1,4 @@
 #!/bin/bash
-rm -f ./wrap_code.exe
 if [[ ! -x ./wrap_code.exe ]] ; then
 cat <<EOT >./wrap_code.f90
 program wrap
@@ -34,5 +33,13 @@ EOT
 s.f90 -o ./wrap_code.exe ./wrap_code.f90 2>/dev/null 1>/dev/null
 rm -f ./wrap_code.f90
 fi
-grep '!InTf!' | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ./wrap_code.exe
-rm -f ./wrap_code.exe
+if [[ -z $1 ]] ; then
+  grep '!InTf!' | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ./wrap_code.exe
+else
+  [[ -f $1 ]] || exit 0
+  if grep -q '!InTf!' $1 ; then
+    echo "#ifndef IN_${1%.*}"
+    grep '!InTf!' $1 | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ./wrap_code.exe
+    echo "#endif"
+  fi
+fi

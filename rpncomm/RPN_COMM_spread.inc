@@ -13,4 +13,3 @@
     integer(C_INT) :: myrank     ! rank ot this PE in comm
     integer(C_INT) :: rootpe     ! rank of root pe for "spread" operration
   end type spread_context
-include 'RPN_COMM_types.inc'

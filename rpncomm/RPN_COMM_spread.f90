@@ -18,13 +18,14 @@
 ! * Boston, MA 02111-1307, USA.
 ! */
 !InTf!
-function RPN_COMM_spread(contxt,source,npts,ndata,dest) result(status)   !InTf!
+function RPN_COMM_spread(contxt,source,npts,ndata,dest) result(status)    !InTf!
   use ISO_C_BINDING                                                       !InTf!
   implicit none                                                           !InTf!
-  include 'RPN_COMM_spread.inc'                                           !InTf!
+  include 'RPN_COMM_spread.inc'
+  include 'RPN_COMM_types.inc'                                            !InTf!
   include 'mpif.h'
 
-  type(rpncomm_context), intent(IN) :: contxt                   ! blind pointer obtained from RPN_COMM_spread_context         !InTf!
+  type(rpncomm_context), intent(IN) :: contxt          ! blind pointer obtained from RPN_COMM_spread_context         !InTf!
   integer, intent(IN) :: npts, ndata                   ! dimensions of source array (used only on root PE)           !InTf!
   real, dimension(npts,ndata), intent(IN) :: source    ! source array (used only on root PE)                         !InTf!
   real, dimension(:,:), pointer, intent(INOUT) :: dest ! pointer to output data                                      !InTf!
@@ -111,12 +112,13 @@ function RPN_COMM_spread(contxt,source,npts,ndata,dest) result(status)   !InTf!
 end function RPN_COMM_spread                                                                         !InTf!
 !InTf!
 function RPN_COMM_spread_context(contxt,com,rootpe,pe,npts) result(status)                          !InTf!
-  use ISO_C_BINDING                                                                                  !InTf!
-  implicit none                                                                                      !InTf!
-  include 'RPN_COMM_spread.inc'                                                                      !InTf!
+  use ISO_C_BINDING                                                                                 !InTf!
+  implicit none                                                                                     !InTf!
+  include 'RPN_COMM_spread.inc'
+  include 'RPN_COMM_types.inc'                                                                      !InTf!
   include 'mpif.h'
 
-  type(rpncomm_context), intent(OUT) :: contxt              ! C pointer to metadata describing "spread" operation         !InTf!
+  type(rpncomm_context), intent(OUT) :: contxt     ! C pointer to metadata describing "spread" operation         !InTf!
   character (len=*), intent(IN) :: com             ! RPN_COMM communicator                                       !InTf!
   integer, intent(IN) :: npts                      ! number of data points                                       !InTf!
   integer, intent(IN) :: rootpe                    ! root PE for the spread operation                            !InTf!
