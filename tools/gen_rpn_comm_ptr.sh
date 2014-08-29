@@ -19,30 +19,30 @@ do
   [[ $typex == i* ]] && type='i'
   [[ $typex == r* ]] && type='r'
   cat <<EOT
-function RPN_COMM_ptr_${type%??????}${kind}_${dim}d(what) result(ptr)
+subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}d(what,ptr)
 use ISO_C_BINDING
 implicit none
 include 'RPN_COMM_types.inc'
-$typex(KIND=$kind), dimension${array[$dim]}, target :: what
-type(rpncomm_ptr) :: ptr
+$typex(KIND=$kind), dimension${array[$dim]},intent(IN), target :: what
+type(rpncomm_ptr), intent(OUT) :: ptr
 #ifdef CODE
 ptr%p = c_loc(what${array[$dim]})
 return
 #endif
-end function RPN_COMM_ptr_${type%??????}${kind}_${dim}d
+end subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}d
 
 EOT
 if [[ "1" == "2" ]] 
 then
   cat <<EOT
-function RPN_COMM_ptr_${type%??????}${kind}_${dim}dp(what) result(ptr)
+subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}dp(what,ptr)
 use ISO_C_BINDING
 implicit none
 $typex(KIND=$kind), dimension${arrayp[$dim]}, pointer :: what
-type(rpncomm_ptr) :: ptr
+type(rpncomm_ptr), intent(OUT) :: ptr
 ptr%p = c_loc(what${arrayy[$dim]})
 return
-end function RPN_COMM_ptr_${type%??????}${kind}_${dim}dp
+end subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}dp
 
 EOT
 fi
