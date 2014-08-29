@@ -21,6 +21,8 @@ LIBRARY  = $(LIBDIR)/lib$(LIBNAME).a
 STUB_LIBRARY = $(LIBDIR)/lib$(LIB)stubs_$(RPN_COMM_version).a
 SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
 
+DISTINCLUDES = $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc $(VPATH)/rpn_comm.inc $(VPATH)/RPN_COMM_types.inc $(VPATH)/RPN_COMM_constants.inc
+
 ALL:  $(VPATH)/dependencies.mk itf lib stublib tests inc
 
 tests:	$(TESTS)
@@ -67,20 +69,19 @@ $(STUB_LIBRARY): rpn_comm_fortran_stubs.o rpn_comm_c_stubs.o
 	ar rcv $(STUB_LIBRARY) rpn_comm_fortran_stubs.o rpn_comm_c_stubs.o
 	(cd $(LIBDIR) ; ln -sf lib$(LIB)stubs_$(RPN_COMM_version).a lib$(LIB)stubs.a)
 
-$(LIBRARY): $(OBJECTS)
+$(LIBRARY): $(OBJECTS) $(VPATH)/includes
 	mkdir -p $(LIBDIR)
 	ar rcv $(LIBRARY)_ RPN_COMM*.o
 #	ar rcv $(LIBRARY)_ $(OBJECTS)
 #	ar dv $(LIBRARY)_ TEST_stubs.o rpn_comm_c_stubs.o rpn_comm_fortran_stubs.o
 	mv $(LIBRARY)_ $(LIBRARY)
 	(cd $(LIBDIR) ; ln -sf lib$(LIB)_$(RPN_COMM_version).a  lib$(LIB).a)
-	mkdir -p $(INCDIR)
-	cp *.mod $(INCDIR)
+#	cp *.mod $(INCDIR)
 
-.PHONY:	includes
-$(VPATH)/includes:
-	cp $(VPATH)/*.inc $(INCDIR)
-	touch $(VPATH)/includes
+.PHONY:	$(VPATH)/includes
+$(VPATH)/includes: $(DISTINCLUDES)
+	mkdir -p $(INCDIR)
+	cp $(DISTINCLUDES) $(INCDIR)
 
 TEST_000.Abs: $(LIBRARY) TEST_000.o
 TEST_001.Abs: $(LIBRARY) TEST_001.o
