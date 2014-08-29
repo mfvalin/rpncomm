@@ -13,3 +13,6 @@
   type, bind(C)    :: rpncomm_group
     type(c_ptr)    :: p
   end type rpncomm_group
+  type, bind(C)    :: rpncomm_ptr
+    type(c_ptr)    :: p
+  end type rpncomm_ptr

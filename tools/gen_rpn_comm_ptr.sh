@@ -22,10 +22,11 @@ do
 function RPN_COMM_ptr_${type%??????}${kind}_${dim}d(what) result(ptr)
 use ISO_C_BINDING
 implicit none
+include 'RPN_COMM_types.inc'
 $typex(KIND=$kind), dimension${array[$dim]}, target :: what
-type(C_PTR) :: ptr
+type(rpncomm_ptr) :: ptr
 #ifdef CODE
-ptr = c_loc(what${array[$dim]})
+ptr%p = c_loc(what${array[$dim]})
 return
 #endif
 end function RPN_COMM_ptr_${type%??????}${kind}_${dim}d
@@ -38,8 +39,8 @@ function RPN_COMM_ptr_${type%??????}${kind}_${dim}dp(what) result(ptr)
 use ISO_C_BINDING
 implicit none
 $typex(KIND=$kind), dimension${arrayp[$dim]}, pointer :: what
-type(C_PTR) :: ptr
-ptr = c_loc(what${arrayy[$dim]})
+type(rpncomm_ptr) :: ptr
+ptr%p = c_loc(what${arrayy[$dim]})
 return
 end function RPN_COMM_ptr_${type%??????}${kind}_${dim}dp
 
