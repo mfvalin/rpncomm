@@ -23,7 +23,7 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
   use rpn_comm                                                                 !InTf!
   implicit none                                                                !InTf!
 #define IN_RPN_COMM_haloflip
-#include 'RPN_COMM_interfaces_int.inc'
+#include "RPN_COMM_interfaces_int.inc"
 !ARGUMENTS
   integer, intent(IN) :: minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni          !InTf!
   integer, intent(INOUT) :: g(minx:maxx,miny:maxy,nk)                          !InTf!
@@ -160,7 +160,7 @@ end subroutine RPN_COMM_haloflip                           !InTf!
 subroutine RPN_COMM_haloflip_test(halox, haloy, ni, nj, nk)   ! test routine for RPN_COMM_haloflip
   use rpn_comm
   implicit none
-  include 'RPN_COMM_interfaces.inc'
+  include "RPN_COMM_interfaces.inc"
   integer, intent(IN) :: halox, haloy, ni, nj, nk
   integer :: ierr, errors, errorn, terrs, terrn
 !  integer, parameter :: halox=3, haloy=3, ni=55, nj=27, nk=80
