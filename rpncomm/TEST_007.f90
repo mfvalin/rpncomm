@@ -1,9 +1,10 @@
 subroutine rpn_comm_test_007
   use ISO_C_BINDING
+  use rpn_comm_types
   implicit none
   include 'mpif.h'
   include 'RPN_COMM.inc'
-  include 'RPN_COMM_types.inc'
+!  include 'RPN_COMM_types.inc'
   integer, PARAMETER :: npts = 170000
   integer :: npes, myrank, nprint
   integer, dimension(npts) :: pe, index
