@@ -10,6 +10,9 @@
   type, bind(C)    :: rpncomm_datatype
     type(c_ptr)    :: p
   end type rpncomm_datatype
+  type, bind(C)    :: rpncomm_operator
+    type(c_ptr)    :: p
+  end type rpncomm_operator
   type, bind(C)    :: rpncomm_group
     type(c_ptr)    :: p
   end type rpncomm_group
