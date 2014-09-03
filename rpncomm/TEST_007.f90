@@ -3,6 +3,7 @@ subroutine rpn_comm_test_007
   implicit none
   include 'mpif.h'
   include 'RPN_COMM.inc'
+  include 'RPN_COMM_types.inc'
   integer, PARAMETER :: npts = 170000
   integer :: npes, myrank, nprint
   integer, dimension(npts) :: pe, index
@@ -10,7 +11,7 @@ subroutine rpn_comm_test_007
   real, dimension(npts,5) :: source2
   real, dimension(npts) :: rpe
   integer :: i, status, ierr, j, totpts
-  type(c_ptr) :: context
+  type(rpncomm_context) :: context
   real, dimension(:,:), pointer, save :: dest => NULL()
   real, dimension(:,:), pointer, save :: dest2 => NULL()
   real*8 :: T1,T2
