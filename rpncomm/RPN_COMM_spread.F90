@@ -20,9 +20,9 @@
 !InTf!
 function RPN_COMM_spread(contxt,source,npts,ndata,dest) result(status)    !InTf!
   use ISO_C_BINDING                                                       !InTf!
+  use RPN_COMM_types                                                      !InTf!
   implicit none                                                           !InTf!
   include 'RPN_COMM_spread.inc'
-  include 'RPN_COMM_types.inc'                                            !InTf!
   include 'mpif.h'
 
   type(rpncomm_context), intent(IN) :: contxt          ! blind pointer obtained from RPN_COMM_spread_context         !InTf!
