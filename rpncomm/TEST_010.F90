@@ -18,7 +18,7 @@ allocate(b2(10,10))
 allocate(b3(10,10,10))
 allocate(b4(10,10,10,10))
 
-call rpn_comm_ptr_i4_1d(a1,p1)
+call rpn_comm_ptr(a1,p1)
 call c_f_pointer(p1%p,pp,[10])
 call ploc(pp,a1)
 call rpn_comm_ptr(a2,p2)
