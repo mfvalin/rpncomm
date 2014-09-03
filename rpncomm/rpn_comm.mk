@@ -21,11 +21,12 @@ LIBRARY  = $(LIBDIR)/lib$(LIBNAME).a
 STUB_LIBRARY = $(LIBDIR)/lib$(LIB)stubs_$(RPN_COMM_version).a
 SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
 
-DISTINCLUDES = $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc $(VPATH)/rpn_comm.inc $(VPATH)/RPN_COMM_types.inc $(VPATH)/RPN_COMM_constants.inc
+DISTINCLUDES = $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc $(VPATH)/rpn_comm.inc \
+               $(VPATH)/RPN_COMM_types.inc $(VPATH)/RPN_COMM_constants.inc $(VPATH)/RPN_COMM_ptr.inc
 
-ALL:  dep itf lib stublib tests inc
+ALL:  dep lib stublib tests inc
 
-dep: itf $(VPATH)/dependencies.mk
+dep: $(VPATH)/dependencies.mk
 
 tests:	$(TESTS)
 
@@ -48,7 +49,9 @@ $(VPATH)/RPN_COMM_interfaces.inc: $(wildcard $(VPATH)/*.?90) $(wildcard $(VPATH)
 $(VPATH)/RPN_COMM_interfaces_int.inc: $(wildcard $(VPATH)/*.?90) $(wildcard $(VPATH)/*.c)
 	(cd $(VPATH) ; rm -f RPN_COMM_interfaces_int.inc; for target in RPN_COMM_*.?90 RPN_COMM_*.c ; do ../tools/extract_interface.sh $$target >>RPN_COMM_interfaces_int.inc ; done; rm -f ../tools/wrap_code.exe)
 
-$(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.c) $(wildcard $(VPATH)/*.h) $(wildcard $(VPATH)/*.inc)
+$(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.c) \
+                          $(wildcard $(VPATH)/*.h) $(wildcard $(VPATH)/*.inc) \
+                          $(VPATH)/RPN_COMM_interfaces_int.inc $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM_ptr.inc
 	-which gnu_find 2>/dev/null 1>/dev/null || (cd $(VPATH) ; find . -maxdepth 1 -type f | grep -v TEST_0 | ../tools/mk.dependencies.pl >dependencies.mk )
 	-which gnu_find 2>/dev/null 1>/dev/null && (cd $(VPATH) ; gnu_find . -maxdepth 1 -type f | grep -v TEST_0 ../tools/mk.dependencies.pl >dependencies.mk )
 
