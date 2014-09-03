@@ -21,8 +21,8 @@ do
   cat <<EOT
 subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}d(what,ptr)
 use ISO_C_BINDING
+use rpn_comm_types
 implicit none
-include 'RPN_COMM_types.inc'
 $typex(KIND=$kind), dimension${array[$dim]},intent(IN), target :: what
 type(rpncomm_ptr), intent(OUT) :: ptr
 #ifdef CODE
@@ -37,11 +37,14 @@ then
   cat <<EOT
 subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}dp(what,ptr)
 use ISO_C_BINDING
+use rpn_comm_types
 implicit none
 $typex(KIND=$kind), dimension${arrayp[$dim]}, pointer :: what
 type(rpncomm_ptr), intent(OUT) :: ptr
+#ifdef CODE
 ptr%p = c_loc(what${arrayy[$dim]})
 return
+#endif
 end subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}dp
 
 EOT
