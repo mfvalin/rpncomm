@@ -621,7 +621,7 @@ while( my $filename = search_undone_file(\%LISTOBJECT) )
             ${$file->{ DEPENDENCIES }}{"$path$filn.$exte"} = $LISTOBJECT{"$path$filn.$exte"} if( !exists ${$file->{ DEPENDENCIES }}{"$path$filn.$exte"} );
 
         }
-        next if ( $file->{EXTENSION} =~ /(c|cc|CC)$/);
+        next if ( $file->{EXTENSION} =~ /^(c|cc|CC)$/);
         
         # FORTRAN include statement : include "..."    include ',,,"
         if ($_ =~ /^[@]*[\s]*include[\s]*[<'"\s]([\w.\/\.]+)[>"'\s][\s]*/i)
@@ -671,7 +671,8 @@ while( my $filename = search_undone_file(\%LISTOBJECT) )
             # Add to dependencies, if not already there
             ${$file->{ DEPENDENCIES }}{"$path$filn.$exte"} = $LISTOBJECT{"$path$filn.$exte"} if( !exists ${$file->{ DEPENDENCIES }}{"$path$filn.$exte"} );
         }
-        # FORTRAN use statement : use yyy 
+        # FORTRAN use statement : use yyy
+#        print STDERR "looking for use in ".$filename."\n";
         if ($_ =~ /^[@]*[\s]*\buse[\s]+([a-z][\w]*)(,|\t| |$)/i)
         {
             my $modname = $1 ; $modname =~ tr/A-Z/a-z/ ; # modules names are case insensitive

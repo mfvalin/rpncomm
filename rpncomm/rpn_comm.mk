@@ -23,7 +23,9 @@ SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
 
 DISTINCLUDES = $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc $(VPATH)/rpn_comm.inc $(VPATH)/RPN_COMM_types.inc $(VPATH)/RPN_COMM_constants.inc
 
-ALL:  $(VPATH)/dependencies.mk itf lib stublib tests inc
+ALL:  dep itf lib stublib tests inc
+
+dep: itf $(VPATH)/dependencies.mk
 
 tests:	$(TESTS)
 
