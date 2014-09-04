@@ -388,12 +388,13 @@
 !     call tmg_start(91,'RPN_COMM_halons')
       if (haloy .gt. 0) then
               call RPN_COMM_xch_halons(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody)
+              if(periody .and. npol_row<-pe_ny .and. globalni>=ni) call RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,globalni)
       endif
 !     call tmg_stop(91)
       if (min(pe_mey+1,pe_ny-pe_mey).le.polarrows) then
-           ierr = RPN_COMM_topo(gni,mini,maxi,nil,nilmax,halox,ni0,.TRUE.,.FALSE.)
+           ierr = RPN_COMM_topo(globalni,mini,maxi,nil,nilmax,halox,ni0,.TRUE.,.FALSE.)
 !          call tmg_start(92,'RPN_COMM_xch_halosl')
-           call RPN_COMM_xch_halosl(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody,gni,npol_row,nilmax)
+           call RPN_COMM_xch_halosl(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody,globalni,npol_row,nilmax)
 !          call tmg_stop(92)
 
       endif

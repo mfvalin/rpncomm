@@ -98,7 +98,7 @@
       enddo
 
         T1 = RPN_COMM_Wtime() - T0
-      if(async_exch) THEN !  asynchronous simultaneous west to east and east to west moves
+      if(async_exch) THEN !  asynchronous simultaneous north to south  and south to north moves
       nwds=nk*haloy*(2*halox+ni)
       messages = 0
       if(.not. north) then

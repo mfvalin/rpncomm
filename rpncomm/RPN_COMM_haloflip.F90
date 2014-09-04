@@ -19,19 +19,20 @@
 ! */
 !InTf!
 !**S/R RPN_COMM_haloflip handle across the pole halo exchange for global grids
-subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !InTf!
-  use rpn_comm                                                                 !InTf!
+subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,ggni)  !InTf!
+  use rpn_comm
   implicit none                                                                !InTf!
 #define IN_RPN_COMM_haloflip
 #include "RPN_COMM_interfaces_int.inc"
 !ARGUMENTS
-  integer, intent(IN) :: minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni          !InTf!
+  integer, intent(IN) :: minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,ggni         !InTf!
   integer, intent(INOUT) :: g(minx:maxx,miny:maxy,nk)                          !InTf!
 ! minx,maxx,miny,maxy,nk     dimensions of local portion of the global grid
 ! ni,nj                      number of useful points along x and y in local portion of grid
 ! halox,haloy                halo sizes
-! gni                        dimension along x of the global grid
-  integer :: i,j,k,ierr,gmin,gmax
+! ggni                       dimension along x of the global grid (  abs(ggni) really )
+!                            ggni < 0 used for tests
+  integer :: i,j,k,ierr,gmin,gmax,gni
 !  integer :: i0,in
   integer :: j_src,j_dest
   integer, dimension(minx:maxx,haloy,nk,0:1) :: local
@@ -48,13 +49,14 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
 ! this area is then circulated ring fashion in the x direction between PEs
 ! each PE will pick on the fly from this circulated data what it needs for its transpolar area
 
+  if(.not. bnd_south .and. .not. bnd_north) return ! nothing to do if not containing north or south pole
+  gni = abs(ggni)
   t0 = mpi_wtime()
   t1 = 0
   t2 = 0
   t3 = 0
   t4 = 0
   t5 = 0
-  if(.not. bnd_south .and. .not. bnd_north) return ! nothing to do if not containing north or south pole
   if(bnd_south) then                               ! south pole
     j_src = 1             ! first source row
     j_dest = 1-haloy      ! first destination row
@@ -101,9 +103,9 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
     l_offset = 1 - low
     gis = max(low,start)             ! this PE looks for start thru finish in global index space
     gie = min(high,finish)
-    if(gni < 25)print *,'low=',low,' high=',high
+    if(ggni < 0)print *,'low=',low,' high=',high
     if (gis <= gie) then
-      if(gni < 25)print *,'%gis=',gis,gis+g_offset,' gie=',gie,gie+g_offset
+      if(ggni < 0)print *,'%gis=',gis,gis+g_offset,' gie=',gie,gie+g_offset
       do k=1,nk
       do j=1,haloy
       do i=gis,gie
@@ -116,7 +118,7 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
 !      print *,'low=',low,' finish2=',finish2,' high=',high
       gis = low
       gie = min(high,finish2)
-      if(gni < 25)print *,'+gis=',gis,gis+minx+finish-start,' +gie=',gie,gie+minx+finish-start
+      if(ggni < 0)print *,'+gis=',gis,gis+minx+finish-start,' +gie=',gie,gie+minx+finish-start
       do k=1,nk
       do j=1,haloy
       do i=gis,gie
@@ -132,6 +134,7 @@ subroutine RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)   !
     recv_tag = recv_from
 !    print *,pe_me,' sending to ',send_to,' receiving from',recv_from
 !    print 1,local(:,1,1,send)
+    if(ipe<pe_nx) &
     call mpi_sendrecv(local(minx,1,1,send) , nwds, MPI_INTEGER, send_to,   send_tag,   &
                       local(minx,1,1,recv) , nwds, MPI_INTEGER, recv_from, recv_tag,   &
                       pe_defcomm,status,ierr)
@@ -174,7 +177,10 @@ subroutine RPN_COMM_haloflip_test(halox, haloy, ni, nj, nk)   ! test routine for
   integer, dimension(0:100) :: count, depl
   integer :: iexpect, jexpect
   real *8 :: t0,t1,t2,t3,t4
+  integer :: tflg=-1
 
+  if(command_argument_count()>0) tflg=1
+  print *,'argument count =',command_argument_count()
   minx=1-halox-1
   maxx=ni+halox+1
   miny=1-haloy-1
@@ -212,7 +218,7 @@ subroutine RPN_COMM_haloflip_test(halox, haloy, ni, nj, nk)   ! test routine for
   enddo
   bnd_south = .false.
   bnd_north = .true.
-  call RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)
+  call RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,tflg*gni)
 !  goto 2
   bnd_south = .true.
   bnd_north = .false.
@@ -222,7 +228,7 @@ subroutine RPN_COMM_haloflip_test(halox, haloy, ni, nj, nk)   ! test routine for
 !  enddo
 !  enddo
 !  print *,"========================================================="
-  call RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni)
+  call RPN_COMM_haloflip(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,tflg*gni)
 2 if(gni > 25) goto 3
   do ipe = 0,pe_nx
     if(ipe == pe_mex) then
