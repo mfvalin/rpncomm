@@ -24,3 +24,6 @@
       include 'RPN_COMM_version.inc'
       return
       end
+      subroutine MARKER
+      return
+      end subroutine MARKER

@@ -11,6 +11,8 @@ interface rpncomm_associated
   module procedure rpncomm_ptr_associated
 end interface
 
+private :: marker
+
 contains
 function rpncomm_context_associated(object) result(value)
   implicit none
@@ -54,5 +56,9 @@ function rpncomm_ptr_associated(object) result(value)
   value = c_associated(object%p)
 end function rpncomm_ptr_associated
 
+subroutine marker
+call MARKER
+return
+end subroutine marker
 
 end module rpn_comm_types
