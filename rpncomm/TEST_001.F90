@@ -4,6 +4,7 @@
 	integer :: RPN_COMM_grid_redist_test
 	external :: RPN_COMM_xch_halo_test
 	integer :: RPN_COMM_xch_halo_test
+	integer, external :: RPN_COMM_xch_halo_flip_test
 	external RPN_COMM_init, TestUserInit, get_a_free_unit
         integer :: get_a_free_unit
 	integer :: RPN_COMM_dist_test
@@ -32,6 +33,10 @@
         if(IAND(test_to_perform,4)==4)then
           print *,'start halo exchange test'
           ierr=RPN_COMM_xch_halo_test(nparams,params)
+        endif
+        if(IAND(test_to_perform,8)==8)then
+          print *,'start haloflip exchange test'
+          ierr=RPN_COMM_xch_halo_flip_test(nparams,params)
         endif
         call RPN_COMM_finalize(ierr)
 	stop

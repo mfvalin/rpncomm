@@ -18,6 +18,74 @@
 ! * Boston, MA 02111-1307, USA.
 ! */
 !=======================================================================
+      integer function RPN_COMM_xch_halo_flip_test(nparams,params)
+!=======================================================================
+      use rpn_comm
+      implicit none
+      integer, intent(IN) :: nparams
+      integer, intent(IN), dimension(nparams) :: params
+      integer :: lni
+      integer :: lnj
+      integer :: nk
+      integer :: gni, gnj
+      logical :: periodx, periody
+      integer, dimension(pe_nx) :: countx, offsetx
+      integer, dimension(pe_ny) :: county, offsety
+      integer :: halox, haloy, npol_row
+      integer :: lminx, lmaxx, lminy, lmaxy
+      integer :: minx, maxx, miny, maxy
+      integer :: minx1, maxx1, miny1, maxy1
+      integer, pointer, dimension(:,:,:) :: localarray,localarray2
+      integer :: i, j, k, ierr
+!
+      RPN_COMM_xch_halo_flip_test=-1
+      gni = params(1)
+      gnj = params(2)
+      nk = params(3)
+      halox=params(4)
+      haloy=params(5)
+      periodx = .false.
+      periody = .false.
+      periodx = params(6).ne.0
+      periody = params(7).ne.0
+
+      npol_row = -999999
+      call RPN_COMM_limit(pe_mex,pe_nx,1,gni,lminx,lmaxx,countx,offsetx)
+      lni = countx(pe_mex+1)
+      call RPN_COMM_limit(pe_mey,pe_ny,1,gnj,lminy,lmaxy,county,offsety)
+      lnj = county(pe_mey+1)
+      minx = lminx-halox ; minx1 = minx - lminx + 1
+      maxx = lmaxx+halox ; maxx1 = maxx - lminx + 1
+      miny = lminy-haloy ; miny1 = miny - lminy + 1
+      maxy = lmaxy+haloy ; maxy1 = maxy - lminy + 1
+
+      allocate(localarray(minx:maxx,miny:maxy,nk))
+      allocate(localarray2(minx:maxx,miny:maxy,nk))
+      localarray = 1111
+      localarray = 2222
+      do k = 1,nk
+      do j = lminy,lmaxy
+      do i = lminx,lmaxx
+        localarray(i,j,k) = (i - 1)*(360.0/gni)
+        localarray2(i,j,k) = -90 + (j - .5) * (180.0/(gnj))
+      enddo
+      enddo
+      enddo
+      do j = maxy,miny,-1
+        print 101,j,localarray(minx:maxx,j,1),-999,localarray2(minx:maxx,j,1)
+      enddo
+101   format(40I5)
+      call rpn_comm_xch_halo(localarray,minx1,maxx1,miny1,maxy1,lni,lnj,nk,halox,haloy,periodx,periody,gni,npol_row)
+      call rpn_comm_xch_halo(localarray2,minx1,maxx1,miny1,maxy1,lni,lnj,nk,halox,haloy,periodx,periody,gni,npol_row)
+      do j = maxy,miny,-1
+        print 101,j,localarray(minx:maxx,j,1),-999,localarray2(minx:maxx,j,1)
+      enddo
+
+      RPN_COMM_xch_halo_flip_test=0
+      return
+      end function RPN_COMM_xch_halo_flip_test
+!
+!=======================================================================
       integer function RPN_COMM_xch_halo_test(nparams,params)
 !=======================================================================
       use rpn_comm
