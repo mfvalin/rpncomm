@@ -21,6 +21,7 @@ module rpn_comm
   use iso_c_binding
   implicit none
   include 'RPN_COMM_constants.inc'
+  include 'RPN_COMM_types.inc'
   include 'mpif.h'
   save
   integer MAX_OPTN

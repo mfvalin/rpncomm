@@ -17,11 +17,13 @@
 ! * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! * Boston, MA 02111-1307, USA.
 ! */
+#define IN_RPN_COMM_spread
 !InTf!
-function RPN_COMM_spread(contxt,source,npts,ndata,dest) result(status)    !InTf!
+function RPN_COMM_spread(contxt,source,npts,ndata,dest)  result(status)   !InTf!
   use ISO_C_BINDING                                                       !InTf!
-  use RPN_COMM_types                                                      !InTf!
+!!  import :: rpncomm_context    !InTf!
   implicit none                                                           !InTf!
+#include "RPN_COMM_int.inc"
   include 'RPN_COMM_spread.inc'
   include 'mpif.h'
 
@@ -113,8 +115,9 @@ end function RPN_COMM_spread                                                    
 !InTf!
 function RPN_COMM_spread_context(contxt,com,rootpe,pe,npts) result(status)                          !InTf!
   use ISO_C_BINDING                                                                                 !InTf!
-  use RPN_COMM_types                                                      !InTf!
+!!  import :: rpncomm_context                                                                       !InTf!
   implicit none                                                                                     !InTf!
+#include "RPN_COMM_int.inc"
   include 'RPN_COMM_spread.inc'
   include 'mpif.h'
 
@@ -138,7 +141,7 @@ function RPN_COMM_spread_context(contxt,com,rootpe,pe,npts) result(status)      
 
   type(spread_context), pointer :: context_entry   ! metadata
   integer, dimension(:), pointer :: offset, order, nlocal
-  integer, external :: RPN_COMM_comm
+!  integer, external :: RPN_COMM_comm
   integer :: i, max_pe, n_pes, myrank, ierr, comm
 
   comm = RPN_COMM_comm(com)               ! get MPI communicator
