@@ -18,4 +18,5 @@
 ! * Boston, MA 02111-1307, USA.
 ! */
       include 'RPN_COMM_constants.inc'
+      include 'RPN_COMM_types.inc'
       include 'RPN_COMM_interfaces.inc'

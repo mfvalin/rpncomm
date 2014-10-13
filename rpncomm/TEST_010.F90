@@ -1,8 +1,7 @@
 subroutine rpn_comm_test_010
 use ISO_C_BINDING
-use rpn_comm_types
 implicit none
-#include "RPN_COMM_ptr.inc"
+#include "RPN_COMM_int.inc"
 
 integer :: a1(10), a2(10,10), a3(10,10,10), a4(10,10,10,10)
 integer, pointer, dimension(:) :: pp
