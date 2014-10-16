@@ -22,6 +22,7 @@ module rpn_comm
   implicit none
   include 'RPN_COMM_constants.inc'
   include 'RPN_COMM_types.inc'
+  include 'RPN_COMM_types_int.inc'
   include 'mpif.h'
   save
   integer MAX_OPTN
@@ -240,7 +241,7 @@ module rpn_comm
   end interface
 
 !
-! Decomposition tables
+! Decomposition tables (should be moved to RPN_COMM_types_int.inc)
 !
   type :: DEC         ! decomposisition description
   integer :: id       ! "magic" pseudo unique identifier

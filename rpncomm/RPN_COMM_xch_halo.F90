@@ -86,10 +86,22 @@
       end function RPN_COMM_xch_halo_flip_test
 !
 !=======================================================================
+      function RPN_COMM_exchange_halo_test(nparams,params) result(status)
+      use ISO_C_BINDING
+      implicit none
+      include 'RPN_COMM.inc'
+      integer, intent(IN) :: nparams
+      integer, intent(IN), dimension(nparams) :: params
+      integer :: status
+      status = 0
+      end function RPN_COMM_exchange_halo_test
+!=======================================================================
+!=======================================================================
       integer function RPN_COMM_xch_halo_test(nparams,params)
 !=======================================================================
       use rpn_comm
       implicit none
+      include 'RPN_COMM_interfaces.inc'
       integer, intent(IN) :: nparams
       integer, intent(IN), dimension(nparams) :: params
 !
@@ -119,9 +131,9 @@
       periodx = params(6).ne.0
       periody = params(7).ne.0
 !
-      call RPN_COMM_limit(pe_mex,pe_nx,1,gni,lminx,lmaxx,countx,offsetx)
+      ierr = RPN_COMM_limit(pe_mex,pe_nx,1,gni,lminx,lmaxx,countx,offsetx)
       lni = countx(pe_mex+1)
-      call RPN_COMM_limit(pe_mey,pe_ny,1,gnj,lminy,lmaxy,county,offsety)
+      ierr = RPN_COMM_limit(pe_mey,pe_ny,1,gnj,lminy,lmaxy,county,offsety)
       lnj = county(pe_mey+1)
       minx = lminx-halox ; minx1 = minx - lminx + 1
       maxx = lmaxx+halox ; maxx1 = maxx - lminx + 1
@@ -187,6 +199,23 @@
       RPN_COMM_xch_halo_test=0
       return
       end function RPN_COMM_xch_halo_test
+!=======================================================================
+!InTf!
+      SUBROUTINE RPN_COMM_exchange_halo(pattern,array,periodx,periody,periodp,npol_row)  !InTf!
+      use rpn_comm
+!!    import ::  rpncomm_pattern, c_ptr                                                  !InTf!
+      implicit none                                                                      !InTf!
+      type(rpncomm_pattern), intent(IN) :: pattern                                       !InTf!
+      type(c_ptr), intent(IN) :: array                                                   !InTf!
+      logical, intent(IN), OPTIONAL  :: periodx,periody, periodp                         !InTf!
+      integer, intent(IN), OPTIONAL :: npol_row                                          !InTf!
+      integer, dimension(:), pointer :: g
+      integer :: minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni
+
+      call c_f_ptr(array,g,[2])
+
+      call RPN_COMM_xch_halo(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody,gni,npol_row)
+      end SUBROUTINE RPN_COMM_exchange_halo                                              !InTf!
 !=======================================================================
       SUBROUTINE RPN_COMM_xch_halo(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody,gni,npol_row)
 !=======================================================================

@@ -19,16 +19,16 @@ do
   [[ $typex == i* ]] && type='i'
   [[ $typex == r* ]] && type='r'
   cat <<EOT
-subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}d(what,ptr)    !InTf!
-use ISO_C_BINDING    !InTf!
-!! import :: rpncomm_ptr      !InTf!
-implicit none    !InTf!
-include 'RPN_COMM_types.inc'
-$typex(KIND=$kind), dimension${array[$dim]},intent(IN), target :: what    !InTf!
-type(rpncomm_ptr), intent(OUT) :: ptr    !InTf!
-ptr%p = c_loc(what${array[$dim]})
-return
-end subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}d    !InTf!
+  subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}d(what,ptr)    !InTf!
+  use ISO_C_BINDING    !InTf!
+!!  import :: rpncomm_ptr      !InTf!
+  implicit none    !InTf!
+  include 'RPN_COMM_types.inc'
+  $typex(KIND=$kind), dimension${array[$dim]},intent(IN), target :: what    !InTf!
+  type(rpncomm_ptr), intent(OUT) :: ptr    !InTf!
+  ptr%p = c_loc(what${array[$dim]})
+  return
+  end subroutine RPN_COMM_ptr_${type%??????}${kind}_${dim}d    !InTf!
 
 EOT
 done
