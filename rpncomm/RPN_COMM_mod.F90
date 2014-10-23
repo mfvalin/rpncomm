@@ -63,35 +63,35 @@ module rpn_comm
 !
 !       WORLD_COMM_MPI  replaces MPI_COMM_WORLD
 !
-  integer WORLD_COMM_MPI
-  integer diag_mode
+  integer :: WORLD_COMM_MPI                         ! plays the role of MPI_COMM_WORLD for rpn_comm
+  integer :: diag_mode
   logical :: WORLD_COMM_MPI_INIT=.false.
   logical :: RPM_COMM_IS_INITIALIZED=.false.
   integer :: deltai=1   ! deltai and deltaj are used by RPN_COMM_petopo to distribute grid over PEs
   integer :: deltaj=1   ! default PE distribution is X increasing, then Y increasing
-  integer pe_me,pe_mex,pe_mey,pe_myrow,pe_mycol
-  integer pe_tot,pe_nx,pe_ny,pe_pe0,pe_extra
-  integer pe_gr_extra,pe_gr_myrow,pe_gr_mycol
-  integer pe_bloc, pe_blocmaster, pe_defgroup
-  integer pe_gr_bloc, pe_gr_blocmaster, pe_defcomm
-  integer pe_gr_indomm, pe_gr_outdomm, pe_indomm, pe_outdomm
-  integer pe_gr_indomms, pe_indomms ! multigrid countepart to pe_gr_indomm and pe_indomm
-  integer pe_wcomm, pe_gr_wcomm
-  integer pe_wcomms, pe_gr_wcomms  ! multigrid countepart to pe_wcomm and pe_gr_wcomm
-  integer pe_dommtot, pe_medomm
-  integer pe_all_domains, pe_gr_all_domains      ! all the domains
-  integer pe_me_all_domains, pe_tot_all_domains  ! all the domains
-  integer pe_a_domain, pe_gr_a_domain            ! all multigrids in a domain
-  integer pe_me_a_domain, pe_tot_a_domain        ! all multigrids in a domain
-  integer pe_multi_grid, pe_gr_multi_grid        ! all the grids in a multigrid
-  integer pe_me_multi_grid, pe_tot_multi_grid    ! all the grids in a multigrid
-  integer pe_grid, pe_gr_grid                    ! a single grid
-  integer pe_me_grid, pe_tot_grid                ! a single grid
-  integer pe_grid_peers, pe_gr_grid_peers        ! PEs with same rank on different grids of same multigrid
-  integer pe_me_peer, pe_tot_peer                ! PEs with same rank on different grids of same multigrid
-  integer pe_grid_host, pe_gr_grid_host          ! PEs on same host node (belonging to same "grid")
-  integer pe_me_grid_host, pe_tot_grid_host      ! PEs on same host node (belonging to same "grid")
-  integer my_colors(3)                           ! domain/multigrid/grid color
+  integer :: pe_me,pe_mex,pe_mey,pe_myrow,pe_mycol
+  integer :: pe_tot,pe_nx,pe_ny,pe_pe0,pe_extra
+  integer :: pe_gr_extra,pe_gr_myrow,pe_gr_mycol
+  integer :: pe_bloc, pe_blocmaster, pe_defgroup
+  integer :: pe_gr_bloc, pe_gr_blocmaster, pe_defcomm
+  integer :: pe_gr_indomm, pe_gr_outdomm, pe_indomm, pe_outdomm
+  integer :: pe_gr_indomms, pe_indomms ! multigrid countepart to pe_gr_indomm and pe_indomm
+  integer :: pe_wcomm, pe_gr_wcomm
+  integer :: pe_wcomms, pe_gr_wcomms  ! multigrid countepart to pe_wcomm and pe_gr_wcomm
+  integer :: pe_dommtot, pe_medomm
+  integer :: pe_all_domains, pe_gr_all_domains      ! all the domains
+  integer :: pe_me_all_domains, pe_tot_all_domains  ! all the domains
+  integer :: pe_a_domain, pe_gr_a_domain            ! all multigrids in a domain
+  integer :: pe_me_a_domain, pe_tot_a_domain        ! all multigrids in a domain
+  integer :: pe_multi_grid, pe_gr_multi_grid        ! all the grids in a multigrid
+  integer :: pe_me_multi_grid, pe_tot_multi_grid    ! all the grids in a multigrid
+  integer :: pe_grid, pe_gr_grid                    ! a single grid
+  integer :: pe_me_grid, pe_tot_grid                ! a single grid
+  integer :: pe_grid_peers, pe_gr_grid_peers        ! PEs with same rank on different grids of same multigrid
+  integer :: pe_me_peer, pe_tot_peer                ! PEs with same rank on different grids of same multigrid
+  integer :: pe_grid_host, pe_gr_grid_host          ! PEs on same host node (belonging to same "grid")
+  integer :: pe_me_grid_host, pe_tot_grid_host      ! PEs on same host node (belonging to same "grid")
+  integer :: my_colors(3)                           ! domain/multigrid/grid color
   integer, allocatable, dimension(:,:) :: pe_id
   integer, allocatable, dimension(:)   :: pe_xtab,pe_ytab
   integer, allocatable, dimension(:,:) :: pe_location   ! pe_x,pe_x,pe_ingrid,pe_insgrid,pe_indomain
@@ -99,7 +99,7 @@ module rpn_comm
   logical :: full_async_exch=.false.  ! fully asynchronous halo exchange (level 2)
   logical :: rpn_ew_ext_l = .false.   ! extended halo option (haloy extra rows on North and South tiles)
   character *4 pe_optn(MAX_OPTN)
-  integer pe_opiv(MAX_OPTN)
+  integer :: pe_opiv(MAX_OPTN)
   real *4 pe_oprv(MAX_OPTN)
   character *4 pe_opcv(MAX_OPTN)
   integer, private :: RESTE
@@ -241,7 +241,7 @@ module rpn_comm
   end interface
 
 !
-! Decomposition tables (should be moved to RPN_COMM_types_int.inc)
+! Decomposition tables (definitions should be moved to RPN_COMM_types_int.inc)
 !
   type :: DEC         ! decomposisition description
   integer :: id       ! "magic" pseudo unique identifier
