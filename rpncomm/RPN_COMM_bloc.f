@@ -79,7 +79,7 @@
         if(t%pe_myrow  /= pe_myrow)  cycle
         if(t%pe_mycol  /= pe_mycol)  cycle
         RPN_COMM_bloc_find = i
-        if(set) then  ! set value of variables in module rpn_comm from block distribution table entry 
+        if(set) then  ! set value of variables in module rpn_comm from block distribution table entry
           BLOC_master     = t%BLOC_master
           BLOC_exist      = t%BLOC_exist
           BLOC_SIZEX      = t%BLOC_SIZEX
@@ -96,8 +96,8 @@
           pe_gr_bloc      = t%pe_gr_bloc
           pe_blocmaster   = t%pe_blocmaster
           pe_gr_blocmaster = t%pe_gr_blocmaster
-          write(rpn_u,*) 'INFO: using valid block distribution for',
-     %                 nblocx,' by',nblocy
+!          write(rpn_u,*) 'INFO: using valid block distribution for',
+!     %                 nblocx,' by',nblocy
 !        else
 !          write(rpn_u,*) 'INFO: found valid block distribution for',
 !     %                 nblocx,' by',nblocy
@@ -120,7 +120,7 @@
       integer longx, longy, i,j,n
       integer mybloc
       type(block_entry), pointer :: t
-!     
+!
       RPN_COMM_bloc_create = -1
       nblocs=nblocx*nblocy
 !
@@ -140,7 +140,7 @@
          return
       endif
       if(valid_entries>=MAX_ENTRIES) then ! OOPS no space left in table
-        write(rpn_u,*) 
+        write(rpn_u,*)
      %  'ERROR: block distribution table full (RPN_COMM_bloc_create)'
         return
       endif
@@ -177,13 +177,13 @@
       BLOC_comm_world = pe_indomm
       BLOC_comm_row   = pe_myrow
       BLOC_comm_col   = pe_mycol
-      
+
       if(BLOC_corner==pe_medomm) BLOC_master=1
-      
+
       pe_bloc = mpi_comm_null
       call MPI_COMM_SPLIT(BLOC_comm_world,
      %     BLOC_mybloc,BLOC_me,pe_bloc,ierr)  ! new communicator for blockpeers
-      
+
       n=1
       do j=1,nblocy
          do i=1,nblocx
@@ -195,7 +195,7 @@
       call MPI_Group_incl(pe_gr_indomm, nblocs, indices,
      %     pe_gr_blocmaster, ierr)  ! group created for blockmasters
 !!      call MPI_Group_rank(pe_gr_bloc,mybloc,ierr) ! mybloc is not used
-      
+
       call MPI_Comm_group(pe_bloc,pe_gr_bloc,ierr)  ! new group for blockpeers
       call MPI_Comm_create(BLOC_comm_world, pe_gr_blocmaster,
      %     pe_blocmaster, ierr)  ! communicator created for blockmasters
@@ -221,7 +221,7 @@
      %                 nblocx,' by',nblocy
       RPN_COMM_bloc_create = 0  ! success
 
-        
+
       end function RPN_COMM_bloc_create
 
-      
+
