@@ -48,6 +48,7 @@
       integer, pointer, dimension(:) :: zlist, zlist2
       integer :: nk, nz, k0
       real *8 :: t1,t2,t3,t4,t5
+      integer, external :: RPN_COMM_limit
 !
 !      gni = params(1)
       gni = pe_nx*lni
@@ -77,8 +78,8 @@
       outpe_y(noy-1) = pe_ny-2
       outpe_x(1) = 0
       outpe_y(1) = 0
-      call RPN_COMM_limit(pe_mex,pe_nx,1,gni,lminx,lmaxx,countx,offsetx)
-      call RPN_COMM_limit(pe_mey,pe_ny,1,gnj,lminy,lmaxy,county,offsety)
+      ierr = RPN_COMM_limit(pe_mex,pe_nx,1,gni,lminx,lmaxx,countx,offsetx)
+      ierr = RPN_COMM_limit(pe_mey,pe_ny,1,gnj,lminy,lmaxy,county,offsety)
       allocate(localarray(lminx-1:lmaxx+2,lminy-2:lmaxy+1,nk))
       allocate(localarray2(lminx-1:lmaxx+2,lminy-2:lmaxy+1,nk))
       localarray = 0
@@ -294,6 +295,7 @@
       integer :: i, j, k, l, kbot, ktop, n2d, kout
       integer :: lev0, narrays, ierr, temp, my_out_col
       logical :: needed_for_pass2, size_error, no_holes
+      integer, external :: RPN_COMM_limit
 !
       RPN_COMM_grid_redist = -1  ! return -1 if an error occurred
       zlist = -1                 ! empty list
@@ -320,8 +322,8 @@
 !     as it will "fudge" mini,maxi,i0,in,ix0,ixn,gni appropriately
 !     mod(gni,ltok) must be zero
 !
-      call RPN_COMM_limit(pe_mex,pe_nx,1,gni,lminx,lmaxx,countx,offsetx)  ! X decomposition
-      call RPN_COMM_limit(pe_mey,pe_ny,1,gnj,lminy,lmaxy,county,offsety)  ! Y decomposition
+      ierr = RPN_COMM_limit(pe_mex,pe_nx,1,gni,lminx,lmaxx,countx,offsetx)  ! X decomposition
+      ierr = RPN_COMM_limit(pe_mey,pe_ny,1,gnj,lminy,lmaxy,county,offsety)  ! Y decomposition
 !
       level_x = 0
       level_table = -1

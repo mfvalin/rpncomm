@@ -37,6 +37,7 @@
       integer :: minx1, maxx1, miny1, maxy1
       integer, pointer, dimension(:,:,:) :: localarray,localarray2
       integer :: i, j, k, ierr
+      integer, external :: RPN_COMM_limit
 !
       RPN_COMM_xch_halo_flip_test=-1
       gni = params(1)
@@ -50,9 +51,9 @@
       periody = params(7).ne.0
 
       npol_row = -999999
-      call RPN_COMM_limit(pe_mex,pe_nx,1,gni,lminx,lmaxx,countx,offsetx)
+      ierr = RPN_COMM_limit(pe_mex,pe_nx,1,gni,lminx,lmaxx,countx,offsetx)
       lni = countx(pe_mex+1)
-      call RPN_COMM_limit(pe_mey,pe_ny,1,gnj,lminy,lmaxy,county,offsety)
+      ierr = RPN_COMM_limit(pe_mey,pe_ny,1,gnj,lminy,lmaxy,county,offsety)
       lnj = county(pe_mey+1)
       minx = lminx-halox ; minx1 = minx - lminx + 1
       maxx = lmaxx+halox ; maxx1 = maxx - lminx + 1
