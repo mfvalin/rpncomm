@@ -214,7 +214,7 @@
       integer :: minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,gni
       type(rpncomm_field), pointer :: f
 
-      call c_f_ptr(pattern%p,f)
+      call c_f_pointer(pattern%p,f)
       minx = f%x%lo
       maxx = f%x%hi
       miny = f%y%lo
@@ -225,7 +225,7 @@
       halox = f%hx
       haloy = f%hy
       gni = f%x%gnp
-      call c_f_ptr(array,g,[(maxx-minx+1)*(maxy-miny+1)*nk])
+      call c_f_pointer(array,g,[(maxx-minx+1)*(maxy-miny+1)*nk])
 
       if(npol_row > 0) then  !  semi lag exchange, call old code
         call RPN_COMM_xch_halo(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody,gni,npol_row)

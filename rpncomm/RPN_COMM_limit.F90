@@ -1,3 +1,9 @@
+#if defined(SELF_TEST)
+program self_test
+call RPN_COMM_test_limit(6)
+stop
+end
+#endif
 !/! RMNLIB - Library of useful routines for C and FORTRAN programming
 ! ! Copyright (C) 1975-2012  Division de Recherche en Prevision Numerique
 ! !                          Environnement Canada
@@ -17,9 +23,10 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
-      subroutine RPN_COMM_test_limit()
+      subroutine RPN_COMM_test_limit(NPE)
       implicit none
-      integer, parameter :: NPE=6
+      integer, intent(IN) :: NPE
+!      integer, parameter :: NPE=6
       integer, dimension(NPE) :: count, offset
       integer :: my_id, gmin, gmax, lmini, lmaxi, status
       integer :: RPN_COMM_limit_2
@@ -27,33 +34,43 @@
 
       gmin = 1
       gmax = 13
+      print 101,'NPE  =',NPE
+      print 101,'relax =',3
       do my_id=0,NPE-1
-      status = RPN_COMM_limit_2(my_id, npe, gmin, gmax,&
-     &     lmini,lmaxi,count, offset,3)
+      status = RPN_COMM_limit_2(my_id, npe, gmin, gmax,lmini,lmaxi,count, offset,3)
+      print 102, '      ','   ID',' mini',' maxi',' gmin',' gmax',' stat'
       print 101, 'pe_me=',my_id, lmini,lmaxi, gmin, gmax, status
       print 101, 'count=',count
       print 101, 'offst=',offset
       print *,''
       enddo
       print *, '---------------------------'
-101   format(A7,10I5)
+101   format(A7,10I6)
+102   format(A7,10A6)
       my_id=NPE-1
-      status = RPN_COMM_limit_2(my_id, npe, gmin, gmax,&
-     &     lmini,lmaxi,count, offset,1)
-      print 101, 'pe_me=',my_id, lmini,lmaxi, status
+      status = RPN_COMM_limit_2(my_id, npe, gmin, gmax,lmini,lmaxi,count, offset,1)
+      print 102, '      ','   ID',' mini',' maxi',' gmin',' gmax','relax',' stat'
+      print 101, 'pe_me=',my_id, lmini,lmaxi, gmin, gmax, 1, status
       print 101, 'count=',count
       print 101, 'offst=',offset
       print *,''
-      gmax = 6
-      status = RPN_COMM_limit_2(my_id, npe, gmin, gmax,&
-     &     lmini,lmaxi,count, offset,1)
-      print 101, 'pe_me=',my_id, lmini,lmaxi, status
+      gmax = 5
+      status = RPN_COMM_limit_2(my_id, npe, gmin, gmax,lmini,lmaxi,count, offset,1)
+      print 102, '      ','   ID',' mini',' maxi',' gmin',' gmax','relax',' stat'
+      print 101, 'pe_me=',my_id, lmini,lmaxi, gmin, gmax, 1, status
       print 101, 'count=',count
       print 101, 'offst=',offset
       print *,''
-      status = RPN_COMM_limit_2(my_id, npe, gmin, gmax,&
-     &     lmini,lmaxi,count, offset,3)
-      print 101, 'pe_me=',my_id, lmini,lmaxi, status
+      status = RPN_COMM_limit_2(my_id, npe, gmin, gmax,lmini,lmaxi,count, offset,3)
+      print 102, '      ','   ID',' mini',' maxi',' gmin',' gmax','relax',' stat'
+      print 101, 'pe_me=',my_id, lmini,lmaxi, gmin, gmax, 3, status
+      print 101, 'count=',count
+      print 101, 'offst=',offset
+      print *,''
+      gmax = 8
+      status = RPN_COMM_limit_2(my_id, npe, gmin, gmax,lmini,lmaxi,count, offset,3)
+      print 102, '      ','   ID',' mini',' maxi',' gmin',' gmax','relax',' stat'
+      print 101, 'pe_me=',my_id, lmini,lmaxi, gmin, gmax, 3, status
       print 101, 'count=',count
       print 101, 'offst=',offset
       print *,''

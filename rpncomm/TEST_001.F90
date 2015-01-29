@@ -38,6 +38,10 @@
           print *,'start haloflip exchange test'
           ierr=RPN_COMM_xch_halo_flip_test(nparams,params)
         endif
+        if(IAND(test_to_perform,16)==16)then
+          print *,'start fast distribution test'
+          call RPN_COMM_fast_dist_test(nparams,params)
+        endif
         call RPN_COMM_finalize(ierr)
 	stop
 	end
