@@ -39,7 +39,7 @@ if [[ -z $1 ]] ; then
 else
   [[ -f $1 ]] || exit 0
   if grep -q '!InTf!' $1 ; then
-    echo "#ifndef IN_${1%.*}"
+    echo "#if ! defined(IN_${1%.*})"
     grep '!InTf!' $1 | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ../tools/wrap_code.exe
     echo "#endif"
   fi

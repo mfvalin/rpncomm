@@ -134,27 +134,27 @@
 !	include 'rpn_comm.h'
 !	include 'mpif.h'
 !
-	integer ierr, i, j, count, npe, reste, nslots, key
-	logical mpi_started
-	integer gr1, gr2
-	INTEGER newgroup,rowcomm
-	integer, allocatable, dimension(:) :: proc_indomm
-	integer unit, ndom, lndom, nproc, procmax,procmin
-	type(domm), allocatable, dimension(:) :: locdom
-      integer fnom
-	logical ok, allok
-	logical RPN_COMM_grank
-	integer RPN_COMM_petopo, RPN_COMM_version
-	character *4096 SYSTEM_COMMAND,SYSTEM_COMMAND_2
-	character *256 , dimension(:), allocatable :: directories
+      integer ierr, i, j, count, npe, reste, nslots, key, status
+      logical mpi_started
+      integer gr1, gr2
+      INTEGER newgroup,rowcomm
+      integer, allocatable, dimension(:) :: proc_indomm
+      integer unit, ndom, lndom, nproc, procmax,procmin
+      type(domm), allocatable, dimension(:) :: locdom
+      logical ok, allok
+      logical RPN_COMM_grank
+      integer RPN_COMM_petopo, RPN_COMM_version
+      character *4096 SYSTEM_COMMAND,SYSTEM_COMMAND_2
+      character *256 , dimension(:), allocatable :: directories
       character *256 :: my_directory, my_directory_file
       character *32 access_mode
-	integer ncolors,my_color,directory_file_num
-	integer,dimension(:,:),allocatable::colors
-	integer,dimension(:),allocatable::colortab
+      integer ncolors,my_color,directory_file_num,iun
+      integer,dimension(:,:),allocatable::colors
+      integer,dimension(:),allocatable::colortab
       integer version_marker, version_max, version_min
       integer pe_my_location(8)
       external RPN_COMM_unbind_process
+      integer, external :: RPN_COMM_get_a_free_unit, RPN_COMM_set_timeout_alarm, fnom
 !
 !      if(RPM_COMM_IS_INITIALIZED) then ! ignore with warning message or abort ?
 !      endif
@@ -179,7 +179,21 @@
       ok = .true.
 
       call MPI_INITIALIZED(mpi_started,ierr)
+      status = RPN_COMM_set_timeout_alarm(60)
       if (.not. mpi_started ) call MPI_init(ierr)
+      status = RPN_COMM_set_timeout_alarm(0)
+      pe_wcomm=WORLD_COMM_MPI      ! UNIVERSE at this point
+      call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)
+      if(pe_me == 0)then
+        call RPN_COMM_env_var("RPN_COMM_MONITOR",SYSTEM_COMMAND)
+        if(SYSTEM_COMMAND .ne. " ") then
+          iun = RPN_COMM_get_a_free_unit()
+          open(iun,file=trim(SYSTEM_COMMAND),form='FORMATTED')
+          write(iun,'(A)')'mpi_init successful'
+          close(iun)
+        endif
+      endif
+      call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)
       call RPN_COMM_unbind_process ! unbind processes if needed (FULL_UNBIND environment variable)
 
       version_marker=RPN_COMM_version()
@@ -197,12 +211,8 @@
 !!      call rpn_comm_softbarrier_init_all
 !       call resetenv   ! mpich1 will no longer work
 !
-      pe_wcomm=WORLD_COMM_MPI
-      call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)
-      call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)
       allocate(pe_location(8,0:pe_tot-1))
 
-      pe_wcomm = WORLD_COMM_MPI   ! UNIVERSE at this point
       pe_all_domains = pe_wcomm
       pe_me_all_domains = pe_me
       pe_tot_all_domains = pe_tot
@@ -277,14 +287,14 @@
 !         RPN_COMM_DOM contains -ncolors followed by the name of the file that contains
 !         the directories to get into for the various subdomains (one line per subdomain)
           read(SYSTEM_COMMAND,*) ncolors,my_directory_file   ! get directory file
-          directory_file_num=9999
-          do i = 1 , 99  ! find an available unit number
-            inquire(UNIT=i,ACCESS=access_mode)
-            if(trim(access_mode) == 'UNDEFINED')then ! found
-              directory_file_num = i
-              exit
-            endif
-          enddo
+          directory_file_num=RPN_COMM_get_a_free_unit()
+!          do i = 1 , 99  ! find an available unit number
+!            inquire(UNIT=i,ACCESS=access_mode)
+!            if(trim(access_mode) == 'UNDEFINED')then ! found
+!              directory_file_num = i
+!              exit
+!            endif
+!          enddo
 !          ierr=fnom(directory_file_num,trim(my_directory_file),&
 !     &              'SEQ+OLD+FTN',0)                        ! open file containing directory list
          open(UNIT=directory_file_num,file=trim(my_directory_file),&
@@ -587,4 +597,39 @@
 !     &                    grid_id_table,3,MPI_INTEGER,&
 !     &                    pe_all_domains,ierr)   ! progagate grid_id/local_rank/global_rank table
       return
+      contains
+
       end FUNCTION RPN_COMM_init_multi_level                        !InTf!
+      integer function RPN_COMM_get_a_free_unit()                   !InTf!
+      implicit none
+      integer :: i
+      character (len=16) :: access_mode
+	RPN_COMM_get_a_free_unit=-1
+	do i = 99,1,-1  ! find an available unit number
+	  inquire(UNIT=i,ACCESS=access_mode)
+	  if(trim(access_mode) == 'UNDEFINED')then ! found
+	    RPN_COMM_get_a_free_unit = i
+	    exit
+	  endif
+	enddo
+      return
+      end function RPN_COMM_get_a_free_unit                         !InTf!
+      function RPN_COMM_set_timeout_alarm(seconds) result(seconds_since)  !InTf!
+      use ISO_C_BINDING
+      implicit none
+      integer, intent(IN) :: seconds
+      integer :: seconds_since
+
+      interface
+      function c_alarm(seconds) result(seconds_since) BIND(C,name='alarm')
+        use ISO_C_BINDING
+        implicit none
+        integer(C_INT), intent(IN), value :: seconds
+        integer(C_INT) :: seconds_since
+      end function c_alarm
+      end interface
+
+      seconds_since = c_alarm(seconds)
+      print *,'alarm set to ',seconds,' seconds'
+      return
+      end function RPN_COMM_set_timeout_alarm                             !InTf!
