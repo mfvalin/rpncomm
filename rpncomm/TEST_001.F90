@@ -13,12 +13,11 @@
         integer :: nparams
         integer, dimension(100) :: params
 
-	Pex = 0
-	Pey = 0
+        Pex = 0
+        Pey = 0
 !       UserInit supplied by TEST_helpers.f
-	call RPN_COMM_init(TestUserInit,Pelocal,Petotal,Pex,Pey)
-!	print *,' Pelocal,Petotal,Pex,Pey =',
-!     %          Pelocal,Petotal,Pex,Pey
+        call RPN_COMM_init(TestUserInit,Pelocal,Petotal,Pex,Pey)
+        print *,' Pelocal,Petotal,Pex,Pey =',Pelocal,Petotal,Pex,Pey
         iun=get_a_free_unit()
         open(UNIT=iun,FILE='TEST_001.cfg',STATUS='OLD')
         read(UNIT=iun,FMT=*)test_to_perform,nparams,params(1:nparams)
@@ -43,6 +42,46 @@
           call RPN_COMM_fast_dist_test(nparams,params)
         endif
         call RPN_COMM_finalize(ierr)
-	stop
-	end
-#include "TEST_helpers.inc"
+        stop
+        end
+        subroutine TestUserInit(NX,NY) ! try to get NX,NY from file TEST.cfg if it exists
+        external :: get_a_free_unit
+        integer :: get_a_free_unit
+        integer :: iun,ier,i
+        iun=get_a_free_unit()
+        if(iun<0)return
+!        print *,'attempting to read TEST.cfg'
+!        print *,'nx , ny =',nx,ny
+        open(UNIT=iun,FILE='TEST.cfg',STATUS='OLD',ACTION='READ',IOSTAT=ier)
+!        print *,'open iostat=',ier
+        if(ier .ne. 0) then
+!          print *,'attempting auto distribution, nx , ny =',nx,ny
+          do i=5,2,-1
+!            print *,'nx i mod(nx,i) =',nx, i, mod(nx,i)
+            if(mod(NX,i) == 0 .and. nx .ne. i)then
+              NY = i
+              NX = NX / i
+              return
+            endif
+          enddo
+          return
+        endif
+        read(UNIT=iun,IOSTAT=ier,FMT=*)NX,NY
+!        print *,'read iostat=',ier
+        close(UNIT=iun)
+        return
+        end
+        integer function get_a_free_unit()
+        implicit none
+        integer :: i
+        character (len=16) :: access_mode
+          get_a_free_unit=-1
+          do i = 1 , 99  ! find an available unit number
+            inquire(UNIT=i,ACCESS=access_mode)
+            if(trim(access_mode) == 'UNDEFINED')then ! found
+              get_a_free_unit = i
+              exit
+            endif
+          enddo
+        return
+        end

@@ -36,7 +36,8 @@
         integer :: ierr
         integer :: lmini, lmaxi, lminj, lmaxj
         integer :: i, j, k
-        integer :: nerrors, expected
+        integer :: ii, jj
+        integer :: nerrors, expected, npts
         integer :: n_halo, s_halo, e_halo, w_halo
 
         periodx = .false.
@@ -46,17 +47,17 @@
         if(pe_mex==0) w_halo = 0
         e_halo  = halox
         if(pe_mex==pe_nx-1) e_halo = 0
-        haloy   = 2
+        haloy   = 1
         n_halo  = haloy
         if(pe_mey == pe_ny-1) n_halo = 0
         s_halo  = haloy
         if(pe_mey == 0) s_halo = 0
-        ghalox  = 0
-        ghaloy  = 0
-        nig     = 20
+        ghalox  = halox
+        ghaloy  = haloy
+        nig     = 120
         gmini   = 1 - ghalox
         gmaxi   = nig + ghalox
-        njg     = 10
+        njg     = 60
         gminj   = 1 - ghaloy
         gmaxj   = njg + ghaloy
         nk      = 1
@@ -76,6 +77,12 @@
           allocate(garr(1,1,1,1))
           garr = 88088088
         endif
+        if(pe_me == 0 .and. nig < 13 .and. njg < 7) then
+          print *,'Global array'
+          do j = gmaxj,gminj,-1
+            print 101,j,garr(1,gmini:gmaxi,j,1)
+          enddo
+        endif
 
         ierr =  RPN_COMM_limit(pe_mex, pe_nx, 1, nig , lmini, lmaxi, count_x, depl_x)
         mini = 1 - halox
@@ -85,6 +92,7 @@
         maxj = (lmaxj-lminj+1) + haloy
 
         allocate(larr(1,mini:maxi,minj:maxj,nk))
+        larr = 77077077
 
         call RPN_COMM_fast_dist(garr,gmini,gmaxi,gminj,      &
      &          gmaxj,nig,njg,nk,ghalox,ghaloy,size,         &
@@ -92,14 +100,34 @@
      &          periodx,periody,status)
 
         nerrors = 0
+        npts = 0
+!        print *,'DEBUG: mini, maxi, minj, maxj',mini,maxi,minj,maxj
+!        print *,'DEBUG: lmini,lmaxi,lminj,lmaxj',lmini,lmaxi,lminj,lmaxj
         do k=1,nk
-        do j=lminj-s_halo,lmaxj+n_halo
-        do i=lmini-w_halo,lmaxi+e_halo
-          expected = i*1000000 + j*1000 + k
-          if(expected /= larr(1,1+i-lmini,1+j+lminj,k)) nerrors = nerrors + 1
+          do j=minj,maxj
+            jj = (j+lminj-1)
+            if(jj < 1 .or. jj > njg) cycle
+            do i=mini,maxi
+              ii = (i+lmini-1)
+              expected = ii*1000000 + jj*1000 + k
+              if(ii < 1 .or. ii > nig) cycle
+              npts = npts + 1
+              if(expected .ne. larr(1,i,j,k)) nerrors = nerrors + 1
+            enddo
+          enddo
         enddo
-        enddo
-        enddo
+        if(pe_me == 0) then
+          print *,'INFO: global ni,nj = ',nig,njg
+        endif
+        print *,'INFO: local ni,nj = ',count_x(pe_mex),count_y(pe_mey)
+        print *,'INFO: npts, nerrors = ',npts,nerrors
+        if(nerrors > 0) then
+          print *,'Local array'
+          do j = maxj, minj, -1
+            print 101,j,larr(1,mini:maxi,j,1)
+          enddo
+        endif
+101     format(I3,15I9)
 
         end subroutine
         subroutine RPN_COMM_fast_dist(garr,gmini,gmaxi,gminj,&
@@ -142,7 +170,7 @@
         integer :: base_x, base_y
         integer :: ierr, nil, njl, i, j, k
         integer :: lmini, lmaxi, lminj, lmaxj
-        integer, dimension(:,:,:), pointer :: fullrow
+        integer, dimension(:,:,:), pointer :: fullrow, partrow
         integer :: rowsize
 
         status = RPN_COMM_ERROR
@@ -158,13 +186,17 @@
 !
 !       compute scatter counts and displacements along x
 !
+        count_x = -1
+        depl_x = -1
         ierr =  RPN_COMM_limit(pe_mex, pe_nx, 1, nig , lmini, lmaxi, count_x, depl_x)
         nil=lmaxi-lmini+1
         if(mini > 1-halox .or. maxi < nil+halox) return   ! ERROR, cannot accomodate halo
-        do i = 1 , pe_nx - 2
-          count_x(i) = count_x(i) + 2*halox
-          depl_x(i)  = depl_x(i) -halox
-        enddo
+!        do i = 1 , pe_nx - 2
+!          count_x(i) = count_x(i) + 2*halox
+!          depl_x(i)  = depl_x(i) -halox
+!        enddo
+        count_x = count_x + 2*halox
+        depl_x  = depl_x - halox
         if ( .not. periodx ) then
           count_x(0) = count_x(0) - halox
           count_x(pe_nx-1) = count_x(pe_nx-1) - halox
@@ -177,10 +209,13 @@
 !
 !       compute scatter counts and displacements along y
 !
+        count_y = -1
+        depl_y = -1
         ierr =  RPN_COMM_limit(pe_mey, pe_ny, 1, njg , lminj, lmaxj, count_y, depl_y)
         njl=lmaxj-lminj+1
         if(minj > 1-haloy .or. maxj < njl+haloy) return  ! ERROR, cannot accomodate halo
         count_y = count_y + 2*haloy
+        depl_y = depl_y - haloy
         if ( .not. periody ) then
           count_y(0) = count_y(0) - haloy
           count_y(pe_ny-1) = count_y(pe_ny-1) - haloy
@@ -199,27 +234,48 @@
         else
           allocate(fullrow(1,1,1))
         endif
-
+#if defined(DEBUG)
+        print *,'DEBUG: base_x count_x=',base_x,count_x
+        print *,' depl_x=',depl_x
+        print *,'DEBUG: base_y rowsize count_y=',base_y,rowsize,count_y/rowsize
+        print *,' depl_y=',depl_y/rowsize
+#endif
         do k = 1 , nk   ! one level at a time
 
+          fullrow = 88088088
           if(pe_mex == 0) then  ! data distribution over column 0
             if(pe_ny > 1) then
-              call MPI_scatterv(garr(1,gmini,1,1),count_y,depl_y,MPI_INTEGER,fullrow(1,gmini,base_y),count_y(pe_mey),0,pe_mycol,ierr)
+              call MPI_scatterv(garr(1,gmini,1,1),count_y,depl_y,MPI_INTEGER,fullrow(1,gmini,base_y),count_y(pe_mey),MPI_INTEGER,0,pe_mycol,ierr)
             else
               fullrow(1:size,gmini:gmaxi,1-haloy:njl+haloy) => garr(:,:,1-haloy:njl+haloy,k)
             endif
+#if defined(DEBUG)
+            print *,'DEBUG: fullrow'
+            do j = njl+haloy,1-haloy,-1
+              print 101,j,fullrow(1,gmini:gmaxi,j)
+            enddo
+#endif
+101         format(I3,15I9)
           endif
           call RPN_COMM_barrier(RPN_COMM_GRID,ierr)   ! PEs on column 0 are now ready for the distribute along x phase
-
+!         as an alternative to the following loop
+!         allocate partrow(size,mini:maxi,minj:maxj,pe_nx)
+!         scatterv partrow (one call instead of njl+2*halox)
           do j = 1-haloy , njl+haloy  ! distribution along x one row at a time
             if(.not. periody .and. j < 1   .and. pe_mey == 0      )           continue
             if(.not. periody .and. j > njl .and. pe_mey == pe_ny-1)           continue
             if(pe_nx > 1) then
-              call MPI_scatterv(fullrow(1,1,j),count_x,depl_x,MPI_INTEGER,larr(1,base_x,j,k),count_x(pe_mex),0,pe_myrow,ierr)
+              call MPI_scatterv(fullrow(1,1,j),count_x,depl_x,MPI_INTEGER,larr(1,base_x,j,k),count_x(pe_mex),MPI_INTEGER,0,pe_myrow,ierr)
             else
               larr(:,base_x:nil+1-base_x,j,k) = fullrow(:,base_x:nil+1-base_x,j)
             endif
           enddo
+#if defined(DEBUG)
+          print *,'DEBUG: local row'
+            do j = njl+haloy,1-haloy,-1
+              print 101,j,larr(1,mini:maxi,j,1)
+            enddo
+#endif
 
         enddo
         if(pe_mex == 0 .and. pe_ny > 1) deallocate(fullrow)     ! column 0 only
