@@ -230,7 +230,8 @@
 !       allocate full row buffer for PEs on column 0
 !
         if(pe_mex == 0) then
-          if(pe_ny > 1) allocate(fullrow(size,gmini:gmaxi,1-haloy:njl+haloy))
+!          if(pe_ny > 1) allocate(fullrow(size,gmini:gmaxi,1-haloy:njl+haloy))
+          allocate(fullrow(size,gmini:gmaxi,1-haloy:njl+haloy))
         else
           allocate(fullrow(1,1,1))
         endif
@@ -247,7 +248,7 @@
             if(pe_ny > 1) then
               call MPI_scatterv(garr(1,gmini,1,1),count_y,depl_y,MPI_INTEGER,fullrow(1,gmini,base_y),count_y(pe_mey),MPI_INTEGER,0,pe_mycol,ierr)
             else
-              fullrow(1:size,gmini:gmaxi,1-haloy:njl+haloy) => garr(:,:,1-haloy:njl+haloy,k)
+              fullrow(1:size,gmini:gmaxi,1-haloy:njl+haloy) = garr(:,:,1-haloy:njl+haloy,k)
             endif
 #if defined(DEBUG)
             print *,'DEBUG: fullrow'

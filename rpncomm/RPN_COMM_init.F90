@@ -597,7 +597,7 @@
 !     &                    grid_id_table,3,MPI_INTEGER,&
 !     &                    pe_all_domains,ierr)   ! progagate grid_id/local_rank/global_rank table
       return
-      contains
+!      contains
 
       end FUNCTION RPN_COMM_init_multi_level                        !InTf!
       integer function RPN_COMM_get_a_free_unit()                   !InTf!
