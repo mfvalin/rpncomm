@@ -114,6 +114,24 @@ contains
     list(1:npes,2) = io_set(setno)%y            ! list(:,2) y coordinates of IO PEs
   end function io_pe_list
 !
+  function io_pe_call(setno,callback,argv) result(status)
+    implicit none
+    integer, intent(IN) :: setno      ! set number as returned by create_ioset
+    integer, dimension(*) :: argv     ! "pickled" arguments to callback
+    integer, external :: callback     ! user routine to be called
+    integer :: status
+
+    status = -1
+    if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
+    if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
+!
+    status = 0
+    if(io_set(setno)%me < 0) return
+!
+    status = callback(argv,setno,io_set(setno)%comm,io_set(setno)%me,   &
+                      io_set(setno)%x,io_set(setno)%y,io_set(setno)%npe)
+  end function io_pe_call
+!
   function io_pe_size(setno) result(population)  ! return set population if set is valid, else return -1
     implicit none
     integer, intent(IN) :: setno
@@ -233,8 +251,10 @@ end module RPN_COMM_io_pe_tables
   use rpn_comm
   implicit none
 #endif
-  integer, external :: RPN_COMM_is_io_pe, RPN_COMM_create_io_set, RPN_COMM_free_io_set, RPN_COMM_io_pe_size
-  integer setno,nio,me_io,setno2,setno3
+  integer, external :: RPN_COMM_is_io_pe, RPN_COMM_create_io_set, RPN_COMM_io_pe_test_callback
+  integer, external :: RPN_COMM_free_io_set, RPN_COMM_io_pe_size, RPN_COMM_io_pe_call
+  integer setno,nio,me_io,setno2,setno3,status
+  integer, dimension(1) :: argv
 !
   if(pe_me == 0)  print *,'DEBUG: pe_nx,pe_ny',pe_nx,pe_ny
   nio = min(pe_nx,pe_ny)
@@ -257,11 +277,29 @@ end module RPN_COMM_io_pe_tables
   setno3 = RPN_COMM_create_io_set(nio,0)
   print *,"set number, size of set='",setno3,RPN_COMM_io_pe_size(setno3)
   print *,"set number, size of set='",4,RPN_COMM_io_pe_size(setno3)
-  
+  argv(1) = pe_me
+  status = RPN_COMM_io_pe_call(setno3,RPN_COMM_io_pe_test_callback,argv)
+  print *,"after callback, status,argv=",status,argv(1)
 
 100 format(A,10I5)
   return
 end subroutine
+!    status = callback(argv,setno,io_set(setno)%comm,io_set(setno)%me,   &
+!                      io_set(setno)%x,io_set(setno)%y,io_set(setno)%npe)
+function RPN_COMM_io_pe_test_callback(argv,setno,comm,me,x,y,npe) result(status)
+  implicit none
+  integer, intent(IN) :: setno,comm,me,npe
+  integer, dimension(npe), intent(IN) :: x,y
+  integer, dimension(*) :: argv
+  integer :: status
+!
+  print *,"IO PE CALLBACK set, me, argument = ",setno,me,argv(1)
+  print *,"CALLBACK x=",x
+  print *,"CALLBACK y=",y
+  argv(1) = -(100 +argv(1))
+  status = -123
+  return
+end
 !
 !=========================   START of user callable functions   ===============================
 !
@@ -316,6 +354,18 @@ function RPN_COMM_io_pe_list(setno) result(list)   ! get size of IO set setno
   integer, dimension(:,:), pointer :: list    ! list of IO PE set, null pointer if set is not valid
   list = io_pe_list(setno)                    ! list(:,1) x coordinates, list(:,2) y coordinates of IO PEs
 end function RPN_COMM_io_pe_list
+!
+function RPN_COMM_io_pe_call(setno,callback,argv) result(status)
+  use RPN_COMM_io_pe_tables
+  implicit none
+  integer, intent(IN) :: setno      ! set number as returned by create_ioset
+  integer, dimension(*) :: argv     ! "pickled" arguments to callback
+  integer, external :: callback     ! user routine to be called
+  integer :: status
+!
+  status = io_pe_call(setno,callback,argv)
+!
+end function RPN_COMM_io_pe_call
 !
 !=========================    END of user callable functions    ===============================
 !
