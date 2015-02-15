@@ -6,6 +6,7 @@
 ! in normal mode, these routines rely on internal module rpn_comm
 !
 module RPN_COMM_io_pe_tables   ! this module may also be used by data distribution routines
+  use ISO_C_BINDING
 #if ! defined(STAND_ALONE)
   use rpn_comm
 #endif
@@ -117,9 +118,10 @@ contains
   function io_pe_call(setno,callback,argv) result(status)
     implicit none
     integer, intent(IN) :: setno      ! set number as returned by create_ioset
-    integer, dimension(*) :: argv     ! "pickled" arguments to callback
+    type(C_PTR) :: argv               ! pointer describing arguments to callback
     integer, external :: callback     ! user routine to be called
     integer :: status
+    integer, dimension(:), pointer :: argvf
 
     status = -1
     if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
@@ -244,17 +246,20 @@ end module RPN_COMM_io_pe_tables
 !
 #if defined(STAND_ALONE)
   subroutine RPN_COMM_io_pe_test(pe_nx,pe_ny,pe_me,pe_mex,pe_mey)
+  use ISO_C_BINDING
   implicit none
+  integer, external :: RPN_COMM_create_io_set, RPN_COMM_free_io_set, RPN_COMM_io_pe_call
+  integer, external :: RPN_COMM_is_io_pe, RPN_COMM_io_pe_size
   integer, intent(IN) :: pe_nx,pe_ny,pe_me,pe_mex,pe_mey
 #else
   subroutine RPN_COMM_io_pe_test()
   use rpn_comm
   implicit none
+#include <RPN_COMM_interfaces_int.inc>
 #endif
-  integer, external :: RPN_COMM_is_io_pe, RPN_COMM_create_io_set, RPN_COMM_io_pe_test_callback
-  integer, external :: RPN_COMM_free_io_set, RPN_COMM_io_pe_size, RPN_COMM_io_pe_call
+  integer, external :: RPN_COMM_io_pe_test_callback
   integer setno,nio,me_io,setno2,setno3,status
-  integer, dimension(1) :: argv
+  integer, dimension(1), target :: argv
 !
   if(pe_me == 0)  print *,'DEBUG: pe_nx,pe_ny',pe_nx,pe_ny
   nio = min(pe_nx,pe_ny)
@@ -278,7 +283,7 @@ end module RPN_COMM_io_pe_tables
   print *,"set number, size of set='",setno3,RPN_COMM_io_pe_size(setno3)
   print *,"set number, size of set='",4,RPN_COMM_io_pe_size(setno3)
   argv(1) = pe_me
-  status = RPN_COMM_io_pe_call(setno3,RPN_COMM_io_pe_test_callback,argv)
+  status = RPN_COMM_io_pe_call(setno3,RPN_COMM_io_pe_test_callback,C_LOC(argv(1)))
   print *,"after callback, status,argv=",status,argv(1)
 
 100 format(A,10I5)
@@ -287,85 +292,89 @@ end subroutine
 !    status = callback(argv,setno,io_set(setno)%comm,io_set(setno)%me,   &
 !                      io_set(setno)%x,io_set(setno)%y,io_set(setno)%npe)
 function RPN_COMM_io_pe_test_callback(argv,setno,comm,me,x,y,npe) result(status)
+  use ISO_C_BINDING
   implicit none
   integer, intent(IN) :: setno,comm,me,npe
   integer, dimension(npe), intent(IN) :: x,y
-  integer, dimension(*) :: argv
+  type(C_PTR), intent(IN) :: argv
   integer :: status
+  integer, dimension(:), pointer :: argvf
 !
-  print *,"IO PE CALLBACK set, me, argument = ",setno,me,argv(1)
+  call C_F_POINTER(argv,argvf,[1])
+  print *,"IO PE CALLBACK set, me, argument = ",setno,me,argvf(1)
   print *,"CALLBACK x=",x
   print *,"CALLBACK y=",y
-  argv(1) = -(100 +argv(1))
+  argvf(1) = -(100 +argvf(1))
   status = -123
   return
 end
 !
 !=========================   START of user callable functions   ===============================
 !
-function RPN_COMM_create_io_set(npes,method) result(setno)  ! create a set of IO PEs
+function RPN_COMM_create_io_set(npes,method) result(setno)  !InTf!  ! create a set of IO PEs
   use RPN_COMM_io_pe_tables
-  implicit none
-  integer, intent(IN)  :: npes    ! number of IO PEs desired in set ( set size will be min(npes,pe_nx,pe_ny) )
-  integer, intent(IN)  :: method  ! method 0 is the only one supported for the time being
-  integer :: setno                ! set number created ( -1 if creation failed )
+  implicit none                                             !InTf!
+  integer, intent(IN)  :: npes      !InTf!  ! number of IO PEs desired in set ( set size will be min(npes,pe_nx,pe_ny) )
+  integer, intent(IN)  :: method    !InTf!  ! method 0 is the only one supported for the time being
+  integer :: setno                  !InTf!  ! set number created ( -1 if creation failed )
 
   setno = create_ioset(npes,method)
   return
-end function RPN_COMM_create_io_set
+end function RPN_COMM_create_io_set  !InTf!  
 !
-function RPN_COMM_free_io_set(setno) result(freed)  ! delete a set of IO PEs created by RPN_COMM_create_io_set
+function RPN_COMM_free_io_set(setno) result(freed)  !InTf!  ! delete a set of IO PEs created by RPN_COMM_create_io_set
   use RPN_COMM_io_pe_tables
-  implicit none
-  integer, intent(IN) :: setno        ! set number as returned by RPN_COMM_create_io_set
-  integer :: freed                    ! setno if operation succeeded, -1 if it failed
+  implicit none                       !InTf!
+  integer, intent(IN) :: setno        !InTf!  ! set number as returned by RPN_COMM_create_io_set
+  integer :: freed                    !InTf!  ! setno if operation succeeded, -1 if it failed
 !
   freed = free_ioset(setno)
-end function RPN_COMM_free_io_set
+end function RPN_COMM_free_io_set     !InTf!  
 !
-function RPN_COMM_is_io_pe(setno) result(ordinal)   ! is this PE part of IO set setno ? 
+function RPN_COMM_is_io_pe(setno) result(ordinal)   !InTf!  ! is this PE part of IO set setno ? 
   use RPN_COMM_io_pe_tables
-  implicit none
-  integer, intent(IN) :: setno        ! set number as returned by RPN_COMM_create_io_set
-  integer :: ordinal                  ! ordinal in IO PE set if a member, -1 if not
+  implicit none                      !InTf!
+  integer, intent(IN) :: setno       !InTf!  ! set number as returned by RPN_COMM_create_io_set
+  integer :: ordinal                 !InTf!  ! ordinal in IO PE set if a member, -1 if not
   ordinal = is_io_pe(setno)
-end function RPN_COMM_is_io_pe
+end function RPN_COMM_is_io_pe        !InTf!  
 !
-function RPN_COMM_io_pe_comm(setno) result(communicator)   ! get communicator of IO set setno
+function RPN_COMM_io_pe_comm(setno) result(communicator)  !InTf!   ! get communicator of IO set setno
   use RPN_COMM_io_pe_tables
-  implicit none
-  integer, intent(IN) :: setno        ! set number as returned by RPN_COMM_create_io_set
-  integer :: communicator             ! communicator for IO PE set if a member, null communicator otherwise
+  implicit none                       !InTf!
+  integer, intent(IN) :: setno        !InTf!  ! set number as returned by RPN_COMM_create_io_set
+  integer :: communicator             !InTf!  ! communicator for IO PE set if a member, null communicator otherwise
   communicator = io_pe_comm(setno)
-end function RPN_COMM_io_pe_comm
+end function RPN_COMM_io_pe_comm  !InTf!  
 !
-function RPN_COMM_io_pe_size(setno) result(population)   ! get size of IO set setno
+function RPN_COMM_io_pe_size(setno) result(population)   !InTf!  ! get size of IO set setno
   use RPN_COMM_io_pe_tables
-  implicit none
-  integer, intent(IN) :: setno        ! set number as returned by RPN_COMM_create_io_set
-  integer :: population               ! population of IO PE set, -1 if set is not valid
+  implicit none                       !InTf!
+  integer, intent(IN) :: setno        !InTf!  ! set number as returned by RPN_COMM_create_io_set
+  integer :: population               !InTf!  ! population of IO PE set, -1 if set is not valid
   population = io_pe_size(setno)
-end function RPN_COMM_io_pe_size
+end function RPN_COMM_io_pe_size      !InTf!  
 !
-function RPN_COMM_io_pe_list(setno) result(list)   ! get size of IO set setno
+function RPN_COMM_io_pe_list(setno) result(list)   !InTf!  ! get size of IO set setno
   use RPN_COMM_io_pe_tables
-  implicit none
-  integer, intent(IN) :: setno                ! set number as returned by RPN_COMM_create_io_set
-  integer, dimension(:,:), pointer :: list    ! list of IO PE set, null pointer if set is not valid
+  implicit none                               !InTf!
+  integer, intent(IN) :: setno                !InTf!  ! set number as returned by RPN_COMM_create_io_set
+  integer, dimension(:,:), pointer :: list    !InTf!  ! list of IO PE set, null pointer if set is not valid
   list = io_pe_list(setno)                    ! list(:,1) x coordinates, list(:,2) y coordinates of IO PEs
-end function RPN_COMM_io_pe_list
+end function RPN_COMM_io_pe_list              !InTf!  
 !
-function RPN_COMM_io_pe_call(setno,callback,argv) result(status)
+function RPN_COMM_io_pe_call(setno,callback,argv) result(status) !InTf!
   use RPN_COMM_io_pe_tables
-  implicit none
-  integer, intent(IN) :: setno      ! set number as returned by create_ioset
-  integer, dimension(*) :: argv     ! "pickled" arguments to callback
-  integer, external :: callback     ! user routine to be called
-  integer :: status
+!!  import :: C_PTR      !InTf!
+  implicit none                       !InTf!
+  integer, intent(IN) :: setno        !InTf!  ! set number as returned by create_ioset
+  type(C_PTR) :: argv                 !InTf!  ! "pickled" arguments to callback
+  integer, external :: callback       !InTf!  ! user routine to be called
+  integer :: status                   !InTf!
 !
   status = io_pe_call(setno,callback,argv)
 !
-end function RPN_COMM_io_pe_call
+end function RPN_COMM_io_pe_call  !InTf!  
 !
 !=========================    END of user callable functions    ===============================
 !

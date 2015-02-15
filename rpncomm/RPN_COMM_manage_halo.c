@@ -22,7 +22,7 @@ static void init(){
   int i;
   if(to_initialize){
     to_initialize = 0;
-    for (i=0 ; i<=MAX_TABLE ; i++) {
+    for (i=0 ; i<MAX_TABLE ; i++) {
       table[i].p=NULL;
       table[i].Hx=-1;
       table[i].Hy=-1;

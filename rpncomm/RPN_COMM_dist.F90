@@ -130,10 +130,10 @@
 101     format(I3,15I9)
 
         end subroutine
-        subroutine RPN_COMM_fast_dist(garr,gmini,gmaxi,gminj,&
-     &          gmaxj,nig,njg,nk,ghalox,ghaloy,size,         &
-     &          larr,mini,maxi,minj,maxj,halox,haloy,        &
-     &          periodx,periody,status)
+        subroutine RPN_COMM_fast_dist(garr,gmini,gmaxi,gminj,&    !InTf!
+     &          gmaxj,nig,njg,nk,ghalox,ghaloy,size,         &    !InTf!
+     &          larr,mini,maxi,minj,maxj,halox,haloy,        &    !InTf!
+     &          periodx,periody,status)                           !InTf!
 !
 !arguments
 !  I    garr    array containing data to distribute, USED ONLY on PE 0
@@ -155,15 +155,15 @@
 !  O    status  status code upon exit (RPN_COMM_OK or RPN_COMM_ERROR)
 !
         use rpn_comm
-        implicit none
+        implicit none                                                    !InTf!
 #define IN_RPN_COMM_dist
 #include <RPN_COMM_interfaces_int.inc>
-        integer, intent(IN) :: ghalox,ghaloy,gmini,gmaxi,gmaxj,gminj
-        integer, intent(IN) :: nig,njg,size,mini,maxi,minj,maxj,nk
-        integer, intent(OUT)::status
-        integer, intent(IN), target :: garr(size,gmini:gmaxi,gminj:gmaxj,nk),halox,haloy
-        integer, intent(OUT):: larr(size,mini:maxi,minj:maxj,nk)
-        logical, intent(IN) :: periodx,periody
+        integer, intent(IN) :: ghalox,ghaloy,gmini,gmaxi,gmaxj,gminj     !InTf!
+        integer, intent(IN) :: nig,njg,size,mini,maxi,minj,maxj,nk       !InTf!
+        integer, intent(OUT)::status                                     !InTf!
+        integer, intent(IN), target :: garr(size,gmini:gmaxi,gminj:gmaxj,nk),halox,haloy    !InTf!
+        integer, intent(OUT):: larr(size,mini:maxi,minj:maxj,nk)         !InTf!
+        logical, intent(IN) :: periodx,periody                           !InTf!
 
         integer, dimension(0:pe_nx) :: count_x, depl_x
         integer, dimension(0:pe_ny) :: count_y, depl_y
@@ -283,7 +283,7 @@
 
         status = RPN_COMM_OK
         return
-        end
+        end subroutine RPN_COMM_fast_dist   !InTf!
         subroutine RPN_COMM_dist(garr,gmini,gmaxi,gminj,&
      &          gmaxj,nig,njg,nk,ghalox,ghaloy,size,&
      &          larr,mini,maxi,minj,maxj,halox,haloy,&
