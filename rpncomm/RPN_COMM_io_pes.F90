@@ -14,11 +14,13 @@ module RPN_COMM_io_pe_tables   ! this module may also be used by data distributi
     integer, dimension(:), pointer :: x    ! x coordinate in grid of IO PEs in this set
     integer, dimension(:), pointer :: y    ! y coordinate in grid of IO PEs in this set
     integer :: ioset                       ! ID for this IO PE set
-    integer :: comm                        ! MPI communicator  for this IO PE set
-    integer :: me                          ! ordinal of this PE in above communicator
+    integer :: comm                        ! MPI communicator  for this IO PE set     if it belongs to the set (MPI_COMM_NULL otherwise)
+    integer :: me                          ! ordinal of this PE in above communicator if it belongs to the set (-1 otherwise)
+    integer :: megrid                      ! ordinal of this PE in grid               if it belongs to the set (-1 otherwise)
     integer :: npe                         ! number of OP PEs in this set
     integer :: ngroups                     ! number of PE groups in this set (size of a group may not exceed MIN(pe_nx,pe_ny) )
     integer :: groupsize                   ! size of groups (last group may be shorter)
+    integer :: reserved                    ! unused for now
   end type
   integer, save :: iosets=0
   integer, save :: scramblex = 0
@@ -146,6 +148,18 @@ contains
     population = io_set(setno)%npe
   end function io_pe_size
 !
+  function io_pe_groups(setno) result(ngroups)  ! return number of groups if set is valid, else return -1
+    implicit none
+    integer, intent(IN) :: setno
+    integer :: ngroups
+
+    ngroups = -1
+    if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
+    if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
+!
+    ngroups = io_set(setno)%ngroups
+  end function io_pe_groups
+!
   function free_ioset(setno) result(freed)
     implicit none
     include 'mpif.h'
@@ -190,7 +204,7 @@ contains
     pe_ny = pe_ny + 1
 #endif
 !
-    setno = -1
+    setno = -1                       ! precondition for failure
     if(iosets >= MAXIOSETS) return   ! OOPS, table is full
     newset = iosets + 1
     do i = 1 , iosets
@@ -204,6 +218,7 @@ contains
     io_set(newset)%npe = -1
     io_set(newset)%comm = MPI_COMM_NULL
     io_set(newset)%me = -1
+    io_set(newset)%megrid = -1
     io_set(newset)%ngroups = 0
     io_set(setno)%groupsize = 0
     call make_io_pe_list(io_set(newset)%x,io_set(newset)%y,npes,pe_nx,pe_ny,newset,method)
@@ -211,7 +226,7 @@ contains
       deallocate(io_set(newset)%x,io_set(newset)%y)
       nullify(io_set(newset)%x)
       nullify(io_set(newset)%y)
-      setno = -1
+!      setno = -1    ! not needed, it is already -1
       return
     endif
     io_set(newset)%ioset = newset
@@ -228,6 +243,7 @@ contains
     call MPI_COMM_SPLIT(pe_medomm,my_color,pe_me,io_set(newset)%comm,ierr)   ! communicator for this set
     if(io_set(newset)%comm .ne. MPI_COMM_NULL) then                          ! get rank in communicator if part of set
       call mpi_comm_rank(io_set(newset)%comm,io_set(newset)%me,ierr)
+      io_set(newset)%megrid = pe_me                                          ! rank in grid
     endif
     setno = newset
 #if defined(SELF_TEST)
@@ -250,6 +266,13 @@ end module RPN_COMM_io_pe_tables
   implicit none
   integer, external :: RPN_COMM_create_io_set, RPN_COMM_free_io_set, RPN_COMM_io_pe_call
   integer, external :: RPN_COMM_is_io_pe, RPN_COMM_io_pe_size
+  interface
+    function RPN_COMM_io_pe_list(setno) result(list)
+      implicit none
+      integer, intent(IN) :: setno
+      integer, dimension(:,:), pointer :: list
+    end function RPN_COMM_io_pe_list
+  end interface
   integer, intent(IN) :: pe_nx,pe_ny,pe_me,pe_mex,pe_mey
 #else
   subroutine RPN_COMM_io_pe_test()
@@ -260,6 +283,8 @@ end module RPN_COMM_io_pe_tables
   integer, external :: RPN_COMM_io_pe_test_callback
   integer setno,nio,me_io,setno2,setno3,status
   integer, dimension(1), target :: argv
+  integer, dimension(:,:), pointer :: iopelist
+  integer :: tbcst
 !
   if(pe_me == 0)  print *,'DEBUG: pe_nx,pe_ny',pe_nx,pe_ny
   nio = min(pe_nx,pe_ny)
@@ -285,6 +310,14 @@ end module RPN_COMM_io_pe_tables
   argv(1) = pe_me
   status = RPN_COMM_io_pe_call(setno3,RPN_COMM_io_pe_test_callback,C_LOC(argv(1)))
   print *,"after callback, status,argv=",status,argv(1)
+  iopelist => RPN_COMM_io_pe_list(setno3)
+  print *,"PE list x=",iopelist(:,1)
+  print *,"PE list y=",iopelist(:,2)
+  tbcst = pe_me
+  if(RPN_COMM_is_io_pe(setno3) .ne. -1)then  ! part of the set only, bcst pe_me of highest rank in set
+    call RPN_COMM_io_pe_bcast(tbcst,1,'MPI_INTEGER',RPN_COMM_io_pe_size(setno3)-1,setno3,status) 
+    print *,'tbcst after broadcast',tbcst
+  endif
 
 100 format(A,10I5)
   return
@@ -355,12 +388,20 @@ function RPN_COMM_io_pe_size(setno) result(population)   !InTf!  ! get size of I
   population = io_pe_size(setno)
 end function RPN_COMM_io_pe_size      !InTf!  
 !
-function RPN_COMM_io_pe_list(setno) result(list)   !InTf!  ! get size of IO set setno
+function RPN_COMM_io_pe_groups(setno) result(ngroups)   !InTf!  ! get number of groups in IO set setno
+  use RPN_COMM_io_pe_tables
+  implicit none                       !InTf!
+  integer, intent(IN) :: setno        !InTf!  ! set number as returned by RPN_COMM_create_io_set
+  integer :: ngroups                  !InTf!  ! ngroups of IO PE set, -1 if set is not valid
+  ngroups = io_pe_groups(setno)
+end function RPN_COMM_io_pe_groups    !InTf!  
+!
+function RPN_COMM_io_pe_list(setno) result(list)   !InTf!  ! get list of PEs in IO set setno
   use RPN_COMM_io_pe_tables
   implicit none                               !InTf!
   integer, intent(IN) :: setno                !InTf!  ! set number as returned by RPN_COMM_create_io_set
   integer, dimension(:,:), pointer :: list    !InTf!  ! list of IO PE set, null pointer if set is not valid
-  list = io_pe_list(setno)                    ! list(:,1) x coordinates, list(:,2) y coordinates of IO PEs
+  list => io_pe_list(setno)                    ! list(:,1) x coordinates, list(:,2) y coordinates of IO PEs
 end function RPN_COMM_io_pe_list              !InTf!  
 !
 function RPN_COMM_io_pe_call(setno,callback,argv) result(status) !InTf!
@@ -375,6 +416,21 @@ function RPN_COMM_io_pe_call(setno,callback,argv) result(status) !InTf!
   status = io_pe_call(setno,callback,argv)
 !
 end function RPN_COMM_io_pe_call  !InTf!  
+!
+subroutine RPN_COMM_io_pe_bcast(buffer,count,datatype,root,setno,ierr)
+  use RPN_COMM_io_pe_tables
+  implicit none
+  integer, intent(IN) :: setno                ! set number as returned by RPN_COMM_create_io_set
+  integer, intent(IN) :: count                ! number of elements
+  integer, intent(INOUT), dimension(*) :: buffer
+  character (len=*), intent(IN) :: datatype   ! datatype RPN_COMM style
+  integer, intent(IN) :: root                 ! root PE in set for broadcast
+  integer, intent(OUT) :: ierr                ! error code
+  integer :: dtype
+  integer, external :: RPN_COMM_datyp
+!
+  call MPI_bcast(buffer,count,RPN_COMM_datyp(datatype),root,io_pe_comm(setno),ierr)
+end subroutine RPN_COMM_io_pe_bcast
 !
 !=========================    END of user callable functions    ===============================
 !
@@ -408,6 +464,14 @@ integer function RPN_COMM_comm(what)
   RPN_COMM_comm = MPI_COMM_WORLD
   return
 end
+integer function RPN_COMM_datyp(what)
+  implicit none
+  include 'mpif.h'
+  character (len=*) :: what
+  RPN_COMM_datyp = MPI_UNDEFINED
+  if(trim(what) .ne. 'MPI_INTEGER') return
+  RPN_COMM_datyp = MPI_INTEGER
+end function RPN_COMM_datyp
 integer function RPN_COMM_mype(pe_me,pe_mex,pe_mey)
   implicit none
   include 'mpif.h'

@@ -40,18 +40,26 @@
           endif
         enddo
 
+#if defined(NEVER_TRUE)
         goto 777
-
+        if (datatype(1:11).eq.'MPI_INTEGER') then
+           RPN_COMM_datyp=MPI_INTEGER
+           return
+        endif
+        if (datatype(1:8).eq.'MPI_REAL') then
+           RPN_COMM_datyp=MPI_REAL
+           return
+        endif
         if (datatype(1:13).eq.'MPI_CHARACTER') then
            RPN_COMM_datyp=MPI_CHARACTER
            return
         endif
-        if (datatype(1:12).eq.'MPI_INTEGER2') then
-           RPN_COMM_datyp=MPI_INTEGER2
+        if (datatype(1:8).eq.'MPI_BYTE') then
+           RPN_COMM_datyp=MPI_BYTE
            return
         endif
-        if (datatype(1:11).eq.'MPI_INTEGER') then
-           RPN_COMM_datyp=MPI_INTEGER
+        if (datatype(1:12).eq.'MPI_INTEGER2') then
+           RPN_COMM_datyp=MPI_INTEGER2
            return
         endif
         if (datatype(1:18).eq.'MPI_DOUBLE_COMPLEX') then
@@ -70,10 +78,6 @@
            RPN_COMM_datyp=MPI_REAL8
            return
         endif
-        if (datatype(1:8).eq.'MPI_REAL') then
-           RPN_COMM_datyp=MPI_REAL
-           return
-        endif
         if (datatype(1:11).eq.'MPI_COMPLEX') then
            RPN_COMM_datyp=MPI_COMPLEX
             return
@@ -82,7 +86,7 @@
            RPN_COMM_datyp=MPI_LOGICAL
            return
         endif
-
+#endif
 777     write(rpn_u,*) 'Unknown datatype ',datatype,' aborting'
         stop
           
