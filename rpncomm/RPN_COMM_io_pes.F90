@@ -213,13 +213,13 @@ contains
 
 #if defined(STAND_ALONE)
     include 'mpif.h'
-    integer :: pe_mex, pe_mey, pe_medomm, pe_me, pe_nx, pe_ny
+    integer :: pe_mex, pe_mey, pe_indomm, pe_me, pe_nx, pe_ny
     integer, external :: RPN_COMM_comm, RPN_COMM_mype
-    pe_medomm = RPN_COMM_comm('GRID')          ! grid communicator
+    pe_indomm = RPN_COMM_comm('GRID')          ! grid communicator
     ierr = RPN_COMM_mype(pe_me,pe_mex,pe_mey)  ! who am I, where am I ?
-    call mpi_allreduce(pe_mex,pe_nx,1,MPI_INTEGER,MPI_MAX,pe_medomm,ierr)  ! roundabout way to get pe_nx
+    call mpi_allreduce(pe_mex,pe_nx,1,MPI_INTEGER,MPI_MAX,pe_indomm,ierr)  ! roundabout way to get pe_nx
     pe_nx = pe_nx + 1
-    call mpi_allreduce(pe_mey,pe_ny,1,MPI_INTEGER,MPI_MAX,pe_medomm,ierr)  ! roundabout way to get pe_ny
+    call mpi_allreduce(pe_mey,pe_ny,1,MPI_INTEGER,MPI_MAX,pe_indomm,ierr)  ! roundabout way to get pe_ny
     pe_ny = pe_ny + 1
 #endif
 !
@@ -239,7 +239,7 @@ contains
     io_set(newset)%me = -1
     io_set(newset)%megrid = -1
     io_set(newset)%ngroups = 0
-    io_set(setno)%groupsize = 0
+    io_set(newset)%groupsize = 0
     call make_io_pe_list(io_set(newset)%x,io_set(newset)%y,npes,pe_nx,pe_ny,newset,method)
     if(io_set(newset)%x(1) == -1) then        ! miserable failure, list of IO pes could not be created
       deallocate(io_set(newset)%x,io_set(newset)%y)
@@ -250,8 +250,8 @@ contains
     endif
     io_set(newset)%ioset = newset
     io_set(newset)%npe = npes
-    io_set(setno)%groupsize = min(pe_nx,pe_ny)   ! size of groups for this IO PE set (last group may be shorter)
-    io_set(newset)%ngroups = (npes+io_set(setno)%groupsize-1)/(io_set(setno)%groupsize)   ! number of groups in this IO PE set
+    io_set(newset)%groupsize = min(pe_nx,pe_ny)   ! size of groups for this IO PE set (last group may be shorter)
+    io_set(newset)%ngroups = (npes+io_set(newset)%groupsize-1)/(io_set(newset)%groupsize)   ! number of groups in this IO PE set
     my_color = MPI_UNDEFINED
     do i = 1 , npes
       if(pe_mex == io_set(newset)%x(i) .and. pe_mey == io_set(newset)%y(i)) then  ! I am an IO pe
@@ -259,7 +259,7 @@ contains
         exit
       endif
     enddo
-    call MPI_COMM_SPLIT(pe_medomm,my_color,pe_me,io_set(newset)%comm,ierr)   ! communicator for this set
+    call MPI_COMM_SPLIT(pe_indomm,my_color,pe_me,io_set(newset)%comm,ierr)   ! communicator for this set
     if(io_set(newset)%comm .ne. MPI_COMM_NULL) then                          ! get rank in communicator if part of set
       call mpi_comm_rank(io_set(newset)%comm,io_set(newset)%me,ierr)
       io_set(newset)%megrid = pe_me                                          ! rank in grid
@@ -303,7 +303,7 @@ end module RPN_COMM_io_pe_tables
   integer setno,nio,me_io,setno2,setno3,status
   integer, dimension(1), target :: argv
   integer, dimension(:,:), pointer :: iopelist
-  integer :: tbcst
+  integer, dimension(1) :: tbcst
 !
   if(pe_me == 0)  print *,'DEBUG: pe_nx,pe_ny',pe_nx,pe_ny
   nio = min(pe_nx,pe_ny)
@@ -457,19 +457,19 @@ end subroutine RPN_COMM_io_pe_bcast
 program self_test
   implicit none
   include 'mpif.h'
-  integer ierr,pe_me,pe_mex,pe_mey,npes,pe_nx,pe_ny,pe_medomm
+  integer ierr,pe_me,pe_mex,pe_mey,npes,pe_nx,pe_ny,pe_indomm
   integer, external :: RPN_COMM_mype, RPN_COMM_comm
 
   call mpi_init(ierr)
   pe_nx = 1
   pe_ny = 1
   call mpi_comm_size(MPI_COMM_WORLD,npes,ierr)
-  pe_medomm = RPN_COMM_comm('GRID')
+  pe_indomm = RPN_COMM_comm('GRID')
   ierr = RPN_COMM_mype(pe_me,pe_mex,pe_mey)
   ierr = RPN_COMM_mype(pe_me,pe_mex,pe_mey)
-  call mpi_allreduce(pe_mex,pe_nx,1,MPI_INTEGER,MPI_MAX,pe_medomm,ierr)
+  call mpi_allreduce(pe_mex,pe_nx,1,MPI_INTEGER,MPI_MAX,pe_indomm,ierr)
   pe_nx = pe_nx + 1
-  call mpi_allreduce(pe_mey,pe_ny,1,MPI_INTEGER,MPI_MAX,pe_medomm,ierr)
+  call mpi_allreduce(pe_mey,pe_ny,1,MPI_INTEGER,MPI_MAX,pe_indomm,ierr)
   pe_ny = pe_ny + 1
   call RPN_COMM_io_pe_test(pe_nx,pe_ny,pe_me,pe_mex,pe_mey)
   call mpi_finalize(ierr)

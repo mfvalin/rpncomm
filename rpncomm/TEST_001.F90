@@ -41,6 +41,10 @@
           print *,'start fast distribution test'
           call RPN_COMM_fast_dist_test(nparams,params)
         endif
+        if(IAND(test_to_perform,32)==32)then
+          print *,'start shuffle distribution test'
+          call RPN_COMM_io_dist_coll_test(nparams,params)
+        endif
         call RPN_COMM_finalize(ierr)
         stop
         end

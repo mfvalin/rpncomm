@@ -40,7 +40,7 @@
           endif
         enddo
 
-#if defined(NEVER_TRUE)
+#if defined(DEPRECATED)
         goto 777
         if (datatype(1:11).eq.'MPI_INTEGER') then
            RPN_COMM_datyp=MPI_INTEGER
