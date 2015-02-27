@@ -26,8 +26,8 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   logical :: periodx, periody
   integer :: setno, me_io, n_io
   integer :: i, j, k
-  integer, parameter :: gni=6
-  integer, parameter :: gnj=4
+  integer, parameter :: gni=8
+  integer, parameter :: gnj=5
   integer, parameter :: gnk=3
   integer, parameter :: lnk=5
   integer, dimension(gnk) :: liste_k
@@ -38,56 +38,79 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer :: mini,maxi,minj,maxj,status
   integer, dimension(pe_nx) :: start_x,count_x
   integer, dimension(pe_ny) :: start_y,count_y
+  integer :: i0,in,j0,jn,nerrors,nvalid,expected
 !
   periodx = .false.
   periody = .false.
   liste_k = 0
   liste_o = .false.
+!
   lni = (gni+pe_nx-1)/pe_nx
-  lnj = (gnj+pe_ny-1)/pe_ny
   mini = 1-1
   maxi = lni+1
   count_x = lni
-  do i = 1,pe_nx
-    start_x(i) = (i-1)*lni + 1
+  start_x(1) = 1
+  do i = 2,pe_nx
+    start_x(i) = start_x(i-1) + count_x(i-1)
   enddo
+  count_x(pe_nx) = gni + 1 - start_x(pe_nx)
+  lni = count_x(pe_mex+1)
+  i0 = mini
+  if(pe_mex == 0 .and. (.not. periodx)) i0 = 1
+  in = maxi
+  if(pe_mex == pe_nx-1 .and. (.not. periodx)) in = count_x(pe_nx)
+  print *,"start_x =",start_x
+  print *,"count_x =",count_x
+!
+  lnj = (gnj+pe_ny-1)/pe_ny
   minj = 1-1
   maxj = lnj+1
   count_y = lnj
-  do j = 1,pe_ny
-    start_y(j) = (j-1)*lnj + 1
+  start_y(1) = 1
+  do j = 2,pe_ny
+    start_y(j) = start_y(j-1) + count_y(j-1)
   enddo
+  count_y(pe_ny) = gnj + 1 - start_y(pe_ny)
+  lnj = count_y(pe_mey+1)
+  j0 = minj
+  if(pe_mey == 0 .and. (.not. periody)) j0 = 1
+  jn = maxj
+  if(pe_mey == pe_ny-1 .and. (.not. periody)) jn = count_y(pe_ny)
+  print *,"start_y =",start_y
+  print *,"count_y =",count_y
+!
   allocate(local(mini:maxi,minj:maxj,lnk))
   local = 99999
   global = 88888
 ! create IO PE set
   setno = RPN_COMM_create_io_set(min(pe_nx,pe_ny),0)
-  print *,'params=',params
+!  print *,'params=',params
   print *,'IO PE set created :',setno
   me_io = RPN_COMM_is_io_pe(setno)
   n_io = RPN_COMM_io_pe_size(setno)
   if(me_io .ne. -1) then
-    print *,"I am IO pe",me_io+1,' of',n_io
-    do k=1,me_io+1
-      liste_k(k)=k+me_io*n_io
+    print *,"I am a busy IO pe!",me_io+1,' of',n_io
+    do k=1,1               !me_io+1
+      liste_k(k)=4 - me_io   !  *n_io
       do j = 1,gnj
       do i = 1,gni
         global(i,j,k) = liste_k(k) + j*10 + i*1000
       enddo
       enddo
     enddo
-    print *,"I am IO pe",me_io,' of',n_io
     print *,"level list =",liste_k
-    do k= me_io+1,1,-1
+    do k= gnk,1,-1
+      if(liste_k(k) <= 0) cycle
       print *,"===== level ==",liste_k(k),"  ====="
       do j=gnj,1,-1
         print 100,j,global(:,j,k)
       enddo
     enddo
   else
-    print *,"I am a lazy  NON-IO pe !"
+    print *,"I am a relaxed  NON-IO pe !"
   endif
-  print *,'liste_o avant=',liste_o
+print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
+!return
   call RPN_COMM_shuf_dist(setno,  &
                           global,gni,gnj,gnk,  &
                           local,mini,maxi,minj,maxj,lnk,  &
@@ -95,18 +118,43 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           periodx,periody,status)
   print *,'liste_o apres=',liste_o
+  nerrors = 0
+  nvalid = 0
   do k = lnk,1,-1
     if(liste_o(k)) then
-      print *,"===== level",k,"  ====="
-      do j = maxj,minj,-1
-        print 100,j,local(:,j,k)
+      do j = j0,jn
+      do i = i0,in
+        nvalid = nvalid + 1
+        expected = k + (start_y(pe_mey+1)+j-1)*10 + (start_x(pe_mex+1)+i-1)*1000
+        if(expected .ne. local(i,j,k)) then
+          print *,'i,j,k,expected,local(i,j,k)',i,j,k,expected,local(i,j,k)
+          nerrors = nerrors + 1
+          if(nerrors>3)goto 666
+        endif
+      enddo
       enddo
     else
       print *,'no data at level',k
     endif
   enddo
+  print *,"nerrors, nvalid=",nerrors,nvalid
+  goto 777
+666 continue
+#if  ! defined(DEPRECATED)
+  do k = lnk,1,-1
+    if(liste_o(k)) then
+      print *,"===== level",k,"  ====="
+      do j = maxj,minj,-1
+        print 100,j,mini,maxi,local(i0:in,j,k)
+      enddo
+    else
+      print *,'no data at level',k
+    endif
+  enddo
+#endif
 !
 100 format(I3,20I6.5)
+777 continue
   return
 end subroutine RPN_COMM_io_dist_coll_test
 !
@@ -214,6 +262,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     integer, dimension(0:pe_nx-1) :: cxs, dxs, cxr, dxr
     integer, dimension(0:pe_ny-1) :: cy, dy
 
+print *,'IN shuffle'
     on_column = .false.    ! precondition for failure in case a hasty exit is needed
     status = RPN_COMM_ERROR
     nullify(fullrow)
@@ -284,9 +333,11 @@ subroutine RPN_COMM_shuf_dist(setno,  &
       allocate(fullrow(gni,minj:maxj))
       if(minj < 1)    fullrow(:,minj:0) = 0
       if(maxj > lnj)  fullrow(:,lnj+1:maxj) = 0
+!print *,'IN shuffle before scatter'
       call mpi_scatterv(global,cy,dy,MPI_INTEGER,   &          ! 
                         fullrow(1,ybase),cy(pe_mey),MPI_INTEGER, &
                         root,pe_mycol,ierr)
+!print *,'IN shuffle after scatter'
 !print *,"DEBUG: ======= fullrow for level",kcol
 !do j=maxj,minj,-1
 !  print 100,j,fullrow(:,j)
