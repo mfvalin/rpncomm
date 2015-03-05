@@ -28,8 +28,8 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer :: i, j, k
   integer, parameter :: gni=8
   integer, parameter :: gnj=5
-  integer, parameter :: gnk=3
-  integer, parameter :: lnk=5
+  integer, parameter :: gnk=2
+  integer, parameter :: lnk=6
   integer, dimension(gnk) :: liste_k
   logical, dimension(lnk) :: liste_o
   integer, dimension(gni,gnj,gnk) :: global
@@ -59,8 +59,10 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   if(pe_mex == 0 .and. (.not. periodx)) i0 = 1
   in = maxi
   if(pe_mex == pe_nx-1 .and. (.not. periodx)) in = count_x(pe_nx)
-  print *,"start_x =",start_x
-  print *,"count_x =",count_x
+  if(pe_me == 0) then
+    print *,"start_x =",start_x
+    print *,"count_x =",count_x
+  endif
 !
   lnj = (gnj+pe_ny-1)/pe_ny
   minj = 1-1
@@ -76,14 +78,16 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   if(pe_mey == 0 .and. (.not. periody)) j0 = 1
   jn = maxj
   if(pe_mey == pe_ny-1 .and. (.not. periody)) jn = count_y(pe_ny)
-  print *,"start_y =",start_y
-  print *,"count_y =",count_y
+  if(pe_me == 0) then
+    print *,"start_y =",start_y
+    print *,"count_y =",count_y
+  endif
 !
   allocate(local(mini:maxi,minj:maxj,lnk))
   local = 99999
   global = 88888
 ! create IO PE set
-  setno = RPN_COMM_create_io_set(min(pe_nx,pe_ny),0)
+  setno = RPN_COMM_create_io_set( min( min(pe_nx,pe_ny)+2 , lnk) ,0)  ! make sure not to overflow lnk
 !  print *,'params=',params
   print *,'IO PE set created :',setno
   me_io = RPN_COMM_is_io_pe(setno)
@@ -91,7 +95,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   if(me_io .ne. -1) then
     print *,"I am a busy IO pe!",me_io+1,' of',n_io
     do k=1,1               !me_io+1
-      liste_k(k)=4 - me_io   !  *n_io
+      liste_k(k)=lnk - me_io   !  *n_io
       do j = 1,gnj
       do i = 1,gni
         global(i,j,k) = liste_k(k) + j*10 + i*1000
@@ -201,7 +205,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
   logical, intent(OUT), dimension(lnk)  :: liste_o
   logical, intent(IN) :: periodx,periody
   integer, intent(OUT) :: status
-  integer :: i, k, low, high
+  integer :: i, k, low, high, listeik, n
 
   status = RPN_COMM_ERROR
   if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
@@ -214,10 +218,17 @@ subroutine RPN_COMM_shuf_dist(setno,  &
 !
   do k= 1 , gnk                         ! loop over 2D planes to distribute
     do i= 1 , io_set(setno)%ngroups     ! loop over groups in this set of IO PEs
-      low = 1 + (i-1) * i               ! index of first PE in goup
+      low = 1 + (i-1) * io_set(setno)%groupsize      ! index of first PE in goup
       high = min( io_set(setno)%npe , low+io_set(setno)%groupsize-1 )  ! index of last PE in group
+!print *,"DEBUG: group=",i," of",io_set(setno)%ngroups
+!print *,"DEBUG: , PEs x",io_set(setno)%x(low:high)
+!print *,"DEBUG: , PEs y",io_set(setno)%y(low:high)
+      listeik = 0
+      do n = low, high  ! is this PE part of this group ?
+        if(pe_mex == io_set(setno)%x(n) .and. pe_mey == io_set(setno)%y(n)) listeik = liste_i(k)
+      enddo
       call RPN_COMM_shuf_dist_1(setno, &
-                                global(1,1,k),gni,gnj,liste_i(k),  &
+                                global(1,1,k),gni,gnj,listeik,  &
                                 local,mini,maxi,minj,maxj,lnk,  &
                                 liste_o, io_set(setno)%x(low:high),  io_set(setno)%y(low:high), (high-low+1), &
                                 start_x,count_x,start_y,count_y,  &
@@ -262,18 +273,18 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     integer, dimension(0:pe_nx-1) :: cxs, dxs, cxr, dxr
     integer, dimension(0:pe_ny-1) :: cy, dy
 
-print *,'IN shuffle'
+!print *,'IN shuffle'
     on_column = .false.    ! precondition for failure in case a hasty exit is needed
     status = RPN_COMM_ERROR
     nullify(fullrow)
     nullify(local_1)
 !
-    do i = 2 , npes
-      if(pe_x(i) <= pe_x(i-1) .or. pe_y(i) <= pe_y(i-1)) then
-        print *,"ERROR: PE list is not monotonous and increasing"
-        return  ! pe_x and pe_y must be monotonous and increasing
-      endif
-    enddo
+!    do i = 2 , npes   ! assumption to be revised, may not stay true with PE dispersion
+!      if(pe_x(i) <= pe_x(i-1) .or. pe_y(i) <= pe_y(i-1)) then
+!        print *,"WARNING: PE list is not monotonous and increasing"
+!        return  ! pe_x and pe_y must be monotonous and increasing
+!      endif
+!    enddo
     root = -1 
     kcol = -1
     haloy = 1 - minj    ! halos are implicitly specified by lower bound of x and y dimensions
@@ -395,7 +406,7 @@ print *,'IN shuffle'
       endif
     enddo
 !
-!print *,"DEBUG: kcol,cxs,dxs,11111,cxr,dxr,11111,listofk"
+if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
 !print 100,kcol,cxs,dxs,11111,cxr,dxr,11111,listofk
 !do k=lnk,1,-1
 !  print *,'=== lv=',k

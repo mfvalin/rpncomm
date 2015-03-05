@@ -46,6 +46,11 @@ module RPN_COMM_io_pe_tables   ! this module may also be used by data distributi
   integer, save :: scrambley = 0
   integer, PARAMETER :: MAXIOSETS=16
   type(RPN_COMM_io_set), dimension(MAXIOSETS), save :: io_set
+  integer, dimension(16) :: primes = [ &
+         5,      7,      11,     13,   &
+        17,     19,      23,     29,   &
+        31,     37,      41,     43,   &
+        47,     53,      59,     61  ]
 contains
 !
   subroutine make_io_pe_list(x,y,npes,pe_nx,pe_ny,setno,method)
@@ -54,20 +59,50 @@ contains
     integer, intent(IN) :: npes
     integer, intent(IN) :: pe_nx, pe_ny
     integer, intent(IN) :: setno, method
-    real :: deltax, deltay
-    integer :: i
+    integer :: i, prime
+    integer :: deltax, deltay, pe_nxy
 !
+    if(scramblex == 0) then    ! initialize
+      scramblex = 1
+      scrambley = 1
+      if(pe_nx > pe_ny) then   ! scramblex = lowest number that is prime with respect to pe_nx
+        do i = 1 , size(primes)
+          scramblex = primes(i)
+          if(mod(pe_nx,primes(i)) .ne. 0) exit
+        enddo
+      else                     ! scrambley = lowest number that is prime with respect to pe_ny
+        do i = 1 , size(primes)
+          scrambley = primes(i)
+          if(mod(pe_ny,primes(i)) .ne. 0) exit
+        enddo
+      endif
+!      print *,"DEBUG: scramblex, scrambley =",scramblex, scrambley
+    endif
     x = -1
     y = -1
     if(method .ne. 0) return      ! method 0 is the only one supported for the time being
-    if(npes > min(pe_nx,pe_ny)) return
-    deltax = (pe_nx -1.0) / (npes - 1)
-    deltay = (pe_ny -1.0) / (npes - 1)
-    do i = 1 , npes
-      x(i) = nint( (i-1) * deltax )
-!      if(mod(method,4)>=2) x(i) = mod(x(i)+setno-1,pe_nx)  ! spread along x 
-      y(i) = nint( (i-1) * deltay )
-!      if(mod(method,2)>=1) y(i) = mod(y(i)+setno-1,pe_ny)  ! spread along y
+    deltax = 1
+    deltay = 1
+    pe_nxy = min(pe_nx,pe_ny)
+    if(method == 0) then
+      deltax = scramblex
+      deltay = scrambley
+    endif
+    if( npes > pe_nxy * pe_nxy ) return
+    safe = 0
+    do i = 0 , npes-1
+      if(npes > pe_nxy) then
+        if(pe_nx > pe_ny) then
+          x(i+1) = mod( i * deltax , pe_nx )
+          y(i+1) = mod( mod( i , pe_ny) + i / pe_nx , pe_ny)
+        else
+          x(i+1) = mod( mod( i , pe_nx ) + i / pe_ny , pe_nx)
+          y(i+1) = mod( i * deltay , pe_ny)
+        endif
+      else
+        x(i+1) = mod( i * deltax , pe_nx )
+        y(i+1) = mod( i * deltay , pe_ny )
+      endif
     enddo
   end subroutine make_io_pe_list
 !
@@ -204,12 +239,46 @@ contains
     freed = setno
   end function free_ioset
 !
-  function create_ioset(npes,method) result(setno)
+  function check_ioset(x ,y, npes, pe_nx, pe_ny, pe_me, diag) result(status)
+    implicit none
+    integer, intent(IN) :: pe_nx, pe_ny, pe_me, npes
+    logical, intent(IN) :: diag
+    integer, intent(IN), dimension(npes) :: x
+    integer, intent(IN), dimension(npes) :: y
+    integer :: status
+!
+    integer*1, dimension(0:pe_nx-1,0:pe_ny-1) :: safe
+    integer :: i, j
+!
+    status = -1
+    safe = 0
+    do i = 1 , npes
+      if(safe(x(i),y(i)) .ne. 0) then
+        print *,"ERROR: problem creating IO set, there are duplicates"
+        status = -1
+        return
+      else
+        safe(x(i),y(i)) = 1 + mod(  ( (i-1) / min(pe_nx, pe_ny) ) , 9)
+      endif
+    enddo
+    if(pe_me == 0 .and. diag)then
+!      print *,'DEBUG: x=',x
+!      print *,'DEBUG: y=',y
+      print *,"===== IO PE map ====="
+      do j = pe_ny-1 , 0 , -1
+        print 100,j,safe(:,j)
+      enddo
+    endif
+100   format(1X,I4,1x,128I1)
+    status = 0
+    return
+  end function check_ioset
+  function create_ioset(npes,method) result(setno)  ! pe_indomm AKA "GRID" is assumed as a communicator
     implicit none
     integer, intent(IN) :: npes
     integer, intent(IN) :: method
     integer :: setno
-    integer :: ierr, my_color, i, newset
+    integer :: ierr, my_color, i, j, newset
 
 #if defined(STAND_ALONE)
     include 'mpif.h'
@@ -240,7 +309,10 @@ contains
     io_set(newset)%megrid = -1
     io_set(newset)%ngroups = 0
     io_set(newset)%groupsize = 0
-    call make_io_pe_list(io_set(newset)%x,io_set(newset)%y,npes,pe_nx,pe_ny,newset,method)
+    call make_io_pe_list(io_set(newset)%x, io_set(newset)%y, npes, pe_nx, pe_ny, newset, method)
+    if(io_set(newset)%x(1) .ne. -1) then
+      if( check_ioset(io_set(newset)%x ,io_set(newset)%y, npes, pe_nx, pe_ny, pe_me, .true.) == -1 ) io_set(newset)%x(1) = 1
+    endif
     if(io_set(newset)%x(1) == -1) then        ! miserable failure, list of IO pes could not be created
       deallocate(io_set(newset)%x,io_set(newset)%y)
       nullify(io_set(newset)%x)
@@ -250,7 +322,7 @@ contains
     endif
     io_set(newset)%ioset = newset
     io_set(newset)%npe = npes
-    io_set(newset)%groupsize = min(pe_nx,pe_ny)   ! size of groups for this IO PE set (last group may be shorter)
+    io_set(newset)%groupsize = min(pe_nx, pe_ny, npes)   ! size of groups for this IO PE set (last group may be shorter)
     io_set(newset)%ngroups = (npes+io_set(newset)%groupsize-1)/(io_set(newset)%groupsize)   ! number of groups in this IO PE set
     my_color = MPI_UNDEFINED
     do i = 1 , npes
@@ -268,9 +340,7 @@ contains
 #if defined(SELF_TEST)
     if(pe_me == 0) then
       print *,'DEBUG: creating IO set ',newset,' npes=',npes
-      print *,'DEBUG: npe, me',io_set(newset)%npe,io_set(newset)%me
-      print *,'DEBUG: x=',io_set(newset)%x
-      print *,'DEBUG: y=',io_set(newset)%y
+      print *,'DEBUG: npe, groups, me',io_set(newset)%npe,io_set(newset)%ngroups,io_set(newset)%me
     endif
 #endif
   end function create_ioset
@@ -308,7 +378,7 @@ end module RPN_COMM_io_pe_tables
   if(pe_me == 0)  print *,'DEBUG: pe_nx,pe_ny',pe_nx,pe_ny
   nio = min(pe_nx,pe_ny)
   print 100,'RPN_COMM_io_pe test program, pe_nx,pe_ny,pe_me,pe_mex,pe_mey,nio=',pe_nx,pe_ny,pe_me,pe_mex,pe_mey,nio
-  setno = RPN_COMM_create_io_set(nio,0)
+  setno = RPN_COMM_create_io_set(nio+2,0)
   me_io = RPN_COMM_is_io_pe(setno)
   if(me_io .ne. -1) then
     print *,"I am a proud IO pe !"
@@ -323,7 +393,7 @@ end module RPN_COMM_io_pe_tables
   print *,"set number, size of set='",setno,RPN_COMM_io_pe_size(setno)
   setno = RPN_COMM_create_io_set(nio,0)
   print *,"set number, size of set='",setno,RPN_COMM_io_pe_size(setno)
-  setno3 = RPN_COMM_create_io_set(nio,0)
+  setno3 = RPN_COMM_create_io_set(nio-1,0)
   print *,"set number, size of set='",setno3,RPN_COMM_io_pe_size(setno3)
   print *,"set number, size of set='",4,RPN_COMM_io_pe_size(setno3)
   argv(1) = pe_me
