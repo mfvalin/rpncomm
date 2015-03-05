@@ -264,12 +264,13 @@ contains
     if(pe_me == 0 .and. diag)then
 !      print *,'DEBUG: x=',x
 !      print *,'DEBUG: y=',y
-      print *,"===== IO PE map ====="
+      print 101,"===== IO PE map (",(npes+min(pe_nx, pe_ny)-1)/min(pe_nx, pe_ny)," groups) ====="
       do j = pe_ny-1 , 0 , -1
         print 100,j,safe(:,j)
       enddo
     endif
 100   format(1X,I4,1x,128I1)
+101   format(A,I3,A)
     status = 0
     return
   end function check_ioset
