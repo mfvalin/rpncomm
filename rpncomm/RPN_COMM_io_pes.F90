@@ -53,13 +53,16 @@ module RPN_COMM_io_pe_tables   ! this module may also be used by data distributi
         47,     53,      59,     61  ]
 contains
 !
+! helper routine used by create_ioset
+! for now only method 0 is supported for IO PE dispersion
+!
   subroutine make_io_pe_list(x,y,npes,pe_nx,pe_ny,setno,method)
-    integer, dimension(npes), intent(OUT) :: x
-    integer, dimension(npes), intent(OUT) :: y
-    integer, intent(IN) :: npes
-    integer, intent(IN) :: pe_nx, pe_ny
-    integer, intent(IN) :: setno, method
-    integer :: i, prime
+    integer, dimension(npes), intent(OUT) :: x   ! x coordinates of PEs in set
+    integer, dimension(npes), intent(OUT) :: y   ! y coordinates of PEs in set
+    integer, intent(IN) :: npes                  ! number of PEs in set
+    integer, intent(IN) :: pe_nx, pe_ny          ! number of PEs along x and y in PE grid
+    integer, intent(IN) :: setno, method         ! set number, fill method
+    integer :: i
     integer :: deltax, deltay, pe_nxy
 !
     if(scramblex == 0) then    ! initialize
@@ -108,7 +111,7 @@ contains
 !
   function is_io_pe(setno) result(ordinal)  ! is this pe part of IO PE set setno. if yes return rank in set, else return -1
     implicit none
-    integer, intent(IN) :: setno
+    integer, intent(IN) :: setno             ! set number as returned by create_ioset
     integer :: ordinal
     integer :: i
 #if defined(STAND_ALONE)
@@ -133,7 +136,7 @@ contains
   function io_pe_comm(setno) result(communicator)  ! is this pe part of IO PE set setno. if yes return set communicator, else return MPI_COMM_NULL
     implicit none
     include 'mpif.h'
-    integer, intent(IN) :: setno
+    integer, intent(IN) :: setno             ! set number as returned by create_ioset
     integer :: communicator
     integer :: i
 #if defined(STAND_ALONE)
@@ -157,7 +160,7 @@ contains
 !
   function io_pe_list(setno) result(list)  ! return pointer to list of PEs if set is valid, else return a null pointer
     implicit none
-    integer, intent(IN) :: setno
+    integer, intent(IN) :: setno             ! set number as returned by create_ioset
     integer, dimension(:,:), pointer :: list
     integer :: npes
 
@@ -192,7 +195,7 @@ contains
 !
   function io_pe_size(setno) result(population)  ! return set population if set is valid, else return -1
     implicit none
-    integer, intent(IN) :: setno
+    integer, intent(IN) :: setno             ! set number as returned by create_ioset
     integer :: population
 
     population = -1
@@ -204,7 +207,7 @@ contains
 !
   function io_pe_groups(setno) result(ngroups)  ! return number of groups if set is valid, else return -1
     implicit none
-    integer, intent(IN) :: setno
+    integer, intent(IN) :: setno             ! set number as returned by create_ioset
     integer :: ngroups
 
     ngroups = -1
@@ -214,10 +217,10 @@ contains
     ngroups = io_set(setno)%ngroups
   end function io_pe_groups
 !
-  function free_ioset(setno) result(freed)
+  function free_ioset(setno) result(freed)   ! free table space associated with IO PE set setno
     implicit none
     include 'mpif.h'
-    integer, intent(IN) :: setno
+    integer, intent(IN) :: setno             ! set number as returned by create_ioset
     integer :: freed
     integer :: ierr
 !
@@ -239,41 +242,62 @@ contains
     freed = setno
   end function free_ioset
 !
-  function check_ioset(x ,y, npes, pe_nx, pe_ny, pe_me, diag) result(status)
+! check that this PE set is valid (no duplicates) and print IO PE map
+! also check that no column has 2 IO PEs in a group and neither has any row
+! used to validate what create_ioset has produced
+!
+  function check_ioset(newset, x ,y, npes, pe_nx, pe_ny, pe_me, diag) result(status)
     implicit none
-    integer, intent(IN) :: pe_nx, pe_ny, pe_me, npes
-    logical, intent(IN) :: diag
-    integer, intent(IN), dimension(npes) :: x
-    integer, intent(IN), dimension(npes) :: y
-    integer :: status
+    integer, intent(IN) :: newset, npes         ! set number, number of PEs in set
+    integer, intent(IN) :: pe_nx, pe_ny         ! number of PEs along x and y
+    integer :: pe_me                            ! ordinal in grid of this PE
+    logical, intent(IN) :: diag                 ! if .true., PE 0 prints the IO PE map for this set
+    integer, intent(IN), dimension(npes) :: x   ! x coordinates of IO PEs
+    integer, intent(IN), dimension(npes) :: y   ! y coordinates of IO PEs
+    integer :: status                           ! 0 if set is OK, -1 otherwise
 !
     integer*1, dimension(0:pe_nx-1,0:pe_ny-1) :: safe
-    integer :: i, j
+    integer*1, dimension(0:pe_ny-1) :: row      ! there are pe_ny rows
+    integer*1, dimension(0:pe_nx-1) :: col      ! there are pe_nx columns
+    integer :: i, j, groupsize, low, high
 !
     status = -1
     safe = 0
+    groupsize = min(pe_nx, pe_ny)
+    do i = 1, npes, groupsize  ! loop over groups
+      row = 0
+      col = 0
+      do j = i , min(i+groupsize-1,npes)      ! PE at coordinates ( x(i), y(i) )
+        row(y(i)) = row(y(i)) + 1             ! add one to count for this row
+        col(x(i)) = col(x(i)) + 1             ! add one to count for this column
+      enddo
+      if(any(row > 1) .or. any(col > 1) ) then
+        print *,"ERROR: problem creating IO set, there are 2 or more PEs on row or column"
+        status = -1
+        return
+      endif
+    enddo
     do i = 1 , npes
-      if(safe(x(i),y(i)) .ne. 0) then
+      if(safe(x(i),y(i)) .ne. 0) then  ! OOPS, 2 PEs in this set are the same
         print *,"ERROR: problem creating IO set, there are duplicates"
         status = -1
         return
       else
-        safe(x(i),y(i)) = 1 + mod(  ( (i-1) / min(pe_nx, pe_ny) ) , 9)
+        safe(x(i),y(i)) = 1 + mod(  ( (i-1) / min(pe_nx, pe_ny) ) , 9)  ! group number, 9 if group number > 9
       endif
     enddo
     if(pe_me == 0 .and. diag)then
-!      print *,'DEBUG: x=',x
-!      print *,'DEBUG: y=',y
-      print 101,"===== IO PE map (",(npes+min(pe_nx, pe_ny)-1)/min(pe_nx, pe_ny)," groups) ====="
+      print 101,"===== IO PE map for set",newset," (",(npes+min(pe_nx, pe_ny)-1)/min(pe_nx, pe_ny)," groups) ====="
       do j = pe_ny-1 , 0 , -1
         print 100,j,safe(:,j)
       enddo
     endif
 100   format(1X,I4,1x,128I1)
-101   format(A,I3,A)
+101   format(A,I3,A,I3,A)
     status = 0
     return
   end function check_ioset
+!
   function create_ioset(npes,method) result(setno)  ! pe_indomm AKA "GRID" is assumed as a communicator
     implicit none
     integer, intent(IN) :: npes
@@ -312,7 +336,7 @@ contains
     io_set(newset)%groupsize = 0
     call make_io_pe_list(io_set(newset)%x, io_set(newset)%y, npes, pe_nx, pe_ny, newset, method)
     if(io_set(newset)%x(1) .ne. -1) then
-      if( check_ioset(io_set(newset)%x ,io_set(newset)%y, npes, pe_nx, pe_ny, pe_me, .true.) == -1 ) io_set(newset)%x(1) = 1
+      if( check_ioset(newset,io_set(newset)%x ,io_set(newset)%y, npes, pe_nx, pe_ny, pe_me, .true.) == -1 ) io_set(newset)%x(1) = 1
     endif
     if(io_set(newset)%x(1) == -1) then        ! miserable failure, list of IO pes could not be created
       deallocate(io_set(newset)%x,io_set(newset)%y)
@@ -494,6 +518,21 @@ function RPN_COMM_io_pe_list(setno) result(list)   !InTf!  ! get list of PEs in 
   list => io_pe_list(setno)                    ! list(:,1) x coordinates, list(:,2) y coordinates of IO PEs
 end function RPN_COMM_io_pe_list              !InTf!  
 !
+! callback to be executed only on members of an IO PE set (usually called by all PEs on grid)
+! if this PE is not a member of the IO set, nothing happens, status = 0
+! if the IO set is invalid, nothing happens, status = -1
+! if this PE is a member of the set, callback is called and its return value is put into status
+!
+! the calling sequence of callback is as follows
+! status = callback(argv,setno,comm,ordinal,x,y,npe)
+! type(C_PTR) :: argv 
+! integer :: setno         ! IO PE set number
+! integer :: comm          ! communicator used by this IO PE set
+! integer :: ordinal       ! ordinal of this PE in the set
+! integer, dimension(npe) :: x  ! x grid coordinates for IO PEs in this set
+! integer, dimension(npe) :: y  ! y grid coordinates for IO PEs in this set
+! integer :: npe           ! number of PEs in this set
+!
 function RPN_COMM_io_pe_call(setno,callback,argv) result(status) !InTf!
   use RPN_COMM_io_pe_tables
 !!  import :: C_PTR      !InTf!
@@ -507,15 +546,17 @@ function RPN_COMM_io_pe_call(setno,callback,argv) result(status) !InTf!
 !
 end function RPN_COMM_io_pe_call  !InTf!  
 !
-subroutine RPN_COMM_io_pe_bcast(buffer,count,datatype,root,setno,ierr)
+! broadcast within an IO PE set
+!
+subroutine RPN_COMM_io_pe_bcast(buffer,count,datatype,root,setno,ierr) ! cannot publish interface because of buffer
   use RPN_COMM_io_pe_tables
   implicit none
   integer, intent(IN) :: setno                ! set number as returned by RPN_COMM_create_io_set
-  integer, intent(IN) :: count                ! number of elements
-  integer, intent(INOUT), dimension(*) :: buffer
+  integer, intent(IN) :: count                ! number of elements of type datatype
+  integer, intent(INOUT), dimension(*) :: buffer   ! data to be broadcast
   character (len=*), intent(IN) :: datatype   ! datatype RPN_COMM style
-  integer, intent(IN) :: root                 ! root PE in set for broadcast
-  integer, intent(OUT) :: ierr                ! error code
+  integer, intent(IN) :: root                 ! root PE in set for broadcast (typically 0)
+  integer, intent(OUT) :: ierr                ! status upon completion
   integer :: dtype
   integer, external :: RPN_COMM_datyp
 !
