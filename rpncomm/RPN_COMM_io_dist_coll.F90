@@ -551,7 +551,7 @@ subroutine RPN_COMM_shuf_coll(setno,  &
                                 global(1,1,iset),gni,gnj,  &
                                 local,mini,maxi,minj,maxj,nk,k1,kn,  &
                                 liste_o(iset), io_set(setno)%x(low:high), io_set(setno)%y(low:high), (high-low+1), &
-                                start_x,count_x,nx,start_y,count_y,ny,  &
+                                start_x,count_x,start_y,count_y,  &
                                 status)
       k1 = k1 + groupsize  ! base level for next group
     enddo
@@ -567,7 +567,7 @@ subroutine RPN_COMM_shuf_coll(setno,  &
                                   global, gni, gnj, &
                                   local, mini, maxi, minj, maxj, nk, k1, kn, &
                                   levnk, pe_x, pe_y, npes, &
-                                  start_x, count_x, nx,start_y, count_y, ny,  &
+                                  start_x, count_x, start_y, count_y, &
                                   status)
 !
 ! collect one 2D array at a time from a set of 2D array sections
@@ -579,34 +579,108 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     use rpn_comm
     use RPN_COMM_io_pe_tables
     implicit none
-    integer, intent(IN) :: setno,gni,gnj,mini,maxi,minj,maxj,nk,k1,kn,nx,ny
+    integer, intent(IN) :: setno,gni,gnj,mini,maxi,minj,maxj,nk,k1,kn
     integer, intent(OUT), dimension(gni,gnj) :: global
     integer, intent(IN), dimension(mini:maxi,minj:maxj,nk) :: local
     integer, intent(IN) :: npes
     integer, intent(IN), dimension(npes)  :: pe_x, pe_y
-    integer, intent(IN), dimension(nx)    :: start_x,count_x
-    integer, intent(IN), dimension(ny)    :: start_y,count_y
+    integer, intent(IN), dimension(0:pe_nx-1)    :: start_x,count_x
+    integer, intent(IN), dimension(0:pe_ny-1)    :: start_y,count_y
     integer, intent(OUT)  :: levnk
     integer, intent(OUT) :: status
-    integer :: i, kexpected
+    integer :: i, j, kexpected
+    integer, dimension(0:pe_nx-1) :: cxs, dxs, cxr, dxr
+    integer, dimension(0:pe_ny-1) :: cy, dy
+    integer, dimension(:,:,:), allocatable :: local_1
+    integer, dimension(:,:), allocatable :: local_2
+    logical :: io_on_column
+    integer :: blocki, blockj, k, nlev, klev, ierr, column_root
 !
     status = RPN_COMM_ERROR
+    nlev = kn - k1 + 1             ! number of levels to distribute
+    if(nlev > npes) then           ! nlev cannot be larger than npes
+      ! add error message
+      return
+    endif
     do i = 1 , npes  ! if this PE is part of the group, flag level
       if( pe_mex == pe_x(i) .and. pe_mey == pe_y(i) ) then
         kexpected = k1 + i - 1   ! expected level on this PE
         if(kexpected <= kn)   levnk = -kexpected    ! if successful, levnk will be +kexpected
       endif
     enddo
+    io_on_column = .false.
+    column_root = -1
+    klev = 0
+    do i = 1 , nlev
+      if(pe_x(i) == pe_mex) then
+        io_on_column = .true.         ! there a useful IO PE on this column
+        klev = k1 + i -1              ! level klev will be collected on this column
+        column_root = pe_y(i)         ! by PE having pe_mey == column_root 
+      endif
+    enddo
 !
 !   PASS 1 , row alltoallv to get a local (gni,lnj) array with the proper level
 !            on PEs in the same column as IO PEs
 !            PEs where pe_mex = pe_x(l) receive level (k1+l-1) into (mini:maxi,lnj,pe_nx) array
-!            PEs on row will send (:,1:lnj,k1+l-1) to pe_x(l)
+!            PEs on row will send local(:,1:lnj,k1+l-1) to pe_x(l)
+!
+    blocki = maxi - mini + 1       ! number of points along x in array local
+    blockj = count_y(pe_mey)       ! number of useful points along y in row pe_mey
+!
+    if(io_on_column) then               ! this PE will be collection one level for this row
+      allocate( local_1(mini:maxi,blockj,0:pe_nx-1) )
+      allocate( local_2(gni,blockj) )
+    else
+      allocate( local_1(1,1,1) )
+      allocate( local_2(1,1) )
+    endif
+!
+    cxs = 0
+    dxs = 0
+    do i = 1 , nlev
+      j = pe_x(i)                ! this PE will get level k1 + (i-1)
+      cxs(j) =  blocki * blockj
+      dxs(j) = (blocki * blockj) * (k1 + i - 2)  ! offset of level  k1 + (i-1)
+    enddo
+!
+    cxr = 0
+    dxr = 0
+    if(klev > 0) then          ! this PE collects level klev from all PEs in row
+      cxr = blocki * blockj    ! x y 2D block size
+      do i = 0 , pe_nx -1
+        dxr(i) = (blocki * blockj) * i
+      enddo
+    endif
+!
+    call mpi_alltoallv(local,    cxs, dxs, MPI_INTEGER,  &   ! send from local, size cxs, displacement dxs
+                       local_1,  cxr, dxr, MPI_INTEGER,  &   ! receive into local_1, 
+                       pe_myrow, ierr)
 !
 !   REORG    move from (mini:maxi,lnj,pe_nx) to (gni,lnj)
+    if(io_on_column) then
+      do k = 0 , pe_nx-1
+        do j = 1 , blockj
+          local_2(start_x(k)+1:start_x(k)+count_x(k),j) = local_1(1:count_x(k),j,k)
+        enddo
+      enddo
+    endif
+    deallocate( local_1 )   ! local_1 no longer useful
 !
 !   PASS 2 , on columns where there is an IO PE, gatherv on IO PE into (gni,gnj) array
 !
+    if(io_on_column) then   ! column root will collect level  klev from local_2 into global
+       cxr = 0
+       dxr = 0
+       if(column_root == pe_mey) then  ! this PE is the gather root
+         cxr = gni * count_y
+         dxr = gni * start_y 
+       endif
+       call mpi_gatherv(local_2, gni*blockj, MPI_INTEGER, &
+                        global , cxr,  dxr,  MPI_INTEGER, &
+                        column_root, pe_mycol, ierr)
+       levnk = klev
+    endif
+    deallocate( local_2 )
     status = RPN_COMM_OK
   end subroutine RPN_COMM_shuf_coll_1
 end subroutine RPN_COMM_shuf_coll
