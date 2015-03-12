@@ -30,9 +30,9 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer, parameter :: gnj=5
   integer, parameter :: gnk=2
   integer, parameter :: lnk=6
-  integer, dimension(gnk) :: liste_k
+  integer, dimension(gnk) :: liste_k, liste_k2
   logical, dimension(lnk) :: liste_o
-  integer, dimension(gni,gnj,gnk) :: global
+  integer, dimension(gni,gnj,gnk) :: global,global2
   integer, dimension(:,:,:), allocatable :: local
   integer :: lni, lnj
   integer :: mini,maxi,minj,maxj,status
@@ -159,6 +159,37 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
 !
 100 format(I3,20I6.5)
 777 continue
+!
+! collect test follows distribute test
+!
+  global2 = 99999
+  liste_k2 = -99999
+  call RPN_COMM_shuf_coll(setno,  &
+                          global2,gni,gnj,gnk,  &
+                          local,mini,maxi,minj,maxj,lnk,  &
+                          liste_k2,  &
+                          start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
+                          status)
+! global2 should be identical to global once k has been adjusted
+! expected k + global - mod(global,10)
+  if(me_io .ne. -1) then ! I am an IO PE
+    print *,"DEBUG: pe_me, liste_k2", pe_me,liste_k2
+    nerrors = 0
+    nvalid = 0
+    do k = 1,gnk
+      if(liste_k2(k) <= 0) cycle
+      do j = 1,gnj
+      do i = 1,gni
+        expected = global(i,j,k) - mod(global(i,j,k),10) + liste_k2(k)
+        nvalid = nvalid + 1
+        if(expected .ne. global2(i,j,k)) nerrors = nerrors + 1
+      enddo
+      enddo
+    enddo
+    print *,"====== after collect ======"
+    print *,"number of errors =",nerrors
+    print *,"number of points =",nvalid
+  endif
   return
 end subroutine RPN_COMM_io_dist_coll_test
 !
@@ -168,14 +199,14 @@ end subroutine RPN_COMM_io_dist_coll_test
 ! liste_o(k) is set to .true. when 2D plane k has been received
 ! start_x(i) contains the first global x index of local array in grid PE (i-1,any)
 ! count_x(i) contains the number of points along x of local array in grid PE (i-1,any)
-! nx dimension of start_x and count_x (ERROR if not equal to pe_nx)
+! nx is the dimension of start_x and count_x (ERROR if not equal to pe_nx)
 ! start_y(j) contains the first global y index of local array in grid PE (any,j-1)
 ! count_y(j) contains the number of points along y of local array in grid (any,j-1)
-! ny dimension of start_y and count_y (ERROR if not equal to pe_ny)
+! ny is the dimension of start_y and count_y (ERROR if not equal to pe_ny)
 ! mini,maxi,minj,maxj are used to determine the halo width in the local array
 !                     this is used to save a halo exchange after distribution
 !
-! start_x and start_y are in origin(1)
+! start_x, start_y, count_x, count_y  are in origin(1)
 !
 ! important notes:
 !    the following parameters MUST de the same on ALL PEs
@@ -184,9 +215,11 @@ end subroutine RPN_COMM_io_dist_coll_test
 !      gni,gnj,gnk   (dimensions of the "global" array)
 !      nx,ny,start_x,count_x,start_y,count_y  (start_x, start_y : ORIGIN 1)
 !      periodx,periody
+!      liste_o
 !
 !    even if not used/necessary on a given PE
 !      the "global" array must exist ( (1,1,1) array is OK on non IO PEs )
+!      array liste_i must exist  ( a dimension(1) array is OK on non IO PEs )
 !
 subroutine RPN_COMM_shuf_dist(setno,  &
                               global,gni,gnj,gnk,  &
@@ -435,29 +468,144 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
   end subroutine RPN_COMM_shuf_dist_1
 end subroutine RPN_COMM_shuf_dist
 !
-subroutine RPN_COMM_shuf_coll(setno,status)
+!
+! collect nk 2D array sections into IO PEs from the grid PEs using IO PE set setno
+!
+! nk 2D array sections coming in, reassembled on the IO PEs of set setno
+! each IO PE ends up with a small number (nk / size of IO PE set) of full arrays
+!
+! liste_o(n) is set to k when 2D array level k has been received
+! start_x(i) contains the first global x index of local array in grid PE (i-1,any)
+! count_x(i) contains the number of points along x of local array in grid PE (i-1,any)
+! nx is the dimension of start_x and count_x (ERROR if not equal to pe_nx)
+! start_y(j) contains the first global y index of local array in grid PE (any,j-1)
+! count_y(j) contains the number of points along y of local array in grid (any,j-1)
+! ny is the dimension of start_y and count_y (ERROR if not equal to pe_ny)
+! mini,maxi,minj,maxj are used to determine the halo width in the local array
+!                     this is used to save a halo exchange after distribution
+!
+! start_x, start_y, count_x, count_y  are in origin(1)
+!
+! important notes:
+!    the following parameters MUST de the same on ALL PEs
+!      setno
+!      mini,maxi,minj,maxj,nk  (dimensions of the "local" array)
+!      gni,gnj,gnk   (dimensions of the "global" array)
+!      nx,ny,start_x,count_x,start_y,count_y  (start_x, start_y : ORIGIN 1)
+!
+!    even if not used/necessary on a given PE
+!      the "global" array must exist ( (1,1,1) array is OK on non IO PEs )
+!      array liste_o must exist  ( a dimension(1) array is OK on non IO PEs )
+!
+subroutine RPN_COMM_shuf_coll(setno,  &
+                              global,gni,gnj,gnk,  &
+                              local,mini,maxi,minj,maxj,nk,  &
+                              liste_o,  &
+                              start_x,count_x,nx,start_y,count_y,ny,  &
+                              status)
   use rpn_comm
   use RPN_COMM_io_pe_tables
   implicit none
-  integer, intent(IN) :: setno
+  integer, intent(IN) :: setno,gni,gnj,gnk,mini,maxi,minj,maxj,nk,nx,ny
+  integer, intent(OUT), dimension(gni,gnj,gnk) :: global
+  integer, intent(IN), dimension(mini:maxi,minj:maxj,nk) :: local
+  integer, intent(IN), dimension(nx)    :: start_x,count_x
+  integer, intent(IN), dimension(ny)    :: start_y,count_y
+  integer, intent(OUT), dimension(gnk)  :: liste_o
   integer, intent(OUT) :: status
+  integer :: iset, npass, setsize, igroup, groupsize
+  integer k0, k1, kn, low, high
 !
   status = RPN_COMM_ERROR
   if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
   if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
+  if(pe_nx .ne. nx .or. pe_ny .ne. ny) return ! wrong number of PEs in grid
 !
+  if(io_set(setno)%me >= 0) liste_o = 0      ! this PE is a member of the IO set
+  setsize = io_set(setno)%npe
+  groupsize = io_set(setno)%groupsize
+  npass = (nk+setsize-1) / setsize
+  if(gnk < npass) then   ! OUCH, cannot collect
+    ! add error message
+    return
+  endif
+  k0 = 1
+!
+! loop over the number of passes necessary to distribute nk over setsize IO PEs
+! each IO PE will receive (npass) or (npass - 1) full arrays
+!
+  do iset = 1 , npass   ! process up to setsize levels per iteration
+    k1 = k0             ! base level for the first group of this pass
+!
+!   loop over the groups in the IO PE set
+!   the active routine needs the "no column has 2 IO PES, neither has any row" condition
+!   IO PEs low -> high in set will potentially receive a full 2D array
+!   from levels k1 -> kn   ( levels k1 -> min(nk , k1+groupsize-1) )
+!   if more IO PEs in group than levels to distribute some IO PEs will receive nothing
+!
+    do igroup = 1 , io_set(setno)%ngroups  ! loop over groups in IO PE set
+      kn = min( nk , k1+groupsize-1)
+      low = 1 + (igroup-1) * io_set(setno)%groupsize      ! index of first IO PE in goup
+      high = min( io_set(setno)%npe , low+groupsize-1 )   ! index of last PE in group
+      call RPN_COMM_shuf_coll_1(setno,  &
+                                global(1,1,iset),gni,gnj,  &
+                                local,mini,maxi,minj,maxj,nk,k1,kn,  &
+                                liste_o(iset), io_set(setno)%x(low:high), io_set(setno)%y(low:high), (high-low+1), &
+                                start_x,count_x,nx,start_y,count_y,ny,  &
+                                status)
+      k1 = k1 + groupsize  ! base level for next group
+    enddo
+    k0 = k0 + setsize      ! base level for the first group of next pass
+  enddo
 !
 ! collect one 2D plane at a time
 ! no column has 2 IO PES, neither has any row
 !
   contains
 !
-  subroutine RPN_COMM_shuf_coll_1(setno,status)
+  subroutine RPN_COMM_shuf_coll_1(setno,  &
+                                  global, gni, gnj, &
+                                  local, mini, maxi, minj, maxj, nk, k1, kn, &
+                                  levnk, pe_x, pe_y, npes, &
+                                  start_x, count_x, nx,start_y, count_y, ny,  &
+                                  status)
+!
+! collect one 2D array at a time from a set of 2D array sections
+! if kn-k1+1 smaller than groupsize, some IO PEs will not receive anything
+! the Mth PE will receive level k1+M-1
+! assumption: no column has 2 IO PES, neither has any row
+!
+!
     use rpn_comm
     use RPN_COMM_io_pe_tables
     implicit none
-    integer, intent(IN) :: setno
+    integer, intent(IN) :: setno,gni,gnj,mini,maxi,minj,maxj,nk,k1,kn,nx,ny
+    integer, intent(OUT), dimension(gni,gnj) :: global
+    integer, intent(IN), dimension(mini:maxi,minj:maxj,nk) :: local
+    integer, intent(IN) :: npes
+    integer, intent(IN), dimension(npes)  :: pe_x, pe_y
+    integer, intent(IN), dimension(nx)    :: start_x,count_x
+    integer, intent(IN), dimension(ny)    :: start_y,count_y
+    integer, intent(OUT)  :: levnk
     integer, intent(OUT) :: status
+    integer :: i, kexpected
+!
+    status = RPN_COMM_ERROR
+    do i = 1 , npes  ! if this PE is part of the group, flag level
+      if( pe_mex == pe_x(i) .and. pe_mey == pe_y(i) ) then
+        kexpected = k1 + i - 1   ! expected level on this PE
+        if(kexpected <= kn)   levnk = -kexpected    ! if successful, levnk will be +kexpected
+      endif
+    enddo
+!
+!   PASS 1 , row alltoallv to get a local (gni,lnj) array with the proper level
+!            on PEs in the same column as IO PEs
+!            PEs where pe_mex = pe_x(l) receive level (k1+l-1) into (mini:maxi,lnj,pe_nx) array
+!            PEs on row will send (:,1:lnj,k1+l-1) to pe_x(l)
+!
+!   REORG    move from (mini:maxi,lnj,pe_nx) to (gni,lnj)
+!
+!   PASS 2 , on columns where there is an IO PE, gatherv on IO PE into (gni,gnj) array
 !
     status = RPN_COMM_OK
   end subroutine RPN_COMM_shuf_coll_1
