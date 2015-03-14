@@ -267,12 +267,16 @@ contains
     do i = 1, npes, groupsize  ! loop over groups
       row = 0
       col = 0
-      do j = i , min(i+groupsize-1,npes)      ! PE at coordinates ( x(i), y(i) )
-        row(y(i)) = row(y(i)) + 1             ! add one to count for this row
-        col(x(i)) = col(x(i)) + 1             ! add one to count for this column
+      do j = i , min(i+groupsize-1,npes)      ! for PE at coordinates ( x(j), y(j) )
+        row(y(j)) = row(y(j)) + 1             ! add one to count for this row
+        col(x(j)) = col(x(j)) + 1             ! add one to count for this column
       enddo
       if(any(row > 1) .or. any(col > 1) ) then
         print *,"ERROR: problem creating IO set, there are 2 or more PEs on row or column"
+        print *,"ERROR: x = ",x
+        print *,"ERROR: row = ",row
+        print *,"ERROR: y = ",y
+        print *,"ERROR: col = ",col
         status = -1
         return
       endif
