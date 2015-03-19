@@ -292,12 +292,15 @@ contains
     enddo
     if(pe_me == 0 .and. diag)then
       print 101,"===== IO PE map for set",newset," (",(npes+min(pe_nx, pe_ny)-1)/min(pe_nx, pe_ny)," groups) ====="
+      print 102,"INFO: x =",x
+      print 102,"INFO: y =",y
       do j = pe_ny-1 , 0 , -1
         print 100,j,safe(:,j)
       enddo
     endif
 100   format(1X,I4,1x,128I1)
 101   format(A,I3,A,I3,A)
+102   format(A,15I4)
     status = 0
     return
   end function check_ioset

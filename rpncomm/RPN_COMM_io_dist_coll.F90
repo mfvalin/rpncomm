@@ -26,11 +26,11 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   logical :: periodx, periody
   integer :: setno, me_io, n_io
   integer :: i, j, k
-  integer, parameter :: gni=8
-  integer, parameter :: gnj=6
+  integer, parameter :: gni=10
+  integer, parameter :: gnj=7
   integer, parameter :: gnk=2
   integer, parameter :: lnk=6
-  integer, parameter :: iope_extra=0
+  integer, parameter :: iope_extra=3
   integer, dimension(gnk) :: liste_k, liste_k2
   logical, dimension(lnk) :: liste_o
   integer, dimension(gni,gnj,gnk) :: global,global2
@@ -96,8 +96,8 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   if(me_io .ne. -1) then
     print *,"I am a busy IO pe!",me_io+1,' of',n_io
     do k=1,1               !me_io+1
-!      liste_k(k) = lnk - me_io   !  *n_io
-      liste_k(k) = 1 + me_io   !  *n_io
+      liste_k(k) = lnk - me_io   !  *n_io
+!      liste_k(k) = 1 + me_io   !  *n_io
       do j = 1,gnj
       do i = 1,gni
         global(i,j,k) = liste_k(k) + j*10 + i*1000
@@ -107,7 +107,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
     print *,"level list =",liste_k
     do k= gnk,1,-1
       if(liste_k(k) <= 0) cycle
-      print *,"===== level ==",liste_k(k),"  ====="
+      print *,"===== source level ==",liste_k(k),"  ====="
       do j=gnj,1,-1
         print 100,j,global(:,j,k)
       enddo
@@ -143,7 +143,7 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
       print *,'no data at level',k
     endif
   enddo
-  print *,"nerrors, nvalid=",nerrors,nvalid
+  print *,"level ,nerrors, nvalid=",k,nerrors,nvalid
   goto 777
 666 continue
 #if  ! defined(DEPRECATED)
@@ -171,7 +171,7 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
   do k = 1 , lnk
     if(liste_o(k)) effective_lnk = k  ! highest level available
   enddo
-  print *,"====== calling  shuf_coll ======"
+!  print *,"====== calling  shuf_coll ======",effective_lnk
   call RPN_COMM_shuf_coll(setno,  &
                           global2,gni,gnj,gnk,  &
                           local,mini,maxi,minj,maxj,effective_lnk,  &
@@ -199,7 +199,7 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
     print *,"number of points =",nvalid
     do k = 1, gnk
       if(liste_k2(k) > 0) then
-        print *,"===== level",liste_k2(k),"  ====="
+        print *,"===== k, collected level",k,liste_k2(k),"  ====="
         do j = gnj , 1 , -1
           print 100,j,global2(:,j,k)
         enddo
@@ -565,9 +565,11 @@ subroutine RPN_COMM_shuf_coll(setno,  &
       kn = min( nk , k1+groupsize-1)
       low = 1 + (igroup-1) * io_set(setno)%groupsize      ! index of first IO PE in goup
       high = min( io_set(setno)%npe , low+groupsize-1 )   ! index of last PE in group
+#if defined(FULL_DEBUG)
       print *,"DEBUG: shuf_coll, iset, igroup =",iset, igroup
       print *,"DEBUG: shuf_coll, low, high =",low, high
       print *,"DEBUG: shuf_coll, nk, k1, kn =",nk, k1, kn
+#endif
       call RPN_COMM_shuf_coll_1(setno,  &
                                 global(1,1,iset),gni,gnj,  &
                                 local,mini,maxi,minj,maxj,nk,k1,kn,  &
@@ -640,8 +642,10 @@ subroutine RPN_COMM_shuf_coll(setno,  &
         column_root = pe_y(i)         ! by PE having pe_mey == column_root 
       endif
     enddo
-      print *,"DEBUG: shuf_coll1, nk, k1, kn =",nk, k1, kn
+#if defined(FULL_DEBUG)
+      print *,"DEBUG: shuf_coll1, io_on_column, nk, k1, kn =", io_on_column, nk, k1, kn
       print *,"DEBUG: shuf_coll1, kexpected, klev, column_root =",kexpected, klev, column_root
+#endif
 !
 !   PASS 1 , row alltoallv to get a local (gni,lnj) array with the proper level
 !            on PEs in the same column as IO PEs
@@ -679,6 +683,7 @@ subroutine RPN_COMM_shuf_coll(setno,  &
       enddo
     endif
 !
+#if defined(FULL_DEBUG)
     print *,"DEBUG: ========= local ============="
     do k = kn , k1 , -1
       do j = maxj , minj , -1
@@ -690,25 +695,32 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     print *,"DEBUG: dxs",dxs
     print *,"DEBUG: cxr",cxr
     print *,"DEBUG: dxr",dxr
+#endif
     call mpi_alltoallv(local,   cxs, dxs, MPI_INTEGER,  &   ! send from local, size cxs, displacement dxs
                        local_1, cxr, dxr, MPI_INTEGER,  &   ! receive into local_1, 
                        pe_myrow, ierr)
 !
 !   REORG    move from (mini:maxi,lnj,pe_nx) to (gni,lnj)
     if(io_on_column) then
+#if defined(FULL_DEBUG)
       print *,"DEBUG: ======== local_1 ========="
+#endif
       do k = 0 , pe_nx-1
+#if defined(FULL_DEBUG)
         do j = blockj , 1 , -1
           print 101,k,j,local_1(:,j,k)
         enddo
+#endif
         do j = 1 , blockj
           local_2( start_x(k):start_x(k)+count_x(k)-1 , j ) = local_1( 1:count_x(k) , j , k )
         enddo
       enddo
+#if defined(FULL_DEBUG)
       print *,"DEBUG: ======== local_2 ========="
       do j = blockj , 1 , -1
         print 100,j,local_2(:,j)
       enddo
+#endif
     endif
     deallocate( local_1 )   ! local_1 no longer useful
 !
@@ -721,13 +733,15 @@ subroutine RPN_COMM_shuf_coll(setno,  &
          cy = gni * count_y
          dy = gni * (start_y -1)
        endif
-       print *,"DEBUG: ======== before gatherv ========="
+#if defined(FULL_DEBUG)
+       print *,"DEBUG: ======== before gatherv on",column_root," ========="
        print *,"DEBUG: cy",cy
        print *,"DEBUG: dy",dy
+#endif
        call mpi_gatherv(local_2, gni*blockj, MPI_INTEGER, &
                         global , cy,  dy,  MPI_INTEGER, &
                         column_root, pe_mycol, ierr)
-       levnk = klev
+       if(kexpected .ne. 0) levnk = kexpected
     endif
     deallocate( local_2 )
     status = RPN_COMM_OK
