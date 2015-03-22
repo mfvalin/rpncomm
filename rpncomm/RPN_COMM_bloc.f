@@ -96,8 +96,8 @@
           pe_gr_bloc      = t%pe_gr_bloc
           pe_blocmaster   = t%pe_blocmaster
           pe_gr_blocmaster = t%pe_gr_blocmaster
-          write(rpn_u,*) 'INFO: using valid block distribution for',
-     %                 nblocx,' by',nblocy
+!          write(rpn_u,*) 'INFO: using valid block distribution for',
+!     %                 nblocx,' by',nblocy
 !        else
 !          write(rpn_u,*) 'INFO: found valid block distribution for',
 !     %                 nblocx,' by',nblocy
