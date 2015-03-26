@@ -197,8 +197,9 @@ c	wkrband_adj_=loc(wk(nk*haloy*gni))
 *
 *       Gather_all a la rangee
 	if(pe_nx.gt.1) then	
-	  call MPI_ALLGATHER(wksband_adj,nwdsband,MPI_REAL,
-     %         wkrband_adj,nwdsband,MPI_REAL,
+	  call MPI_ALLGATHER(wksband_adj,nwdsband,
+     %         MPI_DOUBLE_PRECISION,
+     %         wkrband_adj,nwdsband,MPI_DOUBLE_PRECISION,
      %         pe_myrow,ierr)
 	  do proc=0,pe_nx-1
 	   if(proc.ne.pe_mex) then
@@ -272,19 +273,20 @@ c	      do k=1,nk
         if(north) then 
 * send to south_neighbor
           if(.not.south)then
-            call MPI_SSEND(wks_adj,nwdsx,MPI_REAL,southpe,
+            call MPI_SSEND(wks_adj,nwdsx,MPI_DOUBLE_PRECISION,southpe,
      % sendtag,PE_DEFCOMM,ierr)
           endif
           wkr(1)=northpe
           wkr(nwdsx)=pe_medomm
         else if(south) then 
 * receive from north_neighbor
-          call MPI_RECV(wkr_adj,nwdsx,MPI_REAL,northpe,
+          call MPI_RECV(wkr_adj,nwdsx,MPI_DOUBLE_PRECISION,northpe,
      % gettag,PE_DEFCOMM,status,ierr)
         else 
 * send to south_neighbor and receive from north_neighbor
-          call MPI_SENDRECV(wks_adj,nwdsx,MPI_REAL,southpe,sendtag,
-     % wkr_adj,nwdsx,MPI_REAL,northpe,gettag,
+          call MPI_SENDRECV(wks_adj,nwdsx,MPI_DOUBLE_PRECISION,
+     % southpe,sendtag,
+     % wkr_adj,nwdsx,MPI_DOUBLE_PRECISION,northpe,gettag,
      % PE_DEFCOMM,status,ierr)
         endif
 	if(wkr(1).ne.northpe .or. wkr(nwdsx).ne.pe_medomm) then
@@ -354,8 +356,8 @@ c	do k=1,nk
 *
 *       Gather_all a la rangee
 *	
-	  call MPI_ALLGATHER(wksband_adj,nwdsband,MPI_REAL,
-     %         wkrband_adj,nwdsband,MPI_REAL,
+	  call MPI_ALLGATHER(wksband_adj,nwdsband,MPI_DOUBLE_PRECISION,
+     %         wkrband_adj,nwdsband,MPI_DOUBLE_PRECISION,
      %         pe_myrow,ierr)
 	  
 	  do proc=0,pe_nx-1
@@ -409,19 +411,20 @@ c	do k=1,nk
         if(south) then 
 * send to north_neighbor
           if(.not.north)then
-            call MPI_SSEND(wks_adj,nwdsx,MPI_REAL,northpe,
+            call MPI_SSEND(wks_adj,nwdsx,MPI_DOUBLE_PRECISION,northpe,
      % sendtag,PE_DEFCOMM,ierr)
           endif
           wkr(1)=southpe
           wkr(nwdsx)=pe_medomm
         else if(north) then 
 * receive from south_neighbor 
-          call MPI_RECV(wkr_adj,nwdsx,MPI_REAL,southpe,
+          call MPI_RECV(wkr_adj,nwdsx,MPI_DOUBLE_PRECISION,southpe,
      % gettag,PE_DEFCOMM,status,ierr)
         else 
 * send to north_neighbor and receive from south_neighbor
-          call MPI_SENDRECV(wks_adj,nwdsx,MPI_REAL,northpe,sendtag,
-     % wkr_adj,nwdsx,MPI_REAL,southpe,gettag,
+          call MPI_SENDRECV(wks_adj,nwdsx,MPI_DOUBLE_PRECISION,
+     % northpe,sendtag,
+     % wkr_adj,nwdsx,MPI_DOUBLE_PRECISION,southpe,gettag,
      % PE_DEFCOMM,status,ierr)
         endif
 	if(wkr(1).ne.southpe .or. wkr(nwdsx).ne.pe_medomm) then
@@ -517,19 +520,20 @@ c	do k=1,nk
         if(west) then 
 * 	send to east_neighbor
           if(.not.east)then
-            call MPI_SSEND(wks_adj,nwdsy,MPI_REAL,eastpe,
+            call MPI_SSEND(wks_adj,nwdsy,MPI_DOUBLE_PRECISION,eastpe,
      % sendtag,PE_DEFCOMM,ierr)
           endif
           wkr(1)=westpe
           wkr(nwdsy)=pe_medomm
         else if(east) then 
 * 	receive from west_neighbor
-          call MPI_RECV(wkr_adj,nwdsy,MPI_REAL,westpe,
+          call MPI_RECV(wkr_adj,nwdsy,MPI_DOUBLE_PRECISION,westpe,
      % gettag,PE_DEFCOMM,status,ierr)
         else 
 * 	send to east_neighbor and receive from west_neighbor
-          call MPI_SENDRECV(wks_adj,nwdsy,MPI_REAL,eastpe,sendtag,
-     % wkr_adj,nwdsy,MPI_REAL,westpe,gettag,
+          call MPI_SENDRECV(wks_adj,nwdsy,MPI_DOUBLE_PRECISION,
+     % eastpe,sendtag,
+     % wkr_adj,nwdsy,MPI_DOUBLE_PRECISION,westpe,gettag,
      % PE_DEFCOMM,status,ierr)
         endif
 	if(wkr(1).ne.westpe .or. wkr(nwdsy).ne.pe_medomm) then
@@ -573,19 +577,20 @@ c	do k=1,nk
         if(east) then 
 * 	send to west_neighbor
           if(.not.west) then
-            call MPI_SSEND(wks_adj,nwdsy,MPI_REAL,westpe,
+            call MPI_SSEND(wks_adj,nwdsy,MPI_DOUBLE_PRECISION,westpe,
      % sendtag,PE_DEFCOMM,ierr)
           endif
           wkr(1)=eastpe
           wkr(nwdsy)=pe_medomm
         else if(west) then 
 * 	receive from east_neighbor
-          call MPI_RECV(wkr_adj,nwdsy,MPI_REAL,eastpe,
+          call MPI_RECV(wkr_adj,nwdsy,MPI_DOUBLE_PRECISION,eastpe,
      % gettag,PE_DEFCOMM,status,ierr)
         else 
 * 	send to west_neighbor and receive from east_neighbor
-          call MPI_SENDRECV(wks_adj,nwdsy,MPI_REAL,westpe,sendtag,
-     % wkr_adj,nwdsy,MPI_REAL,eastpe,gettag,
+          call MPI_SENDRECV(wks_adj,nwdsy,MPI_DOUBLE_PRECISION,
+     % westpe,sendtag,
+     % wkr_adj,nwdsy,MPI_DOUBLE_PRECISION,eastpe,gettag,
      % PE_DEFCOMM,status,ierr)
         endif 
 	if(wkr(1).ne.eastpe .or. wkr(nwdsy).ne.pe_medomm) then
@@ -637,8 +642,9 @@ c	do k=1,nk
 *	  gather from wkslag of all row PEs int wkgth
 *
         	nwdslag=ni_current*(maxy-miny+1)*nk
-		call MPI_GATHER(wkslag_adj,nwdslag,MPI_REAL,
-     .          wkgth_adj,nwdslag,MPI_REAL,proc,pe_myrow,ierr)
+		call MPI_GATHER(wkslag_adj,nwdslag,MPI_DOUBLE_PRECISION,
+     %          wkgth_adj,nwdslag,MPI_DOUBLE_PRECISION,
+     %          proc,pe_myrow,ierr)
 
 *
 *       deballage sur root=proc
