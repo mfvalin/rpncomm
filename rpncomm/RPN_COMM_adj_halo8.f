@@ -30,7 +30,7 @@
 	integer minx,maxx,miny,maxy,ni,nj,nk,halox,haloy
 	integer gni,npol_row
 	logical periodx,periody
-	integer g(minx:maxx,miny:maxy,nk)
+	real *8 g(minx:maxx,miny:maxy,nk)
 	real *8 g_adj(minx:maxx,miny:maxy,nk)
 
 *       has to be real *8 because of g_adj = g_adj + wk\
@@ -39,8 +39,8 @@
 !	include 'rpn_comm.h'
 !	include 'mpif.h'
 *
-	integer, target, allocatable, dimension(:) :: wk
-	integer wkxs,wkxr,wkys,wkyr,wks,wkr,wkslag,wkgth
+	real *8, target, allocatable, dimension(:) :: wk
+	real *8 wkxs,wkxr,wkys,wkyr,wks,wkr,wkslag,wkgth
 	pointer(g_adj_,g_adj)
 	pointer(wkr_,wkr(10))
 	pointer(wks_,wks(10))
