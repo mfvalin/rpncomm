@@ -89,7 +89,7 @@
 	adjoint=.true.
 
 1	continue
-	call RPN_COMM_tmg_in
+!	call RPN_COMM_tmg_in
 !
 	east=(bnd_east) .and. (.not.periodx)
 	eastpe=pe_id(pe_mex+1,pe_mey)
@@ -666,7 +666,7 @@
 !	if(polarrows.gt.0) then
 !	  call MPI_BARRIER(pe_grid,ierr)
 !	endif
-	call RPN_COMM_tmg_out
+!	call RPN_COMM_tmg_out
         
 !
 	return

@@ -91,7 +91,7 @@
 	polarrows=npol_row
 
 1	continue
-	call RPN_COMM_tmg_in
+!	call RPN_COMM_tmg_in
 !
 	east=(bnd_east) .and. (.not.periodx)
 	eastpe=pe_id(pe_mex+1,pe_mey)
@@ -662,7 +662,7 @@
 4444	continue
 	deallocate(wk)
 !
-	call RPN_COMM_tmg_out
+!	call RPN_COMM_tmg_out
         
 !
 	return
