@@ -1,5 +1,23 @@
 #!/bin/ksh
-[[ "$1" == fortran || "$1" == all ]] && echo "CREATING: rpn_comm_fortran_stubs.f" && cat <<EOT >rpn_comm_fortran_stubs.f90
+cat <<EOT >make_mpif_include.f90
+program make_mpif_includes
+include 'mpif.h'
+EOT
+for i in MPI_2DOUBLE_PRECISION MPI_2INTEGER MPI_2REAL MPI_DOUBLE_PRECISION MPI_INTEGER \
+         MPI_INTEGER4 MPI_INTEGER8 MPI_LOGICAL MPI_REAL MPI_REAL4 MPI_REAL8 MPI_SUCCESS
+do
+  echo "print 100,'#define $i ',$i" >>make_mpif_include.f90
+done
+cat <<EOT >>make_mpif_include.f90
+100 format(A,I4)
+end program
+EOT
+s.f90 -mpi -o make_mpif_include make_mpif_include.f90
+rm -f make_mpif_include.f90
+mpirun -n 1 ./make_mpif_include  >mpi_stub.h
+rm -f make_mpif_include.f90 make_mpif_include
+[[ "$1" == fortran || "$1" == all ]] && echo "CREATING: rpn_comm_fortran_stubs.F90" && cat <<EOT >rpn_comm_fortran_stubs.F90
+#include "mpi_stub.h"
       subroutine MPI_abort
       write(6,*) 'MPI_abort is called, ABORT'
       call ABORT
@@ -8,7 +26,7 @@
 !
       subroutine MPI_allgather (a, cnt, b, c, cnt2, d, e, ierr )
         implicit none
-        include 'mpif.h'
+        !include 'mpi_stub.h'
         integer MPI_STUBS_length
         integer a(*),cnt,b,c(*),cnt2,d,e,ierr,i
         do i=1,min(cnt,cnt2)*MPI_STUBS_length(b)
@@ -27,7 +45,7 @@
       subroutine MPI_allreduce(send,recv,ni,l,m,n,ierr)
       implicit none
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       integer MPI_STUBS_length
       integer i,l,m,n,ierr
@@ -53,7 +71,7 @@
 !
       subroutine MPI_barrier(i,ierr)
       implicit none
-      include 'mpif.h'
+      !include 'mpi_stub.h'
       integer i,ierr
       ierr=MPI_SUCCESS
       return
@@ -62,7 +80,7 @@
       subroutine MPI_bcast(i,j,k,l,m,ierr)
       implicit none
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       integer i,j,k,l,m,ierr
       ierr=MPI_SUCCESS
@@ -71,7 +89,7 @@
 !
       subroutine mpi_comm_create(pe_indomm,pe_gr_blocmaster, pe_blocmaster, ierr)
       implicit none
-      include 'mpif.h'
+      !include 'mpi_stub.h'
       integer pe_indomm,pe_gr_blocmaster,  pe_blocmaster, ierr
       pe_blocmaster = 0
       ierr = MPI_SUCCESS
@@ -82,7 +100,7 @@
       implicit none
       integer i,group,ierr
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       group=-1
       ierr=MPI_SUCCESS
@@ -92,7 +110,7 @@
       subroutine MPI_COMM_RANK(comm,pe_me,ierr)
       implicit none
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       integer comm,pe_me,ierr
       ierr=MPI_SUCCESS
@@ -103,7 +121,7 @@
       subroutine MPI_COMM_SIZE(comm,pe_tot,ierr)
       implicit none
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       integer comm,pe_tot,ierr
       ierr=MPI_SUCCESS
@@ -115,7 +133,7 @@
       implicit none
       integer i,j,k,newcomm,ierr
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       newcomm=-1
       ierr=MPI_SUCCESS
@@ -128,7 +146,7 @@
 !
       subroutine MPI_gather(a, cnt, b, c, cnt2, d, e, f,ierr )
       implicit none
-      include 'mpif.h'
+      !include 'mpi_stub.h'
       integer MPI_STUBS_length
       integer a(*),cnt,b,c(*),cnt2,d,e,f,ierr,i
       do i=1,min(cnt,cnt2)*MPI_STUBS_length(b)
@@ -140,7 +158,7 @@
 !
       subroutine MPI_gatherv(a, cnt, b, c, cnt2s, displ, d, e, f,ierr )
       implicit none
-      include 'mpif.h'
+      !include 'mpi_stub.h'
       integer MPI_STUBS_length
       integer a(*),cnt,b,c(*),cnt2s(*),cnt2,d,e,f,ierr,i,displ(*)
         cnt2=cnt2s(1)
@@ -159,7 +177,7 @@
 !
       subroutine MPI_GROUP_incl(pe_gr_wcomm, pe_dommtot,proc_indomm,pe_gr_indomm,ierr)
       implicit none
-      include 'mpif.h'
+      !include 'mpi_stub.h'
       integer pe_gr_wcomm, pe_dommtot,proc_indomm,pe_gr_indomm,ierr
       pe_gr_indomm = 0
       ierr = MPI_SUCCESS
@@ -169,7 +187,7 @@
       subroutine MPI_GROUP_RANK(comm,pe_me,ierr)
       implicit none
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       integer comm,pe_me,ierr
       ierr=MPI_SUCCESS
@@ -180,7 +198,7 @@
       subroutine MPI_GROUP_SIZE(comm,pe_tot,ierr)
       implicit none
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       integer comm,pe_tot,ierr
       ierr=MPI_SUCCESS
@@ -193,7 +211,7 @@
       integer pe_tot
       save pe_tot
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       integer ierr
       data pe_tot / -1/
@@ -206,7 +224,7 @@
       subroutine MPI_INITIALIZED(mpi_started,ierr)
       implicit none
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       logical mpi_started
       integer ierr
@@ -237,7 +255,7 @@
       subroutine MPI_reduce(send,recv,ni,l,m,n,o,ierr)
       implicit none
 !
-      include 'mpif.h'
+      !include 'mpi_stub.h'
 !
       integer MPI_STUBS_length
       integer i,l,m,n,o,ierr
@@ -275,7 +293,7 @@
 !
       integer function MPI_STUBS_length(itype)
       implicit none
-      include 'mpif.h'
+      !include 'mpi_stub.h'
       integer itype
 
       MPI_STUBS_length=0
@@ -335,20 +353,22 @@ EOT
 [[ "$1" == c || "$1" == all ]] && echo "CREATING: rpn_comm_c_stubs.c" && cat <<EOT >rpn_comm_c_stubs.c
 #include <stdio.h>
 #include <stdlib.h>
-#include <mpi.h>
-int MPI_Comm_rank(MPI_Comm comm, int *rank){
+#include <mpi_stub.h>
+int MPI_Comm_rank(int comm, int *rank){
    *rank = 0;
    return(MPI_SUCCESS);
 }
-int MPI_Comm_size(MPI_Comm comm, int *size){
+int MPI_Comm_size(int comm, int *size){
    *size = 1;
    return(MPI_SUCCESS);
 }
-int MPI_Allgather(void *outx, int nout, MPI_Datatype outtype, void *inx, int nin, MPI_Datatype intype, MPI_Comm comm){
+int MPI_Allgather(void *outx, int nout, int outtype, void *inx, int nin, int intype, int comm){
    int *out = outx;
    int *in = inx;
-   if( nin != 1 || nout != 1 || outtype != MPI_INTEGER || intype != MPI_INTEGER ) {
-      fprintf(stderr,"ERROR: MPI_Allgather, number of elements is not one or type is not MPI_INTEGER\n");
+/*   if( nin != 1 || nout != 1 || outtype != MPI_INTEGER || intype != MPI_INTEGER ) {  */
+   if( nin != 1 || nout != 1 ) {
+/*      fprintf(stderr,"ERROR: MPI_Allgather, number of elements is not one or type is not MPI_INTEGER\n");  */
+      fprintf(stderr,"ERROR: MPI_Allgather, number of elements is not one \n");
       exit(1);
    *out = *in;
    }
@@ -356,7 +376,7 @@ int MPI_Allgather(void *outx, int nout, MPI_Datatype outtype, void *inx, int nin
 }
 EOT
 if [[ "$1" == "none" ]] ; then
-echo "CREATING: rpn_comm_fortran_stubs.f and rpn_comm_c_stubs.c with NO stubs"
+echo "CREATING: rpn_comm_fortran_stubs.F90 and rpn_comm_c_stubs.c with NO stubs"
 cat <<EOT >rpn_comm_fortran_stubs.f90
       subroutine no_mpi_ftn_stubs
       return

@@ -7,7 +7,7 @@ include $(VPATH)/Makefile.common
 include $(VPATH)/dependencies.mk
 
 LIB      = rpn_comm
-CLEAN    = rpn_comm_fortran_stubs.f rpn_comm_c_stubs.c \
+CLEAN    = rpn_comm_fortran_stubs.F90 rpn_comm_c_stubs.c mpi_stub.h \
            $(STUB_LIBRARY) $(LIBRARY) \
            $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi.ssm $(VPATH)/RPN_COMM_interfaces.inc \
            $(VPATH)/RPN_COMM_interfaces_int.inc $(VPATH)/dependencies.mk 
@@ -61,7 +61,7 @@ ssm-package:
 	    rpn-comm_$(RPN_COMM_version_s)_multi/src/.)
 	(cd $(VPATH) ; tar zcf rpn-comm_$(RPN_COMM_version_s)_multi.ssm rpn-comm_$(RPN_COMM_version_s)_multi)
 
-rpn_comm_fortran_stubs.f90: $(VPATH)/rpn_comm_stubs.sh
+rpn_comm_fortran_stubs.F90: $(VPATH)/rpn_comm_stubs.sh
 	$(SHELL) $(VPATH)/rpn_comm_stubs.sh fortran
 
 rpn_comm_c_stubs.c: $(VPATH)/rpn_comm_stubs.sh
