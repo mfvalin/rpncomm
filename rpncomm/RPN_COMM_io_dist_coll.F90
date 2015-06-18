@@ -26,14 +26,15 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   logical :: periodx, periody
   integer :: setno, me_io, n_io
   integer :: i, j, k
-  integer, parameter :: gni=10
-  integer, parameter :: gnj=7
-  integer, parameter :: gnk=2
-  integer, parameter :: lnk=6
-  integer, parameter :: iope_extra=3
-  integer, dimension(gnk) :: liste_k, liste_k2
-  logical, dimension(lnk) :: liste_o
-  integer, dimension(gni,gnj,gnk) :: global,global2
+  integer :: gni=10
+  integer :: gnj=7
+  integer :: gnk=2
+  integer :: lnk=6
+  integer :: iope_extra=3
+  integer, parameter :: MAX_PRINT=80
+  integer, dimension(:), allocatable :: liste_k, liste_k2
+  logical, dimension(:), allocatable  :: liste_o
+  integer, dimension(:,:,:), allocatable :: global,global2
   integer, dimension(:,:,:), allocatable :: local
   integer :: lni, lnj
   integer :: mini,maxi,minj,maxj,status
@@ -43,8 +44,23 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
 !
   periodx = .false.
   periody = .false.
-  liste_k = 0
   liste_o = .false.
+!  goto 1
+  if(nparams >= 3) then
+    gni = params(1)
+    gnj = params(2)
+    gnk = params(3)
+  endif
+  if(nparams >= 4) lnk = params(4)
+  if(nparams >= 5) iope_extra = params(5)
+1 continue
+!
+  allocate(global(gni,gnj,gnk))
+  allocate(global2(gni,gnj,gnk))
+  allocate(liste_k(gnk))
+  liste_k = 0
+  allocate(liste_k2(gnk))
+  allocate(liste_o(lnk))
 !
   lni = (gni+pe_nx-1)/pe_nx
   mini = 1-1
@@ -63,6 +79,8 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   if(pe_me == 0) then
     print *,"start_x =",start_x
     print *,"count_x =",count_x
+    print *,"nparams",nparams
+    print *,"params",params
   endif
 !
   lnj = (gnj+pe_ny-1)/pe_ny
@@ -88,7 +106,15 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   local = 99999
   global = 88888
 ! create IO PE set
+  if(pe_me == 0) then
+    print *,'IO PE number of PEs =',min( min(pe_nx,pe_ny)+iope_extra , lnk)
+    print *,'pe_nx,pe_ny,iope_extra,lnk',pe_nx,pe_ny,iope_extra,lnk
+  endif
   setno = RPN_COMM_create_io_set( min( min(pe_nx,pe_ny)+iope_extra , lnk) ,0)  ! make sure not to overflow lnk
+  if(setno <= 0) then
+    print *,'IO PE set creation error, quitting',setno
+    return
+  endif
 !  print *,'params=',params
   print *,'IO PE set created :',setno
   me_io = RPN_COMM_is_io_pe(setno)
@@ -109,7 +135,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
       if(liste_k(k) <= 0) cycle
       print *,"===== source level ==",liste_k(k),"  ====="
       do j=gnj,1,-1
-        print 100,j,global(:,j,k)
+        if(gni*gnj < MAX_PRINT) print 100,j,global(:,j,k)
       enddo
     enddo
   else
@@ -147,17 +173,19 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
   goto 777
 666 continue
 #if  ! defined(DEPRECATED)
-  do k = lnk,1,-1
-    if(liste_o(k)) then
-      print *,"===== level",k," local ====="
-      do j = maxj,minj,-1
-!        print 100,j,local(i0:in,j,k)
-        print 100,j,local(:,j,k)
-      enddo
-    else
-      print *,'no data at level',k
-    endif
-  enddo
+  if(gni*gnj < MAX_PRINT) then
+    do k = lnk,1,-1
+      if(liste_o(k)) then
+        print *,"===== level",k," local ====="
+        do j = maxj,minj,-1
+  !        print 100,j,local(i0:in,j,k)
+          print 100,j,local(:,j,k)
+        enddo
+      else
+        print *,'no data at level',k
+      endif
+    enddo
+  endif
 #endif
 !
 100 format(I3,20I6.5)
@@ -201,7 +229,7 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
       if(liste_k2(k) > 0) then
         print *,"===== k, collected level",k,liste_k2(k),"  ====="
         do j = gnj , 1 , -1
-          print 100,j,global2(:,j,k)
+          if(gni*gnj < MAX_PRINT) print 100,j,global2(:,j,k)
         enddo
       endif
     enddo

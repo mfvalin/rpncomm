@@ -343,7 +343,7 @@ contains
     io_set(newset)%groupsize = 0
     call make_io_pe_list(io_set(newset)%x, io_set(newset)%y, npes, pe_nx, pe_ny, newset, method)
     if(io_set(newset)%x(1) .ne. -1) then
-      if( check_ioset(newset,io_set(newset)%x ,io_set(newset)%y, npes, pe_nx, pe_ny, pe_me, .true.) == -1 ) io_set(newset)%x(1) = 1
+      if( check_ioset(newset,io_set(newset)%x ,io_set(newset)%y, npes, pe_nx, pe_ny, pe_me, .true.) == -1 ) io_set(newset)%x(1) = -1
     endif
     if(io_set(newset)%x(1) == -1) then        ! miserable failure, list of IO pes could not be created
       deallocate(io_set(newset)%x,io_set(newset)%y)

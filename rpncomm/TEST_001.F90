@@ -52,6 +52,12 @@
         external :: get_a_free_unit
         integer :: get_a_free_unit
         integer :: iun,ier,i
+        character(len=128) :: RPN_COMM_TEST_SHAPE
+        call get_environment_variable("RPN_COMM_TEST_SHAPE",RPN_COMM_TEST_SHAPE,i,ier)
+        if(ier == 0) then
+          read(RPN_COMM_TEST_SHAPE,*)NX,NY
+          return
+        endif
         iun=get_a_free_unit()
         if(iun<0)return
 !        print *,'attempting to read TEST.cfg'
