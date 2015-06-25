@@ -17,6 +17,33 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
+function RPN_COMM_io_dist_coll_check(gni,gnj,halo_x,halo_y) result(status)
+  use rpn_comm
+  implicit none
+  logical :: status
+  integer, intent(IN) :: gni,gnj,halo_x,halo_y
+
+  integer :: lni, lnj, lasti, lastj
+
+  status = .true.
+  lni = (gni+pe_nx-1)/pe_nx
+  lasti = gni - (pe_nx-1)*lni
+  if(lasti < max(1,halo_x)) then
+    print 101,"CFG: ERROR: size of last tile along x, halo_x, gni, lni ",lasti, halo_x, gni, lni
+    print 101,"CFG: ERROR: not enough points along x for problem, need gni >= ",max(lni,halo_x)*(pe_nx-1)+max(1,halo_x)
+    status = .false.
+  endif
+
+  lnj = (gnj+pe_ny-1)/pe_ny
+  lastj = gnj - (pe_ny-1)*lnj
+  if(lastj < max(1,halo_y)) then
+    print 101,"CFG: ERROR: size of last tile along y, halo_y, gnj, lnj ",lastj, halo_y, gnj, lnj
+    print 101,"CFG: ERROR: not enough points along y for problem, need gnj >= ",max(lnj,halo_y)*(pe_ny-1)+max(1,halo_y)
+    status = .false.
+  endif
+
+101 format(A,20I5)
+end function RPN_COMM_io_dist_coll_check
 subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   use rpn_comm
   implicit none
@@ -31,7 +58,10 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer :: gnk=2
   integer :: lnk=6
   integer :: iope_extra=3
+  integer :: halo_x = 1
+  integer :: halo_y = 1
   integer, parameter :: MAX_PRINT=80
+  integer :: max_dist_k
   integer, dimension(:), allocatable :: liste_k, liste_k2
   logical, dimension(:), allocatable  :: liste_o
   integer, dimension(:,:,:), allocatable :: global,global2
@@ -41,19 +71,36 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer, dimension(pe_nx) :: start_x,count_x
   integer, dimension(pe_ny) :: start_y,count_y
   integer :: i0,in,j0,jn,nerrors,nvalid,expected,effective_lnk
+  logical, external :: RPN_COMM_io_dist_coll_check
 !
   periodx = .false.
   periody = .false.
-  liste_o = .false.
+  lni = 0
+  lnj = 0
 !  goto 1
-  if(nparams >= 3) then
+  if(pe_me == 0 .and. nparams > 2) then
+    print 101,"CFG: nparams",nparams
+    print 101,"CFG: params",params
+  endif
+  if(nparams > 2) then
     gni = params(1)
     gnj = params(2)
     gnk = params(3)
   endif
-  if(nparams >= 4) lnk = params(4)
+  if(nparams > 3) lnk = params(4)
+  max_dist_k = lnk
   if(nparams >= 5) iope_extra = params(5)
+  if(nparams >= 7) then
+    halo_x = params(6)
+    halo_y = params(7)
+  endif
+  if(nparams >= 8) max_dist_k = params(8)
+  if(pe_me == 0) then
+    print 101,"CFG: gni,gnj,gnk,halo_x,halo_y",gni,gnj,gnk,halo_x,halo_y
+    print 101,"CFG: lnk,max_dist_k,pe_nx,pe_ny",lnk,max_dist_k,iope_extra,pe_nx,pe_ny
+  endif
 1 continue
+  if(.not. RPN_COMM_io_dist_coll_check(gni,gnj,halo_x,halo_y)) return
 !
   allocate(global(gni,gnj,gnk))
   allocate(global2(gni,gnj,gnk))
@@ -61,10 +108,13 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   liste_k = 0
   allocate(liste_k2(gnk))
   allocate(liste_o(lnk))
+  liste_o = .false.
 !
-  lni = (gni+pe_nx-1)/pe_nx
-  mini = 1-1
-  maxi = lni+1
+! along X
+!
+  if(lni == 0) lni = (gni+pe_nx-1)/pe_nx
+  mini = 1-halo_x
+  maxi = lni+halo_x
   count_x = lni
   start_x(1) = 1
   do i = 2,pe_nx
@@ -79,13 +129,13 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   if(pe_me == 0) then
     print *,"start_x =",start_x
     print *,"count_x =",count_x
-    print *,"nparams",nparams
-    print *,"params",params
   endif
 !
-  lnj = (gnj+pe_ny-1)/pe_ny
-  minj = 1-1
-  maxj = lnj+1
+! along Y
+!
+  if(lnj == 0) lnj = (gnj+pe_ny-1)/pe_ny
+  minj = 1-halo_y
+  maxj = lnj+halo_y
   count_y = lnj
   start_y(1) = 1
   do j = 2,pe_ny
@@ -103,30 +153,33 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   endif
 !
   allocate(local(mini:maxi,minj:maxj,lnk))
-  local = 99999
-  global = 88888
+  local = 999999
+  global = 888888
 ! create IO PE set
   if(pe_me == 0) then
     print *,'IO PE number of PEs =',min( min(pe_nx,pe_ny)+iope_extra , lnk)
     print *,'pe_nx,pe_ny,iope_extra,lnk',pe_nx,pe_ny,iope_extra,lnk
   endif
-  setno = RPN_COMM_create_io_set( min( min(pe_nx,pe_ny)+iope_extra , lnk) ,0)  ! make sure not to overflow lnk
+!  setno = RPN_COMM_create_io_set( min( min(pe_nx,pe_ny)+iope_extra , lnk) ,0)  ! make sure not to overflow lnk
+  setno = RPN_COMM_create_io_set( min(pe_nx,pe_ny)+iope_extra , 0)  ! may overflow lnk
   if(setno <= 0) then
     print *,'IO PE set creation error, quitting',setno
     return
+  else
+    print *,'IO PE set created :',setno
   endif
-!  print *,'params=',params
-  print *,'IO PE set created :',setno
-  me_io = RPN_COMM_is_io_pe(setno)
-  n_io = RPN_COMM_io_pe_size(setno)
+  me_io = RPN_COMM_is_io_pe(setno)     ! me in IO_set
+  n_io = RPN_COMM_io_pe_size(setno)    ! IO_set population
   if(me_io .ne. -1) then
     print *,"I am a busy IO pe!",me_io+1,' of',n_io
-    do k=1,1               !me_io+1
-      liste_k(k) = lnk - me_io   !  *n_io
-!      liste_k(k) = 1 + me_io   !  *n_io
+    do k=1,gnk               ! global levels that this PE will distribute
+!      liste_k(k) = lnk - me_io - (k-1)*n_io   !  levels lnk -> (lnk - nio*gnk + 1)
+      liste_k(k) = 1 + me_io + (k-1)*n_io     !  levels 1 -> nio*gnk - 1
+      if(liste_k(k) > max_dist_k) liste_k(k) = 0
+      liste_k(k) = max( liste_k(k) , 0)
       do j = 1,gnj
       do i = 1,gni
-        global(i,j,k) = liste_k(k) + j*10 + i*1000
+        global(i,j,k) = liste_k(k) + j*100 + i*10000
       enddo
       enddo
     enddo
@@ -150,6 +203,10 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           periodx,periody,status)
   print *,'liste_o apres=',liste_o
+  if(status .ne. RPN_COMM_OK) then
+    print 101,"ERROR: RPN_COMM_shuf_dist failure, lnk,gnk,n_io ",lnk,gnk,n_io
+    return
+  endif
   nerrors = 0
   nvalid = 0
   do k = lnk,1,-1
@@ -157,11 +214,11 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
       do j = j0,jn
       do i = i0,in
         nvalid = nvalid + 1
-        expected = k + (start_y(pe_mey+1)+j-1)*10 + (start_x(pe_mex+1)+i-1)*1000
+        expected = k + (start_y(pe_mey+1)+j-1)*100 + (start_x(pe_mex+1)+i-1)*10000
         if(expected .ne. local(i,j,k)) then
-          print *,'i,j,k,expected,local(i,j,k)',i,j,k,expected,local(i,j,k)
+          if(nerrors<4)print *,'i,j,k,expected,local(i,j,k)',i,j,k,expected,local(i,j,k)
           nerrors = nerrors + 1
-          if(nerrors>3)goto 666
+!          if(nerrors>3)goto 666
         endif
       enddo
       enddo
@@ -169,8 +226,9 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
       print *,'no data at level',k
     endif
   enddo
-  print *,"level ,nerrors, nvalid=",k,nerrors,nvalid
-  goto 777
+  print *,"nerrors, nvalid=",nerrors,nvalid
+  if(nerrors == 0) goto 777
+!  goto 777
 666 continue
 #if  ! defined(DEPRECATED)
   if(gni*gnj < MAX_PRINT) then
@@ -188,24 +246,37 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
   endif
 #endif
 !
-100 format(I3,20I6.5)
+100 format(I3,20I7.6)
+101 format(A,20I5)
 777 continue
 !
 ! collect test follows distribute test
 !
-  global2 = 99999
-  liste_k2 = -99999
+  global2 = 999999
+  liste_k2 = -999999
   effective_lnk = 1
   do k = 1 , lnk
     if(liste_o(k)) effective_lnk = k  ! highest level available
   enddo
-!  print *,"====== calling  shuf_coll ======",effective_lnk
+  local = 989898
+  do k = 1,effective_lnk
+  do j = 1,lnj
+  do i = 1,lni
+    local(i,j,k) = k + (j - 1 + start_y(pe_mey+1))*100 + (i -1 + start_x(pe_mex+1))*10000
+  enddo
+  enddo
+  enddo
+  print *,"====== before  shuf_coll, max lnk ======",effective_lnk
   call RPN_COMM_shuf_coll(setno,  &
                           global2,gni,gnj,gnk,  &
                           local,mini,maxi,minj,maxj,effective_lnk,  &
                           liste_k2,  &
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           status)
+  if(status .ne. RPN_COMM_OK) then
+    print 101,"ERROR: RPN_COMM_shuf_coll failure, lnk,gnk,n_io ",effective_lnk,gnk,n_io
+    return
+  endif
 ! global2 should be identical to global once k has been adjusted
 ! expected k + global - mod(global,10)
   if(me_io .ne. -1) then ! I am an IO PE
@@ -217,14 +288,16 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
       if(liste_k2(k) <= 0) cycle
       do j = 1,gnj
       do i = 1,gni
-        expected = global(i,j,k) - mod(global(i,j,k),10) + liste_k2(k)
+        expected = liste_k2(k) + j*100 + i*10000
         nvalid = nvalid + 1
         if(expected .ne. global2(i,j,k)) nerrors = nerrors + 1
+        if(nerrors == 1) then
+          print *,"ERROR: expected, got =",expected,global2(i,j,k)
+        endif
       enddo
       enddo
     enddo
-    print *,"number of errors =",nerrors
-    print *,"number of points =",nvalid
+    print *,"nerrors, npoints =",nerrors,nvalid
     do k = 1, gnk
       if(liste_k2(k) > 0) then
         print *,"===== k, collected level",k,liste_k2(k),"  ====="
@@ -372,8 +445,8 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     lni = count_x(pe_mex)                     ! useful number of points on local tile
     lnj = count_y(pe_mey)
     if(maxi < lni+halox .or. maxj < lnj+haloy) then
-      print *,"ERROR: upper bound of array too small to accomodate halo"
-      print *,"mini,maxi,lni,minj,maxj,lnj",mini,maxi,lni,minj,maxj,lnj
+      print 101,"ERROR: upper bound of array too small to accomodate halo"
+      print 101,"mini,maxi,lni,minj,maxj,lnj",mini,maxi,lni,minj,maxj,lnj
       return  ! OOPS, upper bound cannot accomodate halo
     endif
     do i = 1 , npes
@@ -392,9 +465,13 @@ subroutine RPN_COMM_shuf_dist(setno,  &
 !
     listofk = 0
     call mpi_allgather(kcol,1,MPI_INTEGER,listofk,1,MPI_INTEGER,pe_myrow,ierr)
+    if(maxval(listofk) > lnk ) then    ! attempt to store a level > lnk, OOPS
+      print 101,"ERROR: 1 or more level to distribute > local nk, max level, local nk ",maxval(listofk),lnk
+      return
+    endif
 !print *,"DEBUG: listofk=",listofk
     if(maxval(listofk) <= 0) then   ! no contribution from any IO PE, job id done for this round
-      print *,"WARNING: no work to do"
+      print 101,"INFO: no work to do on this pass"
       status = RPN_COMM_OK
       return
     endif
@@ -484,7 +561,9 @@ subroutine RPN_COMM_shuf_dist(setno,  &
       endif
     enddo
 !
+#if defined(FULL_DEBUG)
 if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
+#endif
 !print 100,kcol,cxs,dxs,11111,cxr,dxr,11111,listofk
 !do k=lnk,1,-1
 !  print *,'=== lv=',k
@@ -509,7 +588,8 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
     do i = 0 , pe_nx-1     ! mark 2D array at position listofk(i) as received
        if(listofk(i) > 0) liste_o(listofk(i)) = .true.
     enddo
-  100 format(I3,20I6.5)
+100 format(I3,20I6.5)
+101 format(A,20I5)
   end subroutine RPN_COMM_shuf_dist_1
 end subroutine RPN_COMM_shuf_dist
 !====================================================================================
@@ -576,6 +656,7 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     return
   endif
   k0 = 1
+!  print *,"DEBUG: npass=",npass
 !
 ! loop over the number of passes necessary to distribute nk over setsize IO PEs
 ! each IO PE will receive (npass) or (npass - 1) full arrays
@@ -590,9 +671,9 @@ subroutine RPN_COMM_shuf_coll(setno,  &
 !   if more IO PEs in group than levels to distribute some IO PEs will receive nothing
 !
     do igroup = 1 , io_set(setno)%ngroups  ! loop over groups in IO PE set
-      kn = min( nk , k1+groupsize-1)
       low = 1 + (igroup-1) * io_set(setno)%groupsize      ! index of first IO PE in goup
       high = min( io_set(setno)%npe , low+groupsize-1 )   ! index of last PE in group
+      kn = min( nk , k1+high-low)
 #if defined(FULL_DEBUG)
       print *,"DEBUG: shuf_coll, iset, igroup =",iset, igroup
       print *,"DEBUG: shuf_coll, low, high =",low, high
@@ -651,6 +732,7 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     nlev = kn - k1 + 1             ! number of levels to distribute
     if(nlev > npes) then           ! nlev cannot be larger than npes
       ! add error message
+      print *,"ERROR: nlev cannot be larger than npes. nlev,npes=",nlev,npes
       return
     endif
     kexpected = 0
@@ -684,7 +766,7 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     blockj = count_y(pe_mey)       ! number of useful points along y in row pe_mey
     dimenj = maxj - minj + 1
 !
-    if(io_on_column) then               ! this PE will be collection one level for this row
+    if(io_on_column) then               ! this PE will be collecting one level for this row
       allocate( local_1(mini:maxi,blockj,0:pe_nx-1) )
       local_1 = 77777
       allocate( local_2(gni,blockj) )

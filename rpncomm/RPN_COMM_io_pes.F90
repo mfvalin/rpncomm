@@ -277,6 +277,7 @@ contains
         print *,"ERROR: row = ",row
         print *,"ERROR: y = ",y
         print *,"ERROR: col = ",col
+        print *,"ERROR: group, group limits = ",(i-1)/groupsize+1,i,min(i+groupsize-1,npes)
         status = -1
         return
       endif
@@ -310,7 +311,7 @@ contains
     integer, intent(IN) :: npes
     integer, intent(IN) :: method
     integer :: setno
-    integer :: ierr, my_color, i, j, newset
+    integer :: ierr, my_color, i, j, newset, ordinal_in_set
 
 #if defined(STAND_ALONE)
     include 'mpif.h'
@@ -357,13 +358,15 @@ contains
     io_set(newset)%groupsize = min(pe_nx, pe_ny, npes)   ! size of groups for this IO PE set (last group may be shorter)
     io_set(newset)%ngroups = (npes+io_set(newset)%groupsize-1)/(io_set(newset)%groupsize)   ! number of groups in this IO PE set
     my_color = MPI_UNDEFINED
+    ordinal_in_set = -1
     do i = 1 , npes
       if(pe_mex == io_set(newset)%x(i) .and. pe_mey == io_set(newset)%y(i)) then  ! I am an IO pe
         my_color = 1
+        ordinal_in_set = i
         exit
       endif
     enddo
-    call MPI_COMM_SPLIT(pe_indomm,my_color,pe_me,io_set(newset)%comm,ierr)   ! communicator for this set
+    call MPI_COMM_SPLIT(pe_indomm,my_color,ordinal_in_set,io_set(newset)%comm,ierr)   ! communicator for this set
     if(io_set(newset)%comm .ne. MPI_COMM_NULL) then                          ! get rank in communicator if part of set
       call mpi_comm_rank(io_set(newset)%comm,io_set(newset)%me,ierr)
       io_set(newset)%megrid = pe_me                                          ! rank in grid

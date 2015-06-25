@@ -66,11 +66,11 @@
 !        print *,'open iostat=',ier
         if(ier .ne. 0) then
 !          print *,'attempting auto distribution, nx , ny =',nx,ny
-          do i=5,2,-1
+          do i=7,2,-1
 !            print *,'nx i mod(nx,i) =',nx, i, mod(nx,i)
             if(mod(NX,i) == 0 .and. nx .ne. i)then
-              NY = i
-              NX = NX / i
+              NY = NX / i
+              NX = NX / NY
               return
             endif
           enddo
