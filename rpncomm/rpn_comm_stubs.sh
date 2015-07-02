@@ -14,7 +14,21 @@ end program
 EOT
 s.f90 -mpi -o make_mpif_include make_mpif_include.f90
 rm -f make_mpif_include.f90
-mpirun -n 1 ./make_mpif_include  >mpi_stub.h
+if which poe 1>/dev/null 2>/dev/null ; then
+  export MP_PROCS=1
+  export MP_HOSTFILE=$TMPDIR/MP_HOSTFILE_$$
+  echo localhost>$MP_HOSTFILE
+  unset MP_LABELIO
+  ./make_mpif_include  >mpi_stub.h
+  rm -f $MP_HOSTFILE
+else
+  if which mpirun 1>/dev/null 2>/dev/null ; then
+     mpirun -n 1 ./make_mpif_include  >mpi_stub.h
+  else
+     echo "ERROR: neither mpirun nor poe found, aborting"
+     exit 1
+  fi
+fi
 rm -f make_mpif_include.f90 make_mpif_include
 [[ "$1" == fortran || "$1" == all ]] && echo "CREATING: rpn_comm_fortran_stubs.F90" && cat <<EOT >rpn_comm_fortran_stubs.F90
 #include "mpi_stub.h"

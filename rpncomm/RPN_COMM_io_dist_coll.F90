@@ -1,5 +1,5 @@
 !/! RMNLIB - Library of useful routines for C and FORTRAN programming
-! ! Copyright (C) 1975-2001  Division de Recherche en Prevision Numerique
+! ! Copyright (C) 1975-2015  Division de Recherche en Prevision Numerique
 ! !                          Environnement Canada
 ! !
 ! ! This library is free software; you can redistribute it and/or
@@ -55,7 +55,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer :: i, j, k
   integer :: gni=10
   integer :: gnj=7
-  integer :: gnk=2
+  integer :: dnk=2
   integer :: lnk=6
   integer :: iope_extra=3
   integer :: halo_x = 1
@@ -85,7 +85,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   if(nparams > 2) then
     gni = params(1)
     gnj = params(2)
-    gnk = params(3)
+    dnk = params(3)
   endif
   if(nparams > 3) lnk = params(4)
   max_dist_k = lnk
@@ -96,19 +96,21 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   endif
   if(nparams >= 8) max_dist_k = params(8)
   if(pe_me == 0) then
-    print 101,"CFG: gni,gnj,gnk,halo_x,halo_y",gni,gnj,gnk,halo_x,halo_y
+    print 101,"CFG: gni,gnj,dnk,halo_x,halo_y",gni,gnj,dnk,halo_x,halo_y
     print 101,"CFG: lnk,max_dist_k,pe_nx,pe_ny",lnk,max_dist_k,iope_extra,pe_nx,pe_ny
   endif
 1 continue
   if(.not. RPN_COMM_io_dist_coll_check(gni,gnj,halo_x,halo_y)) return
 !
-  allocate(global(gni,gnj,gnk))
-  allocate(global2(gni,gnj,gnk))
-  allocate(liste_k(gnk))
+  allocate(global(gni,gnj,dnk))
+  allocate(global2(gni,gnj,dnk))
+  allocate(liste_k(dnk))
   liste_k = 0
-  allocate(liste_k2(gnk))
+  allocate(liste_k2(dnk))
   allocate(liste_o(lnk))
   liste_o = .false.
+  liste_o(max_dist_k) = .true.     ! test of warning for attempt to redistribute a level
+  liste_o(max_dist_k+1:lnk) = .false.
 !
 ! along X
 !
@@ -172,9 +174,9 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   n_io = RPN_COMM_io_pe_size(setno)    ! IO_set population
   if(me_io .ne. -1) then
     print *,"I am a busy IO pe!",me_io+1,' of',n_io
-    do k=1,gnk               ! global levels that this PE will distribute
-!      liste_k(k) = lnk - me_io - (k-1)*n_io   !  levels lnk -> (lnk - nio*gnk + 1)
-      liste_k(k) = 1 + me_io + (k-1)*n_io     !  levels 1 -> nio*gnk - 1
+    do k=1,dnk               ! global levels that this PE will distribute
+!      liste_k(k) = lnk - me_io - (k-1)*n_io   !  levels lnk -> (lnk - nio*dnk + 1)
+      liste_k(k) = 1 + me_io + (k-1)*n_io     !  levels 1 -> nio*dnk - 1
       if(liste_k(k) > max_dist_k) liste_k(k) = 0
       liste_k(k) = max( liste_k(k) , 0)
       do j = 1,gnj
@@ -184,7 +186,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
       enddo
     enddo
     print *,"level list =",liste_k
-    do k= gnk,1,-1
+    do k= dnk,1,-1
       if(liste_k(k) <= 0) cycle
       print *,"===== source level ==",liste_k(k),"  ====="
       do j=gnj,1,-1
@@ -197,14 +199,14 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
 print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
 !return
   call RPN_COMM_shuf_dist(setno,  &
-                          global,gni,gnj,gnk,  &
+                          global,gni,gnj,dnk,  &
                           local,mini,maxi,minj,maxj,lnk,  &
                           liste_k,liste_o,  &
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           periodx,periody,status)
   print *,'liste_o apres=',liste_o
   if(status .ne. RPN_COMM_OK) then
-    print 101,"ERROR: RPN_COMM_shuf_dist failure, lnk,gnk,n_io ",lnk,gnk,n_io
+    print 101,"ERROR: RPN_COMM_shuf_dist failure, lnk,dnk,n_io ",lnk,dnk,n_io
     return
   endif
   nerrors = 0
@@ -268,13 +270,13 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
   enddo
   print *,"====== before  shuf_coll, max lnk ======",effective_lnk
   call RPN_COMM_shuf_coll(setno,  &
-                          global2,gni,gnj,gnk,  &
+                          global2,gni,gnj,dnk,  &
                           local,mini,maxi,minj,maxj,effective_lnk,  &
                           liste_k2,  &
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           status)
   if(status .ne. RPN_COMM_OK) then
-    print 101,"ERROR: RPN_COMM_shuf_coll failure, lnk,gnk,n_io ",effective_lnk,gnk,n_io
+    print 101,"ERROR: RPN_COMM_shuf_coll failure, lnk,dnk,n_io ",effective_lnk,dnk,n_io
     return
   endif
 ! global2 should be identical to global once k has been adjusted
@@ -284,7 +286,7 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
     print *,"DEBUG: pe_me, liste_k2", pe_me,liste_k2
     nerrors = 0
     nvalid = 0
-    do k = 1,gnk
+    do k = 1,dnk
       if(liste_k2(k) <= 0) cycle
       do j = 1,gnj
       do i = 1,gni
@@ -298,7 +300,7 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
       enddo
     enddo
     print *,"nerrors, npoints =",nerrors,nvalid
-    do k = 1, gnk
+    do k = 1, dnk
       if(liste_k2(k) > 0) then
         print *,"===== k, collected level",k,liste_k2(k),"  ====="
         do j = gnj , 1 , -1
@@ -309,8 +311,42 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
   endif
   return
 end subroutine RPN_COMM_io_dist_coll_test
+function RPN_COMM_shuf_ezdist(setno, gridno, global, dnk, local, lnk, liste_i, liste_o) result (status)
+! important notes:
+!      it is the caller's responsibility to ensure that liste_o is properly initialized to .false. 
+!      before calling the distribute function
+  use rpn_comm
+  implicit none
+  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
+  integer, intent(IN) :: gridno                    ! grid identifier (from RPN_COMM_create_dgrid)
+  integer, intent(IN) :: dnk                       ! number of levels to distribute
+  integer, intent(IN) :: lnk                       ! number of levels in the "local" array
+  integer, intent(IN), dimension(*)     :: global
+  integer, intent(OUT), dimension(*)    :: local
+  integer, intent(IN), dimension(dnk)   :: liste_i ! needed only on IO Pes, list of levels to distribute
+  logical, intent(INOUT), dimension(lnk):: liste_o ! liste_o(k) will be set to .true. if level k received
+  integer :: status                                ! RPN_COMM_OK or RPN_COMM_ERROR
 !
-! distribute gnk 2D arrays, destination is gnk of lnk 2D plane of local 3D array
+  integer, dimension(pe_nx)    :: start_x ! PE (i-1,any) points start at start_x(i) in global space (X direction)
+  integer, dimension(pe_nx)    :: count_x ! PE (i-1,any) contains count_x(i) points in the X direction
+  integer, dimension(pe_ny)    :: start_y ! PE (any,j-1) points start at start_y(j) in global space (Y direction)
+  integer, dimension(pe_ny)    :: count_y ! PE (any,j-1) contains count_y(j) points in the Y direction
+  integer :: gni,gnj                      ! horizontal dimensions of the "global" array
+  integer :: mini,maxi,minj,maxj          ! horizontal dimensions of the "local" array
+!  integer, external :: RPN_COMM_get_dgrid
+
+!  status = RPN_COMM_get_dgrid(gridno,gni,gnj, mini,maxi,minj,maxj,start_x,count_x,start_y,count_y)
+  if(status .ne. RPN_COMM_OK) return
+
+  call RPN_COMM_shuf_dist(setno,  &
+                          global,gni,gnj,dnk,  &
+                          local,mini,maxi,minj,maxj,lnk,  &
+                          liste_i,liste_o,  &
+                          start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
+                          .false.,.false.,status)
+end function RPN_COMM_shuf_ezdist
+!
+! distribute dnk 2D arrays, destination is dnk of lnk 2D plane of local 3D array
 ! using IO PE set setno
 ! liste_i contains the list of 2D planes to be inserted into the 3D destination array
 ! liste_o(k) is set to .true. when 2D plane k has been received
@@ -326,53 +362,62 @@ end subroutine RPN_COMM_io_dist_coll_test
 ! start_x, start_y, count_x, count_y  are in origin(1)
 !
 ! important notes:
-!    the following parameters MUST de the same on ALL PEs
-!      setno
+!    the following INPUT parameters MUST be the same on ALL PEs
+!      setno                    IO set number, as obtained from RPN_COMM_create_io_set
 !      mini,maxi,minj,maxj,lnk  (dimensions of the "local" array)
-!      gni,gnj,gnk   (dimensions of the "global" array)
+!      gni,gnj,dnk              (dimensions of the "global" array)
 !      nx,ny,start_x,count_x,start_y,count_y  (start_x, start_y : ORIGIN 1)
 !      periodx,periody
+!
+!    the following OUTPUT parameter WILL be the same on ALL PEs
 !      liste_o
 !
 !    even if not used/necessary on a given PE
-!      the "global" array must exist ( (1,1,1) array is OK on non IO PEs )
-!      array liste_i must exist  ( a dimension(1) array is OK on non IO PEs )
+!      the "global" array MUST exist ( (1,1,1) array is OK on non IO PEs )
+!      array liste_i MUST exist  ( a dimension(1) array is OK on non IO PEs )
+!
+!    attempting to distribute level k where k > lnk is an ERROR
 !
 subroutine RPN_COMM_shuf_dist(setno,  &
-                              global,gni,gnj,gnk,  &
+                              global,gni,gnj,dnk,  &
                               local,mini,maxi,minj,maxj,lnk,  &
                               liste_i,liste_o,  &
                               start_x,count_x,nx,start_y,count_y,ny,  &
                               periodx,periody,status)
   use RPN_COMM_io_pe_tables
   implicit none
-  integer, intent(IN) :: setno,gni,gnj,gnk,mini,maxi,minj,maxj,lnk,nx,ny
-  integer, intent(IN), dimension(gni,gnj,gnk) :: global
+  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
+  integer, intent(IN) :: gni,gnj,dnk               ! dimensions of the "global" array
+  integer, intent(IN) :: mini,maxi,minj,maxj,lnk   ! dimensions of the "local" array
+  integer, intent(IN) :: nx,ny                     ! number of PEs along X and Y (MUST be the same as pe_nx and pe_ny from module rpn_comm)
+  integer, intent(IN), dimension(gni,gnj,dnk) :: global
   integer, intent(OUT), dimension(mini:maxi,minj:maxj,lnk) :: local
-  integer, intent(IN), dimension(nx)    :: start_x,count_x
-  integer, intent(IN), dimension(ny)    :: start_y,count_y
-  integer, intent(IN), dimension(gnk)   :: liste_i
-  logical, intent(OUT), dimension(lnk)  :: liste_o
-  logical, intent(IN) :: periodx,periody
-  integer, intent(OUT) :: status
+  integer, intent(IN), dimension(nx)    :: start_x ! PE (i-1,any) points start at start_x(i) in global space (X direction)
+  integer, intent(IN), dimension(nx)    :: count_x ! PE (i-1,any) contains count_x(i) points in the X direction
+  integer, intent(IN), dimension(ny)    :: start_y ! PE (any,j-1) points start at start_y(j) in global space (Y direction)
+  integer, intent(IN), dimension(ny)    :: count_y ! PE (any,j-1) contains count_y(j) points in the Y direction
+  integer, intent(IN), dimension(dnk)   :: liste_i ! needed only on IO Pes, list of dnk levels to distribute
+  logical, intent(OUT), dimension(lnk)  :: liste_o ! liste_o(k) will be set to .true. if level k received
+  logical, intent(IN) :: periodx,periody           ! periodicity along X or Y ( periody MUST be .false. for this version)
+  integer, intent(OUT) :: status                   ! RPN_COMM_OK or RPN_COMM_ERROR
   integer :: i, k, low, high, listeik, n
 
-  status = RPN_COMM_ERROR
-  if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
-  if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
-  if(pe_nx .ne. nx .or. pe_ny .ne. ny) return ! wrong number of PEs in grid
-  if(periody) return                          ! not supported for the time being
+  status = RPN_COMM_ERROR                     ! preset status to failure
+  if(setno < 1 .or. setno > iosets) return    ! setno out of bounds, OUCH !
+  if(io_set(setno)%ioset .ne. setno) return   ! IO set no longer valid, OUCH !
+  if(pe_nx .ne. nx .or. pe_ny .ne. ny) return ! wrong number of PEs in grid, OUCH !
+  if(periody) return                          ! not supported in this version
 !
 ! distribute one 2D plane at a time, one group of IO PEs at a time
 ! in a group of IO PEs, no column has more than 1 IO PE, neither has any row
 !
-  do k= 1 , gnk                         ! loop over 2D planes to distribute
+  do k= 1 , dnk                         ! loop over 2D planes to distribute
     do i= 1 , io_set(setno)%ngroups     ! loop over groups in this set of IO PEs
       low = 1 + (i-1) * io_set(setno)%groupsize      ! index of first PE in goup
       high = min( io_set(setno)%npe , low+io_set(setno)%groupsize-1 )  ! index of last PE in group
-!print *,"DEBUG: group=",i," of",io_set(setno)%ngroups
-!print *,"DEBUG: , PEs x",io_set(setno)%x(low:high)
-!print *,"DEBUG: , PEs y",io_set(setno)%y(low:high)
+!      print *,"DEBUG: group=",i," of",io_set(setno)%ngroups
+!      print *,"DEBUG: , PEs x",io_set(setno)%x(low:high)
+!      print *,"DEBUG: , PEs y",io_set(setno)%y(low:high)
       listeik = 0
       do n = low, high  ! is this PE part of this group ?
         if(pe_mex == io_set(setno)%x(n) .and. pe_mey == io_set(setno)%y(n)) listeik = liste_i(k)
@@ -384,14 +429,14 @@ subroutine RPN_COMM_shuf_dist(setno,  &
                                 liste_o, io_set(setno)%x(low:high),  io_set(setno)%y(low:high), (high-low+1), &
                                 start_x,count_x,start_y,count_y,  &
                                 periodx,periody,status)
-!print *,"DEBUG: k,i,status,low,high,liste_i(k)=",k,i,status,low,high,liste_i(k)
+!      print *,"DEBUG: k,i,status,low,high,liste_i(k)=",k,i,status,low,high,liste_i(k)
       if(status == RPN_COMM_ERROR) return
-!      liste_o(liste_i(k)) = .true.
+!      liste_o(liste_i(k)) = .true.  ! no longer needed, done by RPN_COMM_shuf_dist_1
     enddo
   enddo
   contains
 !
-! distribute one 2D array at a time
+! distribute one 2D array from one group within an IO set
 ! assumption: no column has 2 IO PES, neither has any row
 !
   subroutine RPN_COMM_shuf_dist_1(setno,  &
@@ -415,7 +460,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     integer, intent(IN), dimension(0:pe_ny-1) :: start_y,count_y
     logical, intent(IN) :: periodx,periody
     integer, intent(OUT) :: status
-    logical :: on_column, error, eff_periodx
+    logical :: on_column, error, eff_periodx, duplicate
     integer :: root, ybase, kcol, ierr, halox, haloy, lni, lnj, size2d
     integer, dimension(0:pe_nx-1) :: listofk
     integer :: i, j, k, i0, in, ioff, lni0
@@ -424,21 +469,14 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     integer, dimension(0:pe_nx-1) :: cxs, dxs, cxr, dxr
     integer, dimension(0:pe_ny-1) :: cy, dy
 
-!print *,'IN shuffle'
-    on_column = .false.    ! precondition for failure in case a hasty exit is needed
-    status = RPN_COMM_ERROR
+    on_column = .false.     ! precondition for failure in case a hasty exit is needed
+    status = RPN_COMM_ERROR ! precondition for failure in case a hasty exit is needed
     nullify(fullrow)
     nullify(local_1)
 !
-!    do i = 2 , npes   ! assumption to be revised, may not stay true with PE dispersion
-!      if(pe_x(i) <= pe_x(i-1) .or. pe_y(i) <= pe_y(i-1)) then
-!        print *,"WARNING: PE list is not monotonous and increasing"
-!        return  ! pe_x and pe_y must be monotonous and increasing
-!      endif
-!    enddo
     root = -1 
     kcol = -1
-    haloy = 1 - minj    ! halos are implicitly specified by lower bound of x and y dimensions
+    haloy = 1 - minj        ! halos are implicitly specified by lower bound of x and y dimensions
     halox = 1 - mini
     size2d = (maxj-minj+1) * (maxi-mini+1)    ! size of a 2D local array
     eff_periodx = periodx .and. (halox > 0)   ! global along x perodioc adjustment needed
@@ -476,8 +514,14 @@ subroutine RPN_COMM_shuf_dist(setno,  &
       return
     endif
 !   maybe we should check instead if liste_o(listofk(i)) is already .true. which would point to a possible duplicate
+    duplicate = .false.
     do i = 0 , pe_nx-1
-       if(listofk(i) > 0) liste_o(listofk(i)) = .false.
+       if(listofk(i) > 0) then
+         if(liste_o(listofk(i))) then
+           print 101,"WARNING: this level has already been distributed :",listofk(i)
+         endif
+         liste_o(listofk(i)) = .false.
+       endif
     enddo
 !
 !   first and last PE on column get count + haloy rows, others get count + 2*haloy rows
@@ -613,9 +657,9 @@ end subroutine RPN_COMM_shuf_dist
 !
 ! important notes:
 !    the following parameters MUST de the same on ALL PEs
-!      setno
+!      setno                    IO set number, as obtained from RPN_COMM_create_io_set
 !      mini,maxi,minj,maxj,nk  (dimensions of the "local" array)
-!      gni,gnj,gnk   (dimensions of the "global" array)
+!      gni,gnj,dnk             (dimensions of the "global" array)
 !      nx,ny,start_x,count_x,start_y,count_y  (start_x, start_y : ORIGIN 1)
 !
 !    even if not used/necessary on a given PE
@@ -624,7 +668,7 @@ end subroutine RPN_COMM_shuf_dist
 !
 !====================================================================================
 subroutine RPN_COMM_shuf_coll(setno,  &
-                              global,gni,gnj,gnk,  &
+                              global,gni,gnj,dnk,  &
                               local,mini,maxi,minj,maxj,nk,  &
                               liste_o,  &
                               start_x,count_x,nx,start_y,count_y,ny,  &
@@ -632,12 +676,12 @@ subroutine RPN_COMM_shuf_coll(setno,  &
   use rpn_comm
   use RPN_COMM_io_pe_tables
   implicit none
-  integer, intent(IN) :: setno,gni,gnj,gnk,mini,maxi,minj,maxj,nk,nx,ny
-  integer, intent(OUT), dimension(gni,gnj,gnk) :: global
+  integer, intent(IN) :: setno,gni,gnj,dnk,mini,maxi,minj,maxj,nk,nx,ny
+  integer, intent(OUT), dimension(gni,gnj,dnk) :: global
   integer, intent(IN), dimension(mini:maxi,minj:maxj,nk) :: local
   integer, intent(IN), dimension(nx)    :: start_x,count_x
   integer, intent(IN), dimension(ny)    :: start_y,count_y
-  integer, intent(OUT), dimension(gnk)  :: liste_o
+  integer, intent(OUT), dimension(dnk)  :: liste_o
   integer, intent(OUT) :: status
   integer :: iset, npass, setsize, igroup, groupsize
   integer k0, k1, kn, low, high
@@ -651,8 +695,8 @@ subroutine RPN_COMM_shuf_coll(setno,  &
   setsize = io_set(setno)%npe
   groupsize = io_set(setno)%groupsize
   npass = (nk+setsize-1) / setsize
-  if(gnk < npass) then   ! OUCH, cannot collect
-    print *,"ERROR: cannot collect. setsize, groupsize,npass,gnk,nk",setsize, groupsize,npass,gnk,nk
+  if(dnk < npass) then   ! OUCH, cannot collect
+    print *,"ERROR: cannot collect. setsize, groupsize,npass,dnk,nk",setsize, groupsize,npass,dnk,nk
     return
   endif
   k0 = 1
