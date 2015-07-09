@@ -107,7 +107,7 @@ function rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj) result (grid_id)  !
 
   integer :: ix, i, j, lni, lnj
 
-  grid_id = -1
+  grid_id = RPN_COMM_ERROR
   ix = init_new_grid(pe_nx,pe_ny)
   if(ix <= 0) return                ! id <= 0 is an error
 
@@ -145,6 +145,7 @@ function rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj) result (grid_id)  !
 end function rpn_comm_create_2dgrid                                    !InTf!
 
 function rpn_comm_get_2dgrid(grid_id,gni,gnj,mini,maxi,minj,maxj,starti,counti,startj,countj) result (status)  !InTf!
+  use rpn_comm
   use rpn_comm_grids
   implicit none
   integer, intent(IN) :: grid_id                                                   !InTf!
@@ -154,7 +155,7 @@ function rpn_comm_get_2dgrid(grid_id,gni,gnj,mini,maxi,minj,maxj,starti,counti,s
 
   integer :: indx
 
-  status = -1
+  status = RPN_COMM_ERROR
   indx = find_grid(grid_id)
   if(indx <= 0 .or. indx > MAX_GRIDS) return
 
@@ -174,5 +175,5 @@ function rpn_comm_get_2dgrid(grid_id,gni,gnj,mini,maxi,minj,maxj,starti,counti,s
   startj = gt(indx)%start_j
   countj = gt(indx)%count_j
 
-  status = 0
+  status = RPN_COMM_OK
 end function rpn_comm_get_2dgrid                                                   !InTf!

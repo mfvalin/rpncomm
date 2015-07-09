@@ -75,6 +75,8 @@ $(STUB_LIBRARY): rpn_comm_fortran_stubs.o rpn_comm_c_stubs.o
 $(LIBRARY): $(OBJECTS) $(VPATH)/includes
 	mkdir -p $(LIBDIR)
 	ar rcv $(LIBRARY)_ RPN_COMM*.o
+	ar rcv $(LIBRARY).inc $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc \
+	$(VPATH)/rpn_comm.inc $(VPATH)/RPN_COMM_constants.inc $(VPATH)/RPN_COMM_types.inc
 #	ar rcv $(LIBRARY)_ $(OBJECTS)
 #	ar dv $(LIBRARY)_ TEST_stubs.o rpn_comm_c_stubs.o rpn_comm_fortran_stubs.o
 	mv $(LIBRARY)_ $(LIBRARY)
