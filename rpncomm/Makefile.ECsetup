@@ -10,17 +10,25 @@ CFLAGS =  -O 2
 FCFLAGS = -O 2
 
 CC=s.cc
+ifeq "$(SERIAL_MPI)" ""
+  MPI_FLAG = -mpi
+  MPI_SERIAL_LIB = 
+else
+  MPI_FLAG = -I$(SERIAL_MPI)/include -L$(SERIAL_MPI)/lib/$(EC_ARCH)
+  MPI_SERIAL_LIB = -lmpi-serial
+endif
+$(info === MPI_FLAG = $(MPI_FLAG) ===)
 # use s.f77 with IBM fortran compiler because of fixed format
 ifeq (/xlf,$(findstring /xlf,$(EC_ARCH)))
  FC=s.f77
- MPIFC = s.f77 -mpi
+ MPIFC = s.f77 $(MPI_FLAG)
 else
  FC=s.f90
- MPIFC = s.f90 -mpi
+ MPIFC = s.f90 $(MPI_FLAG)
 endif
 F90C=s.f90
-MPICC = s.cc -mpi
-MPIF90C = s.f90 -mpi
+MPICC = s.cc $(MPI_FLAG)
+MPIF90C = s.f90 $(MPI_FLAG)
 
 # end of EC setup
 
