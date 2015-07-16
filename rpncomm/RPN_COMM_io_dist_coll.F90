@@ -71,7 +71,8 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer, dimension(pe_nx) :: start_x,count_x
   integer, dimension(pe_ny) :: start_y,count_y
   integer :: i0,in,j0,jn,nerrors,nvalid,expected,effective_lnk
-  logical, external :: RPN_COMM_io_dist_coll_check, RPN_COMM_shuf_ezdist, RPN_COMM_shuf_ezcoll
+  logical, external :: RPN_COMM_io_dist_coll_check
+  integer, external :: RPN_COMM_shuf_ezdist, RPN_COMM_shuf_ezcoll
   integer :: grid_id
 !
   periodx = .false.
