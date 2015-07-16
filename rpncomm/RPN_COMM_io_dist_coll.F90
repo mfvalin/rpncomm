@@ -71,7 +71,8 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer, dimension(pe_nx) :: start_x,count_x
   integer, dimension(pe_ny) :: start_y,count_y
   integer :: i0,in,j0,jn,nerrors,nvalid,expected,effective_lnk
-  logical, external :: RPN_COMM_io_dist_coll_check
+  logical, external :: RPN_COMM_io_dist_coll_check, RPN_COMM_shuf_ezdist, RPN_COMM_shuf_ezcoll
+  integer :: grid_id
 !
   periodx = .false.
   periody = .false.
@@ -110,7 +111,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   allocate(liste_o(lnk))
   liste_o = .false.
   liste_o(max_dist_k) = .true.     ! test of warning for attempt to redistribute a level
-  liste_o(max_dist_k+1:lnk) = .false.
+  if(max_dist_k<lnk) liste_o(max_dist_k+1:lnk) = .false.
 !
 ! along X
 !
@@ -153,6 +154,13 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
     print *,"start_y =",start_y
     print *,"count_y =",count_y
   endif
+!====================================================================================
+  grid_id = rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj) ! create 2D grid descriptor
+!====================================================================================
+  if (grid_id == -1) then
+    if(pe_me == 0) print 101,"ERROR: cannot create grid id, gni,gnj,mini,maxi,minj,maxj=",gni,gnj,mini,maxi,minj,maxj
+    return
+  endif
 !
   allocate(local(mini:maxi,minj:maxj,lnk))
   local = 999999
@@ -165,10 +173,10 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
 !  setno = RPN_COMM_create_io_set( min( min(pe_nx,pe_ny)+iope_extra , lnk) ,0)  ! make sure not to overflow lnk
   setno = RPN_COMM_create_io_set( min(pe_nx,pe_ny)+iope_extra , 0)  ! may overflow lnk
   if(setno <= 0) then
-    print *,'IO PE set creation error, quitting',setno
+    print *,'ERROR: IO PE set creation error, quitting',setno
     return
   else
-    print *,'IO PE set created :',setno
+    print *,'INFO: IO PE set created :',setno
   endif
   me_io = RPN_COMM_is_io_pe(setno)     ! me in IO_set
   n_io = RPN_COMM_io_pe_size(setno)    ! IO_set population
@@ -196,14 +204,22 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   else
     print *,"I am a relaxed  NON-IO pe !"
   endif
-print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
+! print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
 !return
+#define EZ_TEST
+#if defined(EZ_TEST)
+!====================================================================================
+! use previously obtained grid id
+  status = RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_k, liste_o)
+!====================================================================================
+#else
   call RPN_COMM_shuf_dist(setno,  &
                           global,gni,gnj,dnk,  &
                           local,mini,maxi,minj,maxj,lnk,  &
                           liste_k,liste_o,  &
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           periodx,periody,status)
+#endif
   print *,'liste_o apres=',liste_o
   if(status .ne. RPN_COMM_OK) then
     print 101,"ERROR: RPN_COMM_shuf_dist failure, lnk,dnk,n_io ",lnk,dnk,n_io
@@ -229,6 +245,7 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
     endif
   enddo
   print *,"nerrors, nvalid=",nerrors,nvalid
+
   if(nerrors == 0) goto 777
 !  goto 777
 666 continue
@@ -269,12 +286,19 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
   enddo
   enddo
   print *,"====== before  shuf_coll, max lnk ======",effective_lnk
+#if defined(EZ_TEST)
+!====================================================================================
+! use previously obtained grid id
+  status = RPN_COMM_shuf_ezcoll(setno, grid_id, global2, dnk, local, effective_lnk, liste_k2)
+!====================================================================================
+#else
   call RPN_COMM_shuf_coll(setno,  &
                           global2,gni,gnj,dnk,  &
                           local,mini,maxi,minj,maxj,effective_lnk,  &
                           liste_k2,  &
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           status)
+#endif
   if(status .ne. RPN_COMM_OK) then
     print 101,"ERROR: RPN_COMM_shuf_coll failure, lnk,dnk,n_io ",effective_lnk,dnk,n_io
     return
@@ -311,14 +335,16 @@ print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
   endif
   return
 end subroutine RPN_COMM_io_dist_coll_test
-function RPN_COMM_shuf_ezdist(setno, gridno, global, dnk, local, lnk, liste_i, liste_o) result (status)
+!====================================================================================
+function RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_i, liste_o) result (status)
 ! important notes:
 !      it is the caller's responsibility to ensure that liste_o is properly initialized to .false. 
 !      before calling the distribute function
   use rpn_comm
   implicit none
+#include <RPN_COMM_interfaces.inc>
   integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
-  integer, intent(IN) :: gridno                    ! grid identifier (from RPN_COMM_create_dgrid)
+  integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
   integer, intent(IN) :: dnk                       ! number of levels to distribute
   integer, intent(IN) :: lnk                       ! number of levels in the "local" array
   integer, intent(IN), dimension(*)     :: global
@@ -333,10 +359,14 @@ function RPN_COMM_shuf_ezdist(setno, gridno, global, dnk, local, lnk, liste_i, l
   integer, dimension(pe_ny)    :: count_y ! PE (any,j-1) contains count_y(j) points in the Y direction
   integer :: gni,gnj                      ! horizontal dimensions of the "global" array
   integer :: mini,maxi,minj,maxj          ! horizontal dimensions of the "local" array
-!  integer, external :: RPN_COMM_get_dgrid
 
-!  status = RPN_COMM_get_dgrid(gridno,gni,gnj, mini,maxi,minj,maxj,start_x,count_x,start_y,count_y)
-  if(status .ne. RPN_COMM_OK) return
+  status = rpn_comm_get_2dgrid(grid_id,pe_nx,pe_ny,gni,gnj, mini,maxi,minj,maxj,start_x,count_x,start_y,count_y)
+!   print *,'DEBUG: rpn_comm_get_2dgrid',mini,maxi,minj,maxj
+!
+  if(status .ne. RPN_COMM_OK) then
+    status = RPN_COMM_ERROR
+    return
+  endif
 
   call RPN_COMM_shuf_dist(setno,  &
                           global,gni,gnj,dnk,  &
@@ -345,6 +375,46 @@ function RPN_COMM_shuf_ezdist(setno, gridno, global, dnk, local, lnk, liste_i, l
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           .false.,.false.,status)
 end function RPN_COMM_shuf_ezdist
+!====================================================================================
+function RPN_COMM_shuf_ezcoll(setno, grid_id, global, dnk, local, lnk, liste_o) result (status)
+! important notes:
+!      it is the caller's responsibility to ensure that liste_o is properly initialized to negative 
+!      numbers before calling the collect function
+  use rpn_comm
+  implicit none
+#include <RPN_COMM_interfaces.inc>
+  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
+  integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
+  integer, intent(IN) :: dnk                       ! number of levels to collect
+  integer, intent(IN) :: lnk                       ! number of levels in the "local" array
+  integer, intent(OUT), dimension(*)   :: global
+  integer, intent(IN), dimension(*)    :: local
+  integer, intent(OUT), dimension(dnk) :: liste_o  ! is set to k when 2D array level k has been received
+  integer :: status                                ! RPN_COMM_OK or RPN_COMM_ERROR
+!
+  integer, dimension(pe_nx)    :: start_x ! PE (i-1,any) points start at start_x(i) in global space (X direction)
+  integer, dimension(pe_nx)    :: count_x ! PE (i-1,any) contains count_x(i) points in the X direction
+  integer, dimension(pe_ny)    :: start_y ! PE (any,j-1) points start at start_y(j) in global space (Y direction)
+  integer, dimension(pe_ny)    :: count_y ! PE (any,j-1) contains count_y(j) points in the Y direction
+  integer :: gni,gnj                      ! horizontal dimensions of the "global" array
+  integer :: mini,maxi,minj,maxj          ! horizontal dimensions of the "local" array
+
+  status = rpn_comm_get_2dgrid(grid_id,pe_nx,pe_ny,gni,gnj, mini,maxi,minj,maxj,start_x,count_x,start_y,count_y)
+!   print *,'DEBUG: rpn_comm_get_2dgrid',mini,maxi,minj,maxj
+!
+  if(status .ne. RPN_COMM_OK) then
+    status = RPN_COMM_ERROR
+    return
+  endif
+
+  call RPN_COMM_shuf_coll(setno,  &
+                          global,gni,gnj,dnk,  &
+                          local,mini,maxi,minj,maxj,lnk,  &
+                          liste_o,  &
+                          start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
+                          status)
+end function RPN_COMM_shuf_ezcoll
+!====================================================================================
 !
 ! distribute dnk 2D arrays, destination is dnk of lnk 2D plane of local 3D array
 ! using IO PE set setno
@@ -378,6 +448,7 @@ end function RPN_COMM_shuf_ezdist
 !
 !    attempting to distribute level k where k > lnk is an ERROR
 !
+!====================================================================================
 subroutine RPN_COMM_shuf_dist(setno,  &
                               global,gni,gnj,dnk,  &
                               local,mini,maxi,minj,maxj,lnk,  &
@@ -402,6 +473,14 @@ subroutine RPN_COMM_shuf_dist(setno,  &
   integer, intent(OUT) :: status                   ! RPN_COMM_OK or RPN_COMM_ERROR
   integer :: i, k, low, high, listeik, n
 
+! print 100,'DEBUG: RPN_COMM_shuf_dist',mini,maxi,minj,maxj,gni,gnj,dnk,nx,ny
+! print 100,'          start_x,count_x',start_x,count_x
+! print 100,'          start_y,count_y',start_y,count_y
+! print 101,'             local,global',loc(local),loc(global)
+! 100 format(A,1X,20I6)
+! 101 format(A,1X,8Z17.16)
+
+! return
   status = RPN_COMM_ERROR                     ! preset status to failure
   if(setno < 1 .or. setno > iosets) return    ! setno out of bounds, OUCH !
   if(io_set(setno)%ioset .ne. setno) return   ! IO set no longer valid, OUCH !
@@ -435,10 +514,12 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     enddo
   enddo
   contains
+!====================================================================================
 !
 ! distribute one 2D array from one group within an IO set
 ! assumption: no column has 2 IO PES, neither has any row
 !
+!====================================================================================
   subroutine RPN_COMM_shuf_dist_1(setno,  &
                                   global,gni,gnj,gk,  &
                                   local,mini,maxi,minj,maxj,lnk,  &
@@ -739,18 +820,20 @@ subroutine RPN_COMM_shuf_coll(setno,  &
 !
   contains
 !
-  subroutine RPN_COMM_shuf_coll_1(setno,  &
-                                  global, gni, gnj, &
-                                  local, mini, maxi, minj, maxj, nk, k1, kn, &
-                                  levnk, pe_x, pe_y, npes, &
-                                  start_x, count_x, start_y, count_y, &
-                                  status)
+!====================================================================================
 !
 ! collect one 2D array at a time from a set of 2D array sections
 ! if kn-k1+1 smaller than groupsize, some IO PEs will not receive anything
 ! the Mth PE will receive level k1+M-1
 ! assumption: no column has 2 IO PES, neither has any row
 !
+!====================================================================================
+  subroutine RPN_COMM_shuf_coll_1(setno,  &
+                                  global, gni, gnj, &
+                                  local, mini, maxi, minj, maxj, nk, k1, kn, &
+                                  levnk, pe_x, pe_y, npes, &
+                                  start_x, count_x, start_y, count_y, &
+                                  status)
 !
     use rpn_comm
     use RPN_COMM_io_pe_tables

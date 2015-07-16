@@ -134,7 +134,7 @@ function rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj) result (grid_id)  !
 
   gt(ix)%count_i = lni
   gt(ix)%count_i(pe_nx) = gni - lni * (pe_nx - 1)
-  gt(ix)%start_i(1) = 0
+  gt(ix)%start_i(1) = 1                           ! (origin 1)
   do i = 2 , pe_nx
     gt(ix)%start_i(i) = gt(ix)%start_i(i-1) + gt(ix)%count_i(i-1)
   enddo
@@ -142,7 +142,7 @@ function rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj) result (grid_id)  !
 
   gt(ix)%count_j = lnj
   gt(ix)%count_j(pe_ny) = gnj - lnj * (pe_ny - 1)
-  gt(ix)%start_j(1) = 0
+  gt(ix)%start_j(1) = 1                           ! (origin 1)
   do j = 2 , pe_ny
     gt(ix)%start_j(j) = gt(ix)%start_j(j-1) + gt(ix)%count_j(j-1)
   enddo
@@ -166,9 +166,9 @@ function rpn_comm_get_2dgrid(grid_id,dim_i,dim_j,gni,gnj,mini,maxi,minj,maxj,sta
 !
 ! gni, gnj                : dimensions of global grid           global_grid(gni,gnj)
 ! mini, maxi, minj, maxj  : storage dimensions of local grid    local_grid(mini:maxi,minj:maxj)
-! starti(i) contains the start along x in global space of the Ith MPI tile (along x)
+! starti(i) contains the start along x in global space of the Ith MPI tile (along x) (origin 1)
 ! counti(i) contains the number of useful points along x for the Ith MPI tile (along x)
-! startj(j) contains the start along y in global space of the Jth MPI tile (along y)
+! startj(j) contains the start along y in global space of the Jth MPI tile (along y) (origin 1)
 ! countj(j) contains the number of useful points along y for the Jth MPI tile (along y)
 !
 ! the value of the function is RPN_COMM_ERROR or RPN_COMM_OK
