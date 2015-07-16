@@ -89,7 +89,7 @@ contains
     integer :: i
 
     indx = -1
-    i = and(id,Z'000000FF')
+    i = ieor(id,Z'CAFEFADE')
     if(i <= 0 .or. i > MAX_GRIDS) return  ! invalid index, not a grid_id
     if(gt(i)%grid_id /= id)       return  ! wrong grid id, index is not coherent
     indx = i
@@ -139,30 +139,33 @@ function rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj) result (grid_id)  !
   enddo
   gt(ix)%lnj     = gt(ix)%count_j(pe_mey + 1)    ! adjust local lnj
 
-  gt(ix)%grid_id = or(ix , Z'CAFE0000')
+  gt(ix)%grid_id = ieor(ix , Z'CAFEFADE')
   grid_id = gt(ix)%grid_id
 
 end function rpn_comm_create_2dgrid                                    !InTf!
 
-function rpn_comm_get_2dgrid(grid_id,gni,gnj,mini,maxi,minj,maxj,starti,counti,startj,countj) result (status)  !InTf!
+function rpn_comm_get_2dgrid(grid_id,dim_i,dim_j,gni,gnj,mini,maxi,minj,maxj,starti,counti,startj,countj) result (status)  !InTf!
   use rpn_comm
   use rpn_comm_grids
   implicit none
-  integer, intent(IN) :: grid_id                                                   !InTf!
+  integer, intent(IN) :: grid_id, dim_i, dim_j                                     !InTf!
   integer, intent(OUT) :: gni,gnj,mini,maxi,minj,maxj                              !InTf!
-  integer, intent(OUT), dimension(:) :: starti,counti,startj,countj                !InTf!
+  integer, intent(OUT), dimension(dim_i) :: starti,counti                          !InTf!
+  integer, intent(OUT), dimension(dim_j) :: startj,countj                          !InTf!
   integer :: status                                                                !InTf!
 
   integer :: indx
 
-  status = RPN_COMM_ERROR
+  status = RPN_COMM_ERROR   ! precondition outputs for failure
+  gni = -1
+  gnj = -1
   indx = find_grid(grid_id)
   if(indx <= 0 .or. indx > MAX_GRIDS) return
 
-  if(size(starti) .ne. size(gt(indx)%start_i)) return
-  if(size(counti) .ne. size(gt(indx)%count_i)) return
-  if(size(startj) .ne. size(gt(indx)%start_j)) return
-  if(size(countj) .ne. size(gt(indx)%count_j)) return
+  if(pe_nx .ne. size(gt(indx)%start_i)) return
+  if(pe_ny .ne. size(gt(indx)%start_j)) return
+  if(dim_i < pe_nx) return
+  if(dim_j < pe_ny) return
 
   gni    = gt(indx)%gni
   gnj    = gt(indx)%gnj
@@ -170,10 +173,17 @@ function rpn_comm_get_2dgrid(grid_id,gni,gnj,mini,maxi,minj,maxj,starti,counti,s
   maxi   = gt(indx)%maxi
   minj   = gt(indx)%minj
   maxj   = gt(indx)%maxj
-  starti = gt(indx)%start_i
-  counti = gt(indx)%count_i
-  startj = gt(indx)%start_j
-  countj = gt(indx)%count_j
+  starti(1:pe_nx) = gt(indx)%start_i
+  counti(1:pe_nx) = gt(indx)%count_i
+  startj(1:pe_ny) = gt(indx)%start_j
+  countj(1:pe_ny) = gt(indx)%count_j
 
   status = RPN_COMM_OK
 end function rpn_comm_get_2dgrid                                                   !InTf!
+function rpn_comm_test_2dgrid result(status)
+  use rpn_comm
+  implicit none
+  integer :: status
+  include 'RPN_COMM_interfaces.inc'
+  status = RPN_COMM_ERROR
+end function rpn_comm_test_2dgrid

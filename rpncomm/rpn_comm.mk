@@ -14,9 +14,9 @@ CLEAN    = rpn_comm_fortran_stubs.F90 rpn_comm_c_stubs.c mpi_stub.h \
 
 CLEANDIRS= $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi $(LIBDIR)
 TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs \
-           TEST_005.Abs TEST_006.Abs TEST_007.Abs TEST_009.Abs \
+           TEST_005.Abs TEST_006.Abs TEST_007.Abs TEST_008.Abs TEST_009.Abs \
            TEST_010.Abs
-#TEST_008.Abs
+
 FMODULES = RPN_COMM_mod.o
 LIBNAME  = $(LIB)_$(RPN_COMM_version)
 LIBRARY  = $(LIBDIR)/lib$(LIBNAME).a
@@ -26,32 +26,39 @@ SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
 DISTINCLUDES = $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc $(VPATH)/rpn_comm.inc \
                $(VPATH)/RPN_COMM_types.inc $(VPATH)/RPN_COMM_constants.inc 
 
-ALL:  dep lib stublib tests inc
+lib: $(LIBRARY)
 
-dep: $(VPATH)/dependencies.mk
+obj: $(OBJECTS)
+
+all:  lib tests inc itf
+
+full:  dep all stublib
 
 tests:	$(TESTS)
 
 stublib: $(STUB_LIBRARY)
 
-lib: $(LIBRARY) $(VPATH)/includes
+#lib: $(LIBRARY)
 
-inc: $(VPATH)/includes
+inc: $(LIBRARY).inc
 
 itf: $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM_interfaces_int.inc
 
 $(VPATH)/RPN_COMM_ptr.F90: $(VPATH)/../tools/gen_rpn_comm_ptr.sh
 	(cd $(VPATH) ; ../tools/gen_rpn_comm_ptr.sh >$(VPATH)/RPN_COMM_ptr.F90)
 
-$(VPATH)/RPN_COMM_interfaces.inc: $(wildcard $(VPATH)/*.?90) $(wildcard $(VPATH)/*.c)
+$(VPATH)/RPN_COMM_interfaces.inc: $(wildcard $(VPATH)/RPN_COMM*.?90) $(wildcard $(VPATH)/*.c)
 	(cd $(VPATH) ; cat RPN_COMM_*.?90 RPN_COMM_*.c | ../tools/extract_interface.sh >RPN_COMM_interfaces.inc ; rm -f ../tools/wrap_code.exe)
 
-$(VPATH)/RPN_COMM_interfaces_int.inc: $(wildcard $(VPATH)/*.?90) $(wildcard $(VPATH)/*.c)
+$(VPATH)/RPN_COMM_interfaces_int.inc: $(wildcard $(VPATH)/RPN_COMM*.?90) $(wildcard $(VPATH)/*.c)
 	(cd $(VPATH) ; rm -f RPN_COMM_interfaces_int.inc; for target in RPN_COMM_*.?90 RPN_COMM_*.c ; do ../tools/extract_interface.sh $$target >>RPN_COMM_interfaces_int.inc ; done; rm -f ../tools/wrap_code.exe)
 
-$(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.F90) $(wildcard $(VPATH)/*.c) \
-                          $(wildcard $(VPATH)/*.h) $(wildcard $(VPATH)/*.inc) \
-                          $(VPATH)/RPN_COMM_interfaces_int.inc $(VPATH)/RPN_COMM_interfaces.inc 
+#dep: $(VPATH)/dependencies.mk
+
+#$(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.F90) $(wildcard $(VPATH)/*.c) \
+#                          $(wildcard $(VPATH)/*.h) $(wildcard $(VPATH)/*.inc) \
+#                          $(VPATH)/RPN_COMM_interfaces_int.inc $(VPATH)/RPN_COMM_interfaces.inc 
+dep:
 	-which gnu_find 2>/dev/null 1>/dev/null || (cd $(VPATH) ; find . -maxdepth 1 -type f | grep -v TEST_0 | ../tools/mk.dependencies.pl >dependencies.mk )
 	-which gnu_find 2>/dev/null 1>/dev/null && (cd $(VPATH) ; gnu_find . -maxdepth 1 -type f | grep -v TEST_0 ../tools/mk.dependencies.pl >dependencies.mk )
 
@@ -74,19 +81,21 @@ $(STUB_LIBRARY): rpn_comm_fortran_stubs.o rpn_comm_c_stubs.o
 	ar rcv $(STUB_LIBRARY) rpn_comm_fortran_stubs.o rpn_comm_c_stubs.o
 	(cd $(LIBDIR) ; ln -sf lib$(LIB)stubs_$(RPN_COMM_version).a lib$(LIB)stubs.a)
 
-$(LIBRARY): $(OBJECTS) $(VPATH)/includes
+$(LIBRARY): $(OBJECTS)
 	mkdir -p $(LIBDIR)
 	ar rcv $(LIBRARY)_ RPN_COMM*.o
-	ar rcv $(LIBRARY).inc $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc \
-	$(VPATH)/rpn_comm.inc $(VPATH)/RPN_COMM_constants.inc $(VPATH)/RPN_COMM_types.inc
 #	ar rcv $(LIBRARY)_ $(OBJECTS)
 #	ar dv $(LIBRARY)_ TEST_stubs.o rpn_comm_c_stubs.o rpn_comm_fortran_stubs.o
 	mv $(LIBRARY)_ $(LIBRARY)
 	(cd $(LIBDIR) ; ln -sf lib$(LIB)_$(RPN_COMM_version).a  lib$(LIB).a)
 #	cp *.mod $(INCDIR)
 
-.PHONY:	$(VPATH)/includes
-$(VPATH)/includes: $(DISTINCLUDES)
+#.PHONY:	$(VPATH)/includes
+
+#$(VPATH)/includes: $(DISTINCLUDES)
+$(LIBRARY).inc: $(DISTINCLUDES)
+	mkdir -p $(LIBDIR)
+	ar rcv $(LIBRARY).inc $(DISTINCLUDES)
 	mkdir -p $(INCDIR)
 	cp $(DISTINCLUDES) $(INCDIR)
 

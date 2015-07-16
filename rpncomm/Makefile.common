@@ -46,7 +46,7 @@ endif
 LIBDIR := $(VPATH)/$(RELBASEDIR)/lib/$(EC_ARCH)$(SERIAL)
 INCDIR := $(VPATH)/$(RELBASEDIR)/include/$(EC_ARCH)$(SERIAL)
 
-all: ALL
+default: lib
 
 clean:
 	rm -f *.o *.mod $(TESTS) $(CLEAN)
