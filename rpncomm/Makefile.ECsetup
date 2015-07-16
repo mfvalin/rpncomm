@@ -10,10 +10,11 @@ CFLAGS =  -O 2
 FCFLAGS = -O 2
 
 CC=s.cc
-ifeq "$(SERIAL_MPI)" ""
+ifeq "$(SERIAL)" ""
   MPI_FLAG = -mpi
   MPI_SERIAL_LIB = 
 else
+  SERIAL_MPI=$(VPATH)/../serial-mpi
   MPI_FLAG = -I$(SERIAL_MPI)/include -L$(SERIAL_MPI)/lib/$(EC_ARCH)
   MPI_SERIAL_LIB = -lmpi-serial
 endif

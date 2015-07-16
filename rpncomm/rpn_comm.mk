@@ -6,14 +6,16 @@ include $(VPATH)/Makefile.common
 # sources specific (mechanically generated) dependencies
 include $(VPATH)/dependencies.mk
 
-LIB      = rpn_comm
+LIB      = rpn_comm$(SERIAL)
 CLEAN    = rpn_comm_fortran_stubs.F90 rpn_comm_c_stubs.c mpi_stub.h \
            $(STUB_LIBRARY) $(LIBRARY) \
            $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi.ssm $(VPATH)/RPN_COMM_interfaces.inc \
            $(VPATH)/RPN_COMM_interfaces_int.inc $(VPATH)/dependencies.mk 
 
 CLEANDIRS= $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi $(LIBDIR)
-TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs TEST_005.Abs TEST_006.Abs TEST_007.Abs TEST_009.Abs TEST_010.Abs
+TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs \
+           TEST_005.Abs TEST_006.Abs TEST_007.Abs TEST_009.Abs \
+           TEST_010.Abs
 #TEST_008.Abs
 FMODULES = RPN_COMM_mod.o
 LIBNAME  = $(LIB)_$(RPN_COMM_version)

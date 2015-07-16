@@ -8,9 +8,9 @@ ifneq (,$(wildcard ./Makefile))
 .SUFFIXES:
 # OBJDIR will be the build directiry for this architecture
 ifeq (,$(BASE_ARCH))
- OBJDIR := custom/unknown
+ OBJDIR := custom/unknown$(SERIAL)
 else
- OBJDIR := $(RELBASEBLD)/Build/$(EC_ARCH)
+ OBJDIR := $(RELBASEBLD)/Build/$(EC_ARCH)$(SERIAL)
 endif
 
 MAKETARGET=$(MAKE) --no-print-directory -C $@ -f $(CURDIR)/Makefile \
