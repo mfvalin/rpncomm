@@ -11,7 +11,7 @@ module rpn_comm_grids
   integer, parameter :: MAX_GRIDS = 64
   type(rpn_comm_dist_grid), dimension(MAX_GRIDS), save :: gt
 
-  integer :: used_grids = 0
+  integer, save :: used_grids = 0
 
 contains
   function init_grid_slot(ix, nx, ny) result(indx)   ! initialize a (maybe new) slot in grid table
@@ -64,18 +64,18 @@ contains
         nullify(gt(i)%start_j)
         nullify(gt(i)%count_j)
         gt(i)%grid_id = -1
+        used_grids = 1
       enddo
     endif
 
     indx = -1
     do i = 1 , MAX_GRIDS
-      if(gt(i)%grid_id <= 0) then  ! unused grid
+      if(gt(i)%grid_id == -1) then  ! unused grid
         ix = i
         exit
       endif
     enddo
     if(ix == -1) return  ! no free slot found, table is full
-
     indx = init_grid_slot(ix, nx, ny)  ! fill slot with zeroes
 
     return
@@ -99,6 +99,15 @@ contains
 end module rpn_comm_grids
 
 function rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj) result (grid_id)  !InTf!
+!
+! create a 2D grid rpn_comm grid descriptor
+!
+! gni, gnj                : dimensions of global grid           global_grid(gni,gnj)
+! mini, maxi, minj, maxj  : storage dimensions of local grid    local_grid(mini:maxi,minj:maxj)
+!
+! the functions returns a grid identifier if successful, -1 if unsucessful
+! the number of PEs along x and y is taken from waht was determined by rpn_comm_init...
+!
   use rpn_comm
   use rpn_comm_grids
   implicit none
@@ -145,6 +154,25 @@ function rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj) result (grid_id)  !
 end function rpn_comm_create_2dgrid                                    !InTf!
 
 function rpn_comm_get_2dgrid(grid_id,dim_i,dim_j,gni,gnj,mini,maxi,minj,maxj,starti,counti,startj,countj) result (status)  !InTf!
+!
+! get the full description of 2D rpn_comm grid with id = grid_id
+!
+! dim_i : dimension of output arrays starti and counti  (starti(1:pe_nx) and counti(1:pe_nx) will be filled)
+! dim_j : dimension of output arrays startj and countj  (startj(1:pe_ny) and countj(1:pe_ny) will be filled)
+!
+! pe_nx is the number of MPI tiles along x, pe_ny is the number of tiles along y
+! dim_i < pe_nx or dim_j < pe_ny is an error
+! a non valid grid_id is an error
+!
+! gni, gnj                : dimensions of global grid           global_grid(gni,gnj)
+! mini, maxi, minj, maxj  : storage dimensions of local grid    local_grid(mini:maxi,minj:maxj)
+! starti(i) contains the start along x in global space of the Ith MPI tile (along x)
+! counti(i) contains the number of useful points along x for the Ith MPI tile (along x)
+! startj(j) contains the start along y in global space of the Jth MPI tile (along y)
+! countj(j) contains the number of useful points along y for the Jth MPI tile (along y)
+!
+! the value of the function is RPN_COMM_ERROR or RPN_COMM_OK
+!
   use rpn_comm
   use rpn_comm_grids
   implicit none
@@ -180,10 +208,57 @@ function rpn_comm_get_2dgrid(grid_id,dim_i,dim_j,gni,gnj,mini,maxi,minj,maxj,sta
 
   status = RPN_COMM_OK
 end function rpn_comm_get_2dgrid                                                   !InTf!
-function rpn_comm_test_2dgrid result(status)
+function rpn_comm_test_2dgrid(nparams,params) result(status)
   use rpn_comm
   implicit none
   integer :: status
   include 'RPN_COMM_interfaces.inc'
+  integer, intent(IN) :: nparams
+  integer, intent(IN), dimension(nparams) :: params
+  integer :: gni, gnj, grid_id, mini, maxi, minj, maxj
+  integer :: mini2, maxi2, minj2, maxj2, gni2, gnj2
+  integer :: starti(Pe_nx+2), counti(Pe_nx+2)
+  integer :: startj(Pe_ny+2), countj(Pe_ny+2)
+  integer, parameter :: lni = 11
+  integer, parameter :: lnj = 7
+  integer :: i
+  integer :: gid(10)
+
   status = RPN_COMM_ERROR
+    gni = pe_nx*lni - 7
+    gnj = pe_ny*lnj - 5
+    
+    mini = -1
+    minj = -2
+    maxi = lni + 3
+    maxj = lnj + 4
+    do i = 1, 5
+      grid_id = rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj)
+      if(pe_me == 0) print 100,'grid id =',grid_id,ieor(grid_id,z'CAFEFADE')
+      gni = gni + 1
+      gnj = gnj + 1
+      gid(i) = grid_id
+    enddo
+    do i = 6, 10
+      gid(i) = i - 5
+    enddo
+    do i = 10, 1, -1
+      status = rpn_comm_get_2dgrid(gid(i),Pe_nx+2,Pe_ny+2,gni2,gnj2,mini2,maxi2,minj2,maxj2,starti,counti,startj,countj)
+      if(pe_me == 0) then
+        if(status == RPN_COMM_OK) then
+          print 101,'i,gni2,gnj2,mini2,maxi2,minj2,maxj2',i,gni2,gnj2,mini2,maxi2,minj2,maxj2
+          print 101,'                              starti',starti(1:pe_nx)
+          print 101,'                              counti',counti(1:pe_nx)
+          print 101,'                              startj',startj(1:pe_ny)
+          print 101,'                              countj',countj(1:pe_ny)
+          print 100,'SUCCESS: id =',gid(i),ieor(gid(i),Z'cafefade')
+        else
+          print 100,'ERROR: id, status =',gid(i),status
+        endif
+        print *,''
+      endif
+    enddo
+100 format(A,1x,Z8.8,i8)
+101 format(A,1x,20i4)
+  status = RPN_COMM_OK
 end function rpn_comm_test_2dgrid

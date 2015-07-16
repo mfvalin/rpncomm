@@ -45,6 +45,10 @@
           print *,'start shuffle distribution test'
           call RPN_COMM_io_dist_coll_test(nparams,params)
         endif
+        if(IAND(test_to_perform,64)==64)then
+          print *,'start 2D grid definition test'
+          call rpn_comm_test_2dgrid(nparams,params)
+        endif
         call RPN_COMM_finalize(ierr)
         stop
         end
