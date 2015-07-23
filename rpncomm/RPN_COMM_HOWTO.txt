@@ -6,7 +6,7 @@ NOTE:
      in other words thes calls are COLLECTIVE calls
 ==========================================================================
 
-1a- =====  define a 2D grid  =====
+1 - =====  define a 2D grid  =====
 
   -------------------------------------------------------------
   grid_id = RPN_COMM_create_2dgrid(gni,gnj,mini,maxi,minj,maxj)
@@ -25,18 +25,7 @@ NOTE:
   if lni and lnj are the useful dimensions along x and y, it is expected that
   maxi >= lni+1-mini , maxj >= lnj+1-minj
 
-1b- =====  find PE position in IO PE set  =====
-  -----------------------------------
-  grid_me =  RPN_COMM_is_io_pe(setno)
-                                 IN
-  -----------------------------------
-  
-  setno   : IO  PE set number (obtained from RPN_COMM_create_io_set)
-  
-  function result is this PE's ordinal in the communicator associated with setno
-  if this PE is not an IO PE in this set, -1 is returned
-
-2 - =====  define a set of IO PEs  =====
+2a- =====  define a set of IO PEs  =====
 
   ----------------------------------------------
   setno = RPN_COMM_create_io_set( npes , method)
@@ -48,6 +37,16 @@ NOTE:
   
   setno  : set number ( -1 if there was an error creating the IO set)
 
+2b- =====  find PE position in IO PE set  =====
+  -----------------------------------
+  grid_me =  RPN_COMM_is_io_pe(setno)
+                                 IN
+  -----------------------------------
+  
+  setno   : IO  PE set number (obtained from RPN_COMM_create_io_set)
+  
+  function result is this PE's ordinal in the communicator associated with setno
+  if this PE is not an IO PE in this set, -1 is returned
   
 3a- =====  EZ distribute the data from "reader PEs" to all PEs in grid  =====
 
