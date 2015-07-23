@@ -261,4 +261,4 @@ function rpn_comm_2dgrid_test(nparams,params) result(status)
 100 format(A,1x,Z8.8,i8)
 101 format(A,1x,20i4)
   status = RPN_COMM_OK
-end function rpn_comm_test_2dgrid
+end function rpn_comm_2dgrid_test
