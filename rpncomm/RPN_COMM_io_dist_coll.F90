@@ -419,6 +419,9 @@ end function RPN_COMM_shuf_ezcoll
 !
 ! distribute dnk 2D arrays, destination is dnk of lnk 2D plane of local 3D array
 ! using IO PE set setno
+!
+! status will be RPN_COMM_OK or RPN_COMM_ERROR
+!
 ! liste_i contains the list of 2D planes to be inserted into the 3D destination array
 ! liste_o(k) is set to .true. when 2D plane k has been received
 ! start_x(i) contains the first global x index of local array in grid PE (i-1,any)
@@ -430,7 +433,7 @@ end function RPN_COMM_shuf_ezcoll
 ! mini,maxi,minj,maxj are used to determine the halo width in the local array
 !                     this is used to save a halo exchange after distribution
 !
-! start_x, start_y, count_x, count_y  are in origin(1)
+! start_x, start_y  are in origin(1)
 !
 ! important notes:
 !    the following INPUT parameters MUST be the same on ALL PEs
@@ -725,6 +728,8 @@ end subroutine RPN_COMM_shuf_dist
 ! nk 2D array sections coming in, reassembled on the IO PEs of set setno
 ! each IO PE ends up with a small number (nk / size of IO PE set) of full arrays
 !
+! status will be RPN_COMM_OK or RPN_COMM_ERROR
+!
 ! liste_o(n) is set to k when 2D array level k has been received
 ! start_x(i) contains the first global x index of local array in grid PE (i-1,any)
 ! count_x(i) contains the number of points along x of local array in grid PE (i-1,any)
@@ -735,14 +740,14 @@ end subroutine RPN_COMM_shuf_dist
 ! mini,maxi,minj,maxj are used to determine the halo width in the local array
 !                     this is used to save a halo exchange after distribution
 !
-! start_x, start_y, count_x, count_y  are in origin(1)
+! start_x, start_y  are in origin(1)
 !
 ! important notes:
 !    the following parameters MUST de the same on ALL PEs
 !      setno                    IO set number, as obtained from RPN_COMM_create_io_set
 !      mini,maxi,minj,maxj,nk  (dimensions of the "local" array)
 !      gni,gnj,dnk             (dimensions of the "global" array)
-!      nx,ny,start_x,count_x,start_y,count_y  (start_x, start_y : ORIGIN 1)
+!      nx,ny,start_x,count_x,start_y,count_y
 !
 !    even if not used/necessary on a given PE
 !      the "global" array must exist ( (1,1,1) array is OK on non IO PEs )
@@ -761,8 +766,8 @@ subroutine RPN_COMM_shuf_coll(setno,  &
   integer, intent(IN) :: setno,gni,gnj,dnk,mini,maxi,minj,maxj,nk,nx,ny
   integer, intent(OUT), dimension(gni,gnj,dnk) :: global
   integer, intent(IN), dimension(mini:maxi,minj:maxj,nk) :: local
-  integer, intent(IN), dimension(nx)    :: start_x,count_x
-  integer, intent(IN), dimension(ny)    :: start_y,count_y
+  integer, intent(IN), dimension(1:nx)    :: start_x,count_x
+  integer, intent(IN), dimension(1:ny)    :: start_y,count_y
   integer, intent(OUT), dimension(dnk)  :: liste_o
   integer, intent(OUT) :: status
   integer :: iset, npass, setsize, igroup, groupsize

@@ -208,7 +208,7 @@ function rpn_comm_get_2dgrid(grid_id,dim_i,dim_j,gni,gnj,mini,maxi,minj,maxj,sta
 
   status = RPN_COMM_OK
 end function rpn_comm_get_2dgrid                                                   !InTf!
-function rpn_comm_test_2dgrid(nparams,params) result(status)
+function rpn_comm_2dgrid_test(nparams,params) result(status)
   use rpn_comm
   implicit none
   integer :: status
