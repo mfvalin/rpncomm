@@ -37,3 +37,21 @@
     integer(c_int) :: x, y, z           ! dimensions
   end type rpncomm_block
   type(rpncomm_block), parameter :: NULL_rpncomm_block = rpncomm_block(C_NULL_PTR, C_NULL_PTR, 0, 0, 0)
+!
+! Domain type
+!
+  type domm
+     sequence
+     character(len=12) nom
+     character(len=1024) path
+     integer npex, npey
+  end type domm
+  integer domm_size, domm_num
+  type(domm), allocatable, dimension(:) :: pe_domains
+!
+!  symbol tables
+!
+  type :: SYMTAB
+  integer :: number
+  character (len=32) :: string
+  end type

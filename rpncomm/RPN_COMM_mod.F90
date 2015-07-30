@@ -153,24 +153,6 @@ module rpn_comm
 ! Output unit information
 !
   integer :: rpn_u = 6
-!
-! Domain type
-!
-  type domm
-     sequence
-     character(len=12) nom
-     character(len=1024) path
-     integer npex, npey
-  end type domm
-  integer domm_size, domm_num
-  type(domm), allocatable, dimension(:) :: pe_domains
-!
-!  symbol tables
-!
-  type :: SYMTAB
-  integer :: number
-  character (len=32) :: string
-  end type
 
   type(SYMTAB), dimension(6) :: &  ! miscellaneous symbols
   misc_tab=(/ &

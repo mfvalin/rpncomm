@@ -1,7 +1,7 @@
 subroutine rpn_comm_test_011
   use rpn_comm
   implicit none
-  integer, external :: rpn_comm_2dgrid_test
+  integer, external :: rpn_comm_test_2dgrid
   integer :: status, params
 
   pe_nx = 6

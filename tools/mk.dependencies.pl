@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #use warnings;        # Avertissement des messages d'erreurs
-use strict;          # V�rification des d�clarations
+use strict;          # Verification des declarations
 use File::Spec::Functions;
 use URI::file;
 use Cwd "realpath";
@@ -504,7 +504,6 @@ sub as_legal_extension
 #########################################################################
 
 # Si pas d'arguments, on prend STDIN
-
 if ( $#ARGV > -1 ){
  @listfile = (@ARGV) ;
  $listfile[$#listfile] =~ s/\n/ /;
@@ -530,7 +529,6 @@ foreach my $target (@listfile){
 #    process element of list_of_files_and_directories
     print STDERR "target = '$target'\n" if( $msg >= 5 );
 }
-
 
 while(my $target = <STDIN>){
     foreach my $entry (glob $target) {
@@ -743,6 +741,7 @@ while( my($filename, $file) = each(%LISTOBJECT) )
 {
     my $result;
     #print "TEST: $filename \n";
+#print STDERR "TEST: $filename \n";
 
     # Loop sur tous les fichiers pour voir les dependances circulaires
     if($result = $file->find_depedencies($filename))
@@ -750,10 +749,12 @@ while( my($filename, $file) = each(%LISTOBJECT) )
         print STDERR "ERR: Circular dependencies in $filename FAILED\n";
         exit 1; 
     }
-
+#print STDERR "($result)\n";
     #print "($result)\n";
+print STDERR ".";
 }
-
+print STDERR "\n";
+#print STDERR "Circular dependencies done\n";
 #print "DONE\n";
 
 #
