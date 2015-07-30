@@ -1,4 +1,4 @@
-!/* RMNLIB - Library of useful routines for C and FORTRAN programming
+!/* RPN_COMM - Library of useful routines for C and FORTRAN programming
 ! * Copyright (C) 1975-2012  Division de Recherche en Prevision Numerique
 ! *                          Environnement Canada
 ! *

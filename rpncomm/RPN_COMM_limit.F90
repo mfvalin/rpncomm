@@ -4,7 +4,7 @@ call RPN_COMM_test_limit(6)
 stop
 end
 #endif
-!/! RMNLIB - Library of useful routines for C and FORTRAN programming
+!/! RPN_COMM - Library of useful routines for C and FORTRAN programming
 ! ! Copyright (C) 1975-2015  Recherche en Prevision Numerique
 ! !                          Environnement Canada
 ! !
