@@ -25,8 +25,6 @@ module rpn_comm
   include 'RPN_COMM_types_int.inc'
   include 'mpif.h'
   save
-  integer MAX_OPTN
-  parameter(MAX_OPTN=10)
 !
 !	domain boundary flags, LOGICAL
 !	.true. if a PE(TILE) is on a domain edge
@@ -91,13 +89,15 @@ module rpn_comm
   integer :: pe_me_peer, pe_tot_peer                ! PEs with same rank on different grids of same multigrid
   integer :: pe_grid_host, pe_gr_grid_host          ! PEs on same host node (belonging to same "grid")
   integer :: pe_me_grid_host, pe_tot_grid_host      ! PEs on same host node (belonging to same "grid")
-  integer :: my_colors(3)                           ! domain/multigrid/grid color
-  integer, allocatable, dimension(:,:) :: pe_id
-  integer, allocatable, dimension(:)   :: pe_xtab,pe_ytab
-  integer, allocatable, dimension(:,:) :: pe_location   ! pe_x,pe_x,pe_ingrid,pe_insgrid,pe_indomain
+  integer :: my_colors(3)                           ! domain ordinal/multigrid ordinal/grid ordinal (color)
+  integer, allocatable, dimension(:,:) :: pe_id     !  O( pe_id(pe_nx,pe_ny) )
+  integer, allocatable, dimension(:)   :: pe_xtab,pe_ytab  ! O(pe_xtab(pe_nx)) O(pe_ytab(pe_ny)) 
+  integer, allocatable, dimension(:,:) :: pe_location   ! pe_x,pe_x,pe_ingrid,pe_insgrid,pe_indomain pe_location(8,total_nb_of_pes)
   logical :: async_exch=.true.        ! asynchronous halo exchange (level 1)
   logical :: full_async_exch=.false.  ! fully asynchronous halo exchange (level 2)
   logical :: rpn_ew_ext_l = .false.   ! extended halo option (haloy extra rows on North and South tiles)
+
+  integer, parameter :: MAX_OPTN=10
   character *4 pe_optn(MAX_OPTN)
   integer :: pe_opiv(MAX_OPTN)
   real *4 pe_oprv(MAX_OPTN)
@@ -129,14 +129,12 @@ module rpn_comm
   integer TMG_CLOCK_C, TMG_CPU_C
   parameter(TMG_CLOCK_C=5,TMG_CPU_C=6)
   !
-  integer MAXTMG,MAXTMGELEM
-  parameter (MAXTMG=1024)
-  parameter (MAXTMGELEM=8)
+  integer, parameter :: MAXTMG=1024
+  integer, parameter :: MAXTMGELEM=8
   real *8 tmg_tbl(MAXTMGELEM,MAXTMG)
   real *8 tmg_old(MAXTMGELEM),tmg_new(MAXTMGELEM)
   integer tmg_indx
-  integer, private :: MAXWDS
-  parameter(MAXWDS=MAXTMG*MAXTMGELEM)
+  integer, parameter, private :: MAXWDS=MAXTMG*MAXTMGELEM
   data tmg_indx / 0 /
   data tmg_old /MAXTMGELEM * 0.0/
   data tmg_new /MAXTMGELEM * 0.0/
@@ -211,7 +209,6 @@ module rpn_comm
   SYMTAB(MPI_OP_NULL,RPN_COMM_OP_NULL), &
   SYMTAB(MPI_REPLACE,RPN_COMM_REPLACE)  &
   /)
-
 !
 ! interface to gethostid
 ! get the 32 bit host identifier
@@ -221,31 +218,6 @@ module rpn_comm
       use iso_c_binding
     end function f_gethostid
   end interface
-
-!
-! Decomposition tables (definitions should be moved to RPN_COMM_types_int.inc)
-!
-  type :: DEC         ! decomposisition description
-  integer :: id       ! "magic" pseudo unique identifier
-  integer :: l1, l2   ! number of points per section
-  integer :: ns       ! start of shorter tiles (1->np) (if ns<np, l2 must be l1-1)
-  integer :: lg       ! total number of points
-  integer :: np       ! number of tiles along axis
-  end type DEC
-  
-  type :: DIST_1D     ! 1D type decomposition
-  integer :: id       ! "magic" pseudo unique identifier
-  integer :: a        ! DEC id
-  integer    :: com   ! communicator (row, column, ...)
-  integer    :: grp   ! group
-  end type DIST_1D
-
-  type :: DIST_2D     ! 2D type decomposition
-  integer :: id       ! "magic" pseudo unique identifier
-  integer :: idx,idy  ! E-W and N-S DIST_1D id's
-  integer    :: com   ! communicator (grid, subgrid, ...)
-  integer    :: grp   ! group
-  end type DIST_2D
 
   integer, parameter :: DEC_TAB_SIZE = 256   ! initial size of decomposition table
   integer, parameter :: DIST_TAB_SIZE = 128  ! initial size of distribution tables

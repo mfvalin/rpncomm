@@ -55,3 +55,27 @@
   integer :: number
   character (len=32) :: string
   end type
+!
+! Decomposition tables (definitions should be moved to RPN_COMM_types_int.inc)
+!
+  type :: DEC         ! decomposisition description
+  integer :: id       ! "magic" pseudo unique identifier
+  integer :: l1, l2   ! number of points per section
+  integer :: ns       ! start of shorter tiles (1->np) (if ns<np, l2 must be l1-1)
+  integer :: lg       ! total number of points
+  integer :: np       ! number of tiles along axis
+  end type DEC
+  
+  type :: DIST_1D     ! 1D type decomposition
+  integer :: id       ! "magic" pseudo unique identifier
+  integer :: a        ! DEC id
+  integer    :: com   ! communicator (row, column, ...)
+  integer    :: grp   ! group
+  end type DIST_1D
+
+  type :: DIST_2D     ! 2D type decomposition
+  integer :: id       ! "magic" pseudo unique identifier
+  integer :: idx,idy  ! E-W and N-S DIST_1D id's
+  integer    :: com   ! communicator (grid, subgrid, ...)
+  integer    :: grp   ! group
+  end type DIST_2D
