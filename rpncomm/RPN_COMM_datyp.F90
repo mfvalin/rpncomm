@@ -18,17 +18,47 @@
 ! ! Boston, MA 02111-1307, USA.
 ! !/
 !InTf!
-        integer function RPN_COMM_datyp(data_int)                 !InTf!
-!	Luc Corbeil, 2000-11-20
-!	lien entre datatype et MPI_datatype
+        integer function RPN_COMM_datyp_indx(data_int)            !InTf!
         use rpn_comm
         implicit none                                             !InTf!
 !        include 'mpif.h'
 !        include 'rpn_comm.h'
-        character(len=*), intent(IN) :: data_int                              !InTf!
+        character(len=*), intent(IN) :: data_int                  !InTf!
         character(len=32) :: datatype
         integer :: i
 
+        call rpn_comm_low2up(data_int,datatype)
+
+        do i = 1 , size(type_tab)
+          if(type_tab(i)%string == datatype) then
+            RPN_COMM_datyp_indx = i
+            return
+          endif
+        enddo
+
+        RPN_COMM_datyp_indx = -1  ! error return
+        return
+        end function RPN_COMM_datyp_indx                           !InTf!
+!InTf!
+        integer function RPN_COMM_datyp(data_int)                 !InTf!
+!   Luc Corbeil, 2000-11-20
+!   lien entre datatype et MPI_datatype
+        use rpn_comm
+        implicit none                                             !InTf!
+!        include 'mpif.h'
+!        include 'rpn_comm.h'
+        character(len=*), intent(IN) :: data_int                  !InTf!
+        character(len=32) :: datatype
+        integer :: i
+        integer, external :: RPN_COMM_datyp_indx
+
+        RPN_COMM_datyp = MPI_DATATYPE_NULL
+
+        i = RPN_COMM_datyp_indx(data_int)
+        if(i >= 0) RPN_COMM_datyp = type_tab(i)%number
+        return
+
+#if defined(DEPRECATED)
         call rpn_comm_low2up(data_int,datatype)
 
         RPN_COMM_datyp = -999999  ! precondition to error return
@@ -39,7 +69,7 @@
             return
           endif
         enddo
-
+#endif
 #if defined(DEPRECATED)
         goto 777
         if (datatype(1:11).eq.'MPI_INTEGER') then
@@ -86,9 +116,43 @@
            RPN_COMM_datyp=MPI_LOGICAL
            return
         endif
+777     write(rpn_u,*) 'ERROR: Unknown datatype ',datatype
 #endif
-777     write(rpn_u,*) 'Unknown datatype ',datatype,' aborting'
-        stop
-          
         return
         end function RPN_COMM_datyp                             !InTf!
+!
+!       fill an entity of type rpncomm_datatype from type string
+!       dtyp_c : character version of data type
+!       dtyp   : new item of type rpncomm_datatype
+        subroutine RPN_COMM_new_datyp(dtyp_c,dtyp)           !InTf!
+        use rpn_comm
+        implicit none
+        type(rpncomm_datatype), intent(OUT) :: dtyp          !InTf!
+        character(len=*), intent(IN) :: dtyp_c               !InTf!
+        integer, external :: RPN_COMM_datyp_indx
+
+        dtyp%p = C_FUNLOC(RPN_COMM_datyp_indx)    ! signature
+        dtyp%t1 = RPN_COMM_datyp_indx(dtyp_c)     ! index of datatype from internal table
+        dtyp%t2 = type_tab(dtyp%t1)%number        ! datatype value
+        end subroutine RPN_COMM_new_datyp                    !InTf!
+!
+!       is dtyp a valid item of type rpncomm_datatype ?
+!
+        function RPN_COMM_valid_datyp(dtyp) result(valid)    !InTf!
+        use rpn_comm
+        implicit none
+        type(rpncomm_datatype), intent(IN) :: dtyp           !InTf!
+        logical :: valid                                     !InTf!
+        integer, external :: RPN_COMM_datyp_indx
+        type(C_PTR) :: temp
+
+        temp = C_FUNLOC(RPN_COMM_datyp_indx)    ! proper pointer ?
+        valid = c_associated( dtyp%p , temp )
+        if(.not. valid) return
+
+        valid = (dtyp%t1 > 0) .and. (dtyp%t1 <= size(type_tab))   ! plausible t1 ?
+        if(.not. valid) return
+
+        valid = type_tab(dtyp%t1)%number == dtyp%t2   ! consistent t1 and t2 ?
+
+        end function RPN_COMM_valid_datyp                    !InTf!

@@ -1,3 +1,22 @@
+!/! RPN_COMM - Library of useful routines for C and FORTRAN programming
+! ! Copyright (C) 1975-2015  Division de Recherche en Prevision Numerique
+! !                          Environnement Canada
+! !
+! ! This library is free software; you can redistribute it and/or
+! ! modify it under the terms of the GNU Lesser General Public
+! ! License as published by the Free Software Foundation,
+! ! version 2.1 of the License.
+! !
+! ! This library is distributed in the hope that it will be useful,
+! ! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! ! Lesser General Public License for more details.
+! !
+! ! You should have received a copy of the GNU Lesser General Public
+! ! License along with this library; if not, write to the
+! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+! ! Boston, MA 02111-1307, USA.
+! !/
 !
 ! typed blind C pointers used for user application interface
 !
@@ -9,6 +28,13 @@
     integer(c_int) :: t2    ! tag2 (reserved for rpn_comm usage)
   end type rpncomm_context
   type(rpncomm_context), parameter :: NULL_rpncomm_context = rpncomm_context(C_NULL_PTR,0,0)
+
+  type, bind(C)    :: rpncomm_window
+    type(c_ptr)    :: p
+    integer(c_int) :: t1    ! tag1 (reserved for rpn_comm usage)
+    integer(c_int) :: t2    ! tag2 (reserved for rpn_comm usage)
+  end type rpncomm_window
+  type(rpncomm_window), parameter :: NULL_rpncomm_window = rpncomm_window(C_NULL_PTR,0,0)
 
   type, bind(C)    :: rpncomm_communicator
     type(c_ptr)    :: p
