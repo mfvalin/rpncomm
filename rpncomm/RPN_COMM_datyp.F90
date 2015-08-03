@@ -126,6 +126,7 @@
 !       dtyp   : new item of type rpncomm_datatype
         subroutine RPN_COMM_new_datyp(dtyp_c,dtyp)           !InTf!
         use rpn_comm
+!!      import :: rpncomm_datatype                           !InTf!
         implicit none
         type(rpncomm_datatype), intent(OUT) :: dtyp          !InTf!
         character(len=*), intent(IN) :: dtyp_c               !InTf!
@@ -140,6 +141,7 @@
 !
         function RPN_COMM_valid_datyp(dtyp) result(valid)    !InTf!
         use rpn_comm
+!!      import :: rpncomm_datatype                           !InTf!
         implicit none
         type(rpncomm_datatype), intent(IN) :: dtyp           !InTf!
         logical :: valid                                     !InTf!
