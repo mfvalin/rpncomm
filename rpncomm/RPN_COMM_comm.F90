@@ -22,9 +22,9 @@ module rpncomm_com
   use rpn_comm
   implicit none
   integer, parameter :: MAX_COMM_TAB=128
-  type(symtab), dimension(:), pointer, save :: com_tab => NULL()
-  integer, save :: defcom_index=-1
-  integer, save :: max_com_index=0
+  type(symtab), dimension(:), pointer, save :: com_tab => NULL()  ! communicator translation table
+  integer, save :: defcom_index=-1                                ! index for RPN_COMM_DEFAULT
+  integer, save :: max_com_index=0                    
 contains
 !
 ! allocate and initialize com_tab, the communicator table
@@ -35,7 +35,7 @@ contains
 
     if( associated(com_tab) ) return  ! job already done
 
-    allocate(com_tab(MAX_COMM_TAB))
+    allocate(com_tab(MAX_COMM_TAB+1))   ! allocate table and initialize "the usual suspects"
     com_tab( 1) = symtab(pe_grid_peers,RPN_COMM_GRIDPEERS)
     com_tab( 2) = symtab(pe_indomm,RPN_COMM_GRID)
     com_tab( 3) = symtab(pe_indomm,RPN_COMM_DOMM)
@@ -50,10 +50,30 @@ contains
     com_tab(12) = symtab(pe_blocmaster,RPN_COMM_BLOCMASTER)
     com_tab(13) = symtab(pe_bloc,RPN_COMM_BLOCK)
     com_tab(14) = symtab(MPI_COMM_WORLD,RPN_COMM_UNIVERSE)
-    do i = 15,MAX_COMM_TAB
+    max_com_index = 14
+    do i = 15,MAX_COMM_TAB+1
       com_tab(i) = symtab(MPI_COMM_NULL,"")
     enddo
   end subroutine init_com_tab
+!
+! add new communicator to table
+!
+  function new_com(com,mpicom) result(indx)
+    implicit none
+    character(len=*), intent(IN) :: com      ! rpn_comm character style communicator
+    integer, intent(IN) :: mpicom            ! MPI integer communicator
+    integer :: indx
+
+    if(max_com_index < MAX_COMM_TAB) then
+      max_com_index = max_com_index + 1
+      com_tab(max_com_index)%number = mpicom
+      com_tab(max_com_index)%string = trim(com)
+      indx = max_com_index
+    else
+      indx = -1
+    endif
+    return
+  end function new_com
 !
 ! get index of string com in com_tab
 !
@@ -64,7 +84,7 @@ contains
     integer :: i
 
     if(.not. associated(com_tab)) call init_com_tab
-    indx = MAX_COMM_TAB
+    indx = MAX_COMM_TAB+1  ! will be returned if com is not found
     do i = 1,max_com_index
       if( trim(com_tab(i)%string) == trim(com) ) then
         indx = i
@@ -94,7 +114,7 @@ end module rpncomm_com
       RPN_COMM_comm = com_tab(indx_com_tab(comm))%number
 
       return
-
+#if defined(DEPRECATED)
       RPN_COMM_comm = MPI_COMM_NULL
 
       if (trim(comm) == RPN_COMM_GRIDPEERS) then
@@ -156,20 +176,46 @@ end module rpncomm_com
 
       write(rpn_u,*) 'Unknown communicator ',comm,', aborting'
       stop
-      return
+#endif
       end function RPN_COMM_comm                                  !InTf!
 !InTf!
-      integer function RPN_COMM_custom_comm(com,name,mode)        !InTf!
-      use rpn_comm
+      integer function RPN_COMM_custom_comm(mpicom,name,mode)     !InTf!
+      use rpncomm_com
       implicit none                                               !InTf!
-!     lookup or create a communicator with a rpn_comm style name
+!     lookup, create, or delete a custom communicator with a rpn_comm style name
       character(len=*), intent(IN) :: name                        !InTf!
-      integer, intent(IN) :: com                                  !InTf!
+      integer, intent(IN) :: mpicom                               !InTf!
       integer, intent(IN) :: mode                                 !InTf!
 !
       integer :: i
       character (len=32) :: name2
-!
+      integer, save :: base = 0
+
+      if(.not. associated(com_tab)) call init_com_tab
+      if(base == 0) base = max_com_index
+
+      RPN_COMM_custom_comm = MPI_COMM_NULL
+      call rpn_comm_low2up(name,name2)
+
+      if(mode==RPN_COMM_GET) then                   ! look for rpn_comm communicator named "name"
+        RPN_COMM_custom_comm = com_tab(indx_com_tab(name2))%number
+      else if(mode==RPN_COMM_SET) then             ! add "name" and com to the rpn_comm communicators
+        i = new_com(name2,mpicom)
+        if(i>0) RPN_COMM_custom_comm = mpicom      ! if create was successful
+      else if(mode==RPN_COMM_DEL) then             ! delete "name" and com from rpn_comm communicators
+        i = indx_com_tab(name2)                    ! find name
+        if(i>0 .and. i>base) then                  ! if found and not a permanent communicator
+          com_tab(i)%string = ''
+          com_tab(i)%number = MPI_COMM_NULL
+        endif
+        RPN_COMM_custom_comm = MPI_COMM_NULL
+      else
+        write(rpn_u,*) 'ERROR: RPN_COMM_custom_comm illegal mode'
+        RPN_COMM_custom_comm = MPI_COMM_NULL
+      endif
+      return
+
+#if defined(DEPRECATED)
       integer, parameter :: MAX_NAMES=128
       type(SYMTAB), save, dimension(:), pointer :: names => NULL()
       integer, save :: entries=0
@@ -200,10 +246,11 @@ end module rpncomm_com
          write(rpn_u,*) 'ERROR: RPN_COMM_custom_comm illegal mode'
       endif
       return
+#endif
       end function RPN_COMM_custom_comm                      !InTf!
 !
 !       fill an entity of type rpncomm_communicator from type string
-!       ctyp_c : character version of communicator
+!       ctyp_c : character version of communicator (rpn comm char style) (see RPN_COMM_constants.inc)
 !       ctyp   : new item of type rpncomm_communicator
 !InTf!
         subroutine RPN_COMM_i_comm(ctyp_c,ctyp)            !InTf!
