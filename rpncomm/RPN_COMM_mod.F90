@@ -61,7 +61,7 @@ module rpn_comm
 !
 !       WORLD_COMM_MPI  replaces MPI_COMM_WORLD
 !
-  integer :: WORLD_COMM_MPI                         ! plays the role of MPI_COMM_WORLD for rpn_comm
+  integer, target :: WORLD_COMM_MPI                         ! plays the role of MPI_COMM_WORLD for rpn_comm
   integer :: diag_mode
   logical :: WORLD_COMM_MPI_INIT=.false.
   logical :: RPM_COMM_IS_INITIALIZED=.false.

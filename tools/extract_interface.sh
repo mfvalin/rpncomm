@@ -10,7 +10,10 @@ program wrap
   character (len=1) :: cont2 ='&'
   write(6,100)spaces//'interface'
 1 read(5,100,end=2) line
-    if(len(trim(line))<=66) then
+    if(line(1:1)=='#') then
+      line(1:1)='!'
+      write(6,100)line
+    else if(len(trim(line))<=66) then
       write(6,101)spaces,line(1:66)
     else
       write(6,101)spaces,line(1:66),cont2
@@ -35,12 +38,12 @@ s.f90 -o ../tools/wrap_code.exe ../tools/wrap_code.f90 2>/dev/null 1>/dev/null
 rm -f ../tools/wrap_code.f90
 fi
 if [[ -z $1 ]] ; then
-  grep '!InTf!' | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ../tools/wrap_code.exe
+  grep '!InTf!' | sed -e 's/^\t//' -e 's/^      //' -e 's/^!![ ]*!/#/' -e 's/^!!//' -e 's/!.*//' | ../tools/wrap_code.exe
 else
   [[ -f $1 ]] || exit 0
   if grep -q '!InTf!' $1 ; then
     echo "#if ! defined(IN_${1%.*})"
-    grep '!InTf!' $1 | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/!.*//' | ../tools/wrap_code.exe
+    grep '!InTf!' $1 | sed -e 's/^\t//' -e 's/^      //' -e 's/^!![ ]*!/#/' -e 's/^!!//' -e 's/!.*//' | ../tools/wrap_code.exe
     echo "#endif"
   fi
 fi

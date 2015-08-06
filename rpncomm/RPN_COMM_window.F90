@@ -42,7 +42,7 @@ contains
 
   function valid_win_entry(win_ptr) result(is_valid)
     implicit none
-    type(C_PTR), intent(IN) :: win_ptr               ! pointer to entry in win_tab
+    type(C_PTR), intent(IN), value :: win_ptr               ! pointer to entry in win_tab
     logical :: is_valid
     type(rpncomm_windef), pointer :: win_entry
 
@@ -53,19 +53,23 @@ contains
     call c_f_ptr(win_ptr,win_entry)
     if(.not. c_associated(win_entry%base)) return    ! no array associated with entry
 
+    is_valid = .true.
+
   end function valid_win_entry
 
-  subroutine create_win_entry(base,type,size,comm,ierr)
+  subroutine create_win_entry(base,type,size,comm,indx,ierr)
     implicit none
-    type(C_PTR), intent(IN) :: base        ! base address of array exposed through window
+    type(C_PTR), intent(IN), value :: base        ! base address of array exposed through window
     integer, intent(IN) :: type            ! MPI data type
     integer, intent(IN) :: size            ! number of elements
     integer, intent(IN) :: comm            ! communicator for one sided window
+    integer, intent(OUT) :: indx           ! index into wintab of created window
     integer, intent(OUT) :: ierr           ! return status RPN_COMM_ERROR or RPN_COMM_OK
     integer :: i, extent, ierror
 
     if(.not. associated(win_tab)) call init_win_tab
-    ierr = RPN_COMM_ERROR
+    ierr = RPN_COMM_ERROR                  ! preset for failure
+    indx = -1
 
     do i = 1 , RPN_COMM_MAX_WINDOWS
       if(.not. c_associated(win_tab(i)%base) ) then
@@ -87,122 +91,186 @@ contains
   end subroutine create_win_entry
 end module RPN_COMM_windows
 
-subroutine RPN_COMM_is_win_create(window,type,size,communicator,array,ierr)
+!InTf!
+!===============================================================================
+! create a one sided communication window
+!
+! window (OUT)     rpn_comm window type returned to caller (see RPN_COMM_types.inc)
+! dtype  (IN)      rpn_comm datatype descriptor (see RPN_COMM_types.inc)
+! siz    (IN)      number of elements of type dtype in window
+! com    (IN)      rpn_comm communicator used for window (see RPN_COMM_types.inc)
+! array  (IN)      C pointer to array associated with window
+!                  if defined (not equal to C_NULL_PTR), this user array will be used
+!                  if not defined (equal to C_NULL_PTR), an internal array will be allocated and used
+! ierr   (OUT)     RPN_COMM_OK or RPN_COMM_ERROR will be returned
+!===============================================================================
+subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
   use RPN_COMM_windows
   implicit none
-!  include 'RPN_COMM_types.inc'
-!  include 'RPN_COMM_constants.inc'
-  integer, intent(OUT) :: ierr
-  type(rpncomm_window), intent(OUT) :: window
-  type(rpncomm_datatype), intent(IN) :: type
-  integer, intent(IN) :: size
-  type(rpncomm_communicator), intent(IN) :: communicator
-  type(C_PTR), intent(IN) :: array
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window, rpncomm_datatype, rpncomm_communicator  !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(OUT) :: window                         !InTf!
+  type(rpncomm_datatype), intent(IN) :: dtype                         !InTf!
+  integer, intent(IN) :: siz                                          !InTf!
+  type(rpncomm_communicator), intent(IN) :: com                       !InTf!
+  type(C_PTR), intent(IN), value :: array
+! !  integer :: array                                                  !InTf!
+! !  !DEC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
+! !  !GCC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
+! !  !IBM* ignore_tkr array                                            !InTf!
+! !  !DIR$ ignore_tkr array                                            !InTf!
+! !  !$PRAGMA ignore_tkr array                                         !InTf!
+  integer :: indx
 
   ierr = RPN_COMM_ERROR
   window = NULL_rpncomm_window
-end subroutine RPN_COMM_is_win_create
 
-subroutine RPN_COMM_is_win_free(window,ierr)
+  call create_win_entry(array,dtype,siz,com,indx,ierr)
+  if(ierr .ne. RPN_COMM_OK) return
+
+  window%p = c_loc(win_tab[indx])
+  window%t1 = indx
+  window%t2 = -indx
+
+  ierr = RPN_COMM_OK
+  return
+
+end subroutine RPN_COMM_i_win_create                                  !InTf!
+
+!InTf!
+subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
   use RPN_COMM_windows
   implicit none
-!  include 'RPN_COMM_types.inc'
-!  include 'RPN_COMM_constants.inc'
-  integer, intent(OUT) :: ierr
-  type(rpncomm_window), intent(INOUT) :: window
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window                                          !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(INOUT) :: window                       !InTf!
 
   ierr = RPN_COMM_ERROR
-end subroutine RPN_COMM_is_win_free
+end subroutine RPN_COMM_i_win_free                                    !InTf!
 
-subroutine RPN_COMM_is_win_open(window,ierr)
+!InTf!
+subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
   use RPN_COMM_windows
   implicit none
-!  include 'RPN_COMM_types.inc'
-!  include 'RPN_COMM_constants.inc'
-  integer, intent(OUT) :: ierr
-  type(rpncomm_window), intent(IN) :: window
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window                                          !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
 
   ierr = RPN_COMM_ERROR
-end subroutine RPN_COMM_is_win_open
+end subroutine RPN_COMM_i_win_open                                    !InTf!
 
-subroutine RPN_COMM_is_win_close(window,ierr)
+!InTf!
+subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
   use RPN_COMM_windows
   implicit none
-!  include 'RPN_COMM_types.inc'
-!  include 'RPN_COMM_constants.inc'
-  integer, intent(OUT) :: ierr
-  type(rpncomm_window), intent(IN) :: window
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window                                          !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
 
   ierr = RPN_COMM_ERROR
-end subroutine RPN_COMM_is_win_close
+end subroutine RPN_COMM_i_win_close                                   !InTf!
 
-function RPN_COMM_is_win_check(window,ierr) result(is_open)
+!InTf!
+function RPN_COMM_i_win_valid(window,ierr) result(is_valid)           !InTf!
   use RPN_COMM_windows
   implicit none
-!  include 'RPN_COMM_types.inc'
-!  include 'RPN_COMM_constants.inc'
-  integer, intent(OUT) :: ierr
-  type(rpncomm_window), intent(IN) :: window
-  logical :: is_open
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window                                          !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
+  logical :: is_valid                                                 !InTf!
+  type(C_PTR) :: temp
+
+  ierr = RPN_COMM_ERROR
+  is_valid = .false.
+
+  if(.not. c_associated(window%p)) return    ! no win_tab entry pointer
+  if(window%t1 + window%t2 .ne. 0) return    ! bad tags
+  if(window%t1 < 0 .or. window%t1>RPN_COMM_MAX_WINDOWS) return  ! invalid index
+
+  temp = c_loc(win_tab(window%t1))
+  if( .not.c_associated(window%p,temp)) return     ! window%p must point to proper entry in window table
+
+  is_valid = valid_win_entry(window%p)             ! check that window description is good
+
+end function RPN_COMM_i_win_valid                                     !InTf!
+
+!InTf!
+function RPN_COMM_i_win_check(window,ierr) result(is_open)            !InTf!
+  use RPN_COMM_windows
+  implicit none
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window                                          !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
+  logical :: is_open                                                  !InTf!
 
   ierr = RPN_COMM_ERROR
   is_open = .false.
-end function RPN_COMM_is_win_check
+end function RPN_COMM_i_win_check                                     !InTf!
 
-subroutine RPN_COMM_is_win_put_r(window,larray,target,offset,nelem,ierr)
+!InTf!
+subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
   use RPN_COMM_windows
   implicit none
-!  include 'RPN_COMM_types.inc'
-!  include 'RPN_COMM_constants.inc'
-  integer, intent(OUT) :: ierr
-  type(rpncomm_window), intent(IN) :: window
-  type(C_PTR), intent(IN) :: larray
-  integer, intent(IN) :: target
-  integer, intent(IN) :: offset
-  integer, intent(IN) :: nelem
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window                                          !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
+  type(C_PTR), intent(IN), value :: larray                            !InTf!
+  integer, intent(IN) :: target                                       !InTf!
+  integer, intent(IN) :: offset                                       !InTf!
+  integer, intent(IN) :: nelem                                        !InTf!
 
   ierr = RPN_COMM_ERROR
-end subroutine RPN_COMM_is_win_put_r
+end subroutine RPN_COMM_i_win_put_r                                   !InTf!
 
-subroutine RPN_COMM_is_win_put_l(window,larray,offset,nelem,ierr)
+!InTf!
+subroutine RPN_COMM_i_win_put_l(window,larray,offset,nelem,ierr)      !InTf!
   use RPN_COMM_windows
   implicit none
-!  include 'RPN_COMM_types.inc'
-!  include 'RPN_COMM_constants.inc'
-  integer, intent(OUT) :: ierr
-  type(rpncomm_window), intent(IN) :: window
-  type(C_PTR), intent(IN) :: larray
-  integer, intent(IN) :: offset
-  integer, intent(IN) :: nelem
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window                                          !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
+  type(C_PTR), intent(IN), value :: larray                            !InTf!
+  integer, intent(IN) :: offset                                       !InTf!
+  integer, intent(IN) :: nelem                                        !InTf!
 
   ierr = RPN_COMM_ERROR
-end subroutine RPN_COMM_is_win_put_l
+end subroutine RPN_COMM_i_win_put_l                                   !InTf!
 
-subroutine RPN_COMM_is_win_get_r(window,larray,target,offset,nelem,ierr)
+!InTf!
+subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
   use RPN_COMM_windows
   implicit none
-!  include 'RPN_COMM_types.inc'
-!  include 'RPN_COMM_constants.inc'
-  integer, intent(OUT) :: ierr
-  type(rpncomm_window), intent(IN) :: window
-  type(C_PTR), intent(IN) :: larray
-  integer, intent(IN) :: target
-  integer, intent(IN) :: offset
-  integer, intent(IN) :: nelem
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window                                          !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
+  type(C_PTR), intent(IN), value :: larray                            !InTf!
+  integer, intent(IN) :: target                                       !InTf!
+  integer, intent(IN) :: offset                                       !InTf!
+  integer, intent(IN) :: nelem                                        !InTf!
 
   ierr = RPN_COMM_ERROR
-end subroutine RPN_COMM_is_win_get_r
+end subroutine RPN_COMM_i_win_get_r                                   !InTf!
 
-subroutine RPN_COMM_is_win_get_l(window,larray,offset,nelem,ierr)
+!InTf!
+subroutine RPN_COMM_i_win_get_l(window,larray,offset,nelem,ierr)      !InTf!
   use RPN_COMM_windows
   implicit none
-!  include 'RPN_COMM_types.inc'
-!  include 'RPN_COMM_constants.inc'
-  integer, intent(OUT) :: ierr
-  type(rpncomm_window), intent(IN) :: window
-  type(C_PTR), intent(IN) :: larray
-  integer, intent(IN) :: offset
-  integer, intent(IN) :: nelem
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window                                          !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
+  type(C_PTR), intent(IN), value :: larray                            !InTf!
+  integer, intent(IN) :: offset                                       !InTf!
+  integer, intent(IN) :: nelem                                        !InTf!
 
   ierr = RPN_COMM_ERROR
-end subroutine RPN_COMM_is_win_get_l
+end subroutine RPN_COMM_i_win_get_l                                   !InTf!

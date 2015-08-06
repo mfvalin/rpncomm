@@ -132,7 +132,7 @@
         character(len=*), intent(IN) :: dtyp_c               !InTf!
         integer, external :: RPN_COMM_datyp_indx
 
-        dtyp%p = C_FUNLOC(RPN_COMM_datyp_indx)    ! signature
+        dtyp%p = C_LOC(WORLD_COMM_MPI)            ! signature
         dtyp%t1 = RPN_COMM_datyp_indx(dtyp_c)     ! index of datatype from internal table
         dtyp%t2 = type_tab(dtyp%t1)%number        ! datatype value
         end subroutine RPN_COMM_new_datyp                    !InTf!
@@ -148,7 +148,7 @@
         integer, external :: RPN_COMM_datyp_indx
         type(C_PTR) :: temp
 
-        temp = C_FUNLOC(RPN_COMM_datyp_indx)    ! proper pointer ?
+        temp = C_LOC(WORLD_COMM_MPI)                      ! proper pointer ?
         valid = c_associated( dtyp%p , temp )
         if(.not. valid) return
 
