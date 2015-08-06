@@ -18,7 +18,7 @@
 ! ! Boston, MA 02111-1307, USA.
 ! !/
 
-        SUBROUTINE RPN_COMM_move( sendbuf, sendcount, type, dest,&
+        SUBROUTINE RPN_COMM_move( sendbuf, sendcount, mtyp, dest,&
      &     recvbuf, recvcount,periodicity, ierr)
 
         use rpn_comm
@@ -28,7 +28,7 @@
 
         integer sendbuf, sendcount, recvbuf, recvcount
         integer sendtag, recvtag, ierr
-        character(len=*), intent(IN) ::  type
+        character(len=*), intent(IN) ::  mtyp
         character(len=*), intent(IN) ::  dest
         character(len=1) dest2
         integer sendt, recvt, icomm, icomm2, idest, irecv
@@ -42,8 +42,8 @@
         periodx=periodicity
         periody=periodicity
         ierr = -1
-        sendt=rpn_comm_datyp(type)
-        recvt=rpn_comm_datyp(type)
+        sendt=rpn_comm_datyp(mtyp)
+        recvt=rpn_comm_datyp(mtyp)
         icomm=pe_defcomm
         borders = .false.
         borderr = .false.

@@ -151,6 +151,11 @@ module rpn_comm
 ! Output unit information
 !
   integer :: rpn_u = 6
+!
+! domains table
+!
+  type(DOMM), allocatable, dimension(:) :: pe_domains
+  integer domm_size, domm_num
 
   type(SYMTAB), dimension(6) :: &  ! miscellaneous symbols
   misc_tab=(/ &

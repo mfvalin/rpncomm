@@ -121,10 +121,10 @@
         return
         end function RPN_COMM_datyp                             !InTf!
 !
-!       fill an entity of type rpncomm_datatype from type string
+!       fill an entity of type rpncomm_datatype from rpn_comm type string
 !       dtyp_c : character version of data type
 !       dtyp   : new item of type rpncomm_datatype
-        subroutine RPN_COMM_new_datyp(dtyp_c,dtyp)           !InTf!
+        subroutine RPN_COMM_i_datyp(dtyp_c,dtyp)           !InTf!
         use rpn_comm
 !!      import :: rpncomm_datatype                           !InTf!
         implicit none
@@ -135,11 +135,11 @@
         dtyp%p = C_LOC(WORLD_COMM_MPI)            ! signature
         dtyp%t1 = RPN_COMM_datyp_indx(dtyp_c)     ! index of datatype from internal table
         dtyp%t2 = type_tab(dtyp%t1)%number        ! datatype value
-        end subroutine RPN_COMM_new_datyp                    !InTf!
+        end subroutine RPN_COMM_i_datyp                    !InTf!
 !
 !       is dtyp a valid item of type rpncomm_datatype ?
 !
-        function RPN_COMM_valid_datyp(dtyp) result(valid)    !InTf!
+        function RPN_COMM_i_valid_datyp(dtyp) result(valid)    !InTf!
         use rpn_comm
 !!      import :: rpncomm_datatype                           !InTf!
         implicit none
@@ -148,7 +148,7 @@
         integer, external :: RPN_COMM_datyp_indx
         type(C_PTR) :: temp
 
-        temp = C_LOC(WORLD_COMM_MPI)                      ! proper pointer ?
+        temp = C_LOC(WORLD_COMM_MPI)                      ! correct signature pointer ?
         valid = c_associated( dtyp%p , temp )
         if(.not. valid) return
 
@@ -157,4 +157,4 @@
 
         valid = type_tab(dtyp%t1)%number == dtyp%t2   ! consistent t1 and t2 ?
 
-        end function RPN_COMM_valid_datyp                    !InTf!
+        end function RPN_COMM_i_valid_datyp                    !InTf!

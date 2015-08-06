@@ -1,11 +1,28 @@
+! 
+!   type, bind(C)    :: rpncomm_communicator
+!     type(c_ptr)    :: p     ! signature marker
+!     integer(c_int) :: t1    ! tag1 (-tag2)
+!     integer(c_int) :: t2    ! tag2 (MPI communicator)
+!   end type rpncomm_communicator
+!   type(rpncomm_communicator), parameter :: NULL_rpncomm_communicator = rpncomm_communicator(C_NULL_PTR,0,0)
+! 
+!   type, bind(C)    :: rpncomm_datatype
+!     type(c_ptr)    :: p     ! signature marker
+!     integer(c_int) :: t1    ! tag1 (index into data type table)
+!     integer(c_int) :: t2    ! tag2 (MPI data type)
+!   end type rpncomm_datatype
+!   type(rpncomm_datatype), parameter :: NULL_rpncomm_datatype = rpncomm_datatype(C_NULL_PTR,0,0)
+
   type :: rpncomm_windef
     type(C_PTR) :: base    ! base address of array
-    integer :: type        ! MPI datatype
-    integer :: size        ! deliberately limiting window size to less than 2GB
+    integer :: indx        ! index of this entry in window table
+    integer :: typ         ! MPI datatype
+    integer :: com         ! MPI communicator
+    integer :: siz         ! deliberately limiting window size to less than 2GB
     logical :: is_open     ! .true. if window is "exposed"
     logical :: is_user     ! .true. if array associated with window was user supplied rather thatn internal
   end type rpncomm_windef
-  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(C_NULL_PTR,0,0,.false.,.false.)
+  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(C_NULL_PTR,0,0,0,0,.false.,.false.)
 
   type, bind(C)    :: rpncomm_bnds
     integer(c_int) :: lo, hi, lnp, gnp  ! low bound, high bound, local dimension, global dimension
@@ -48,42 +65,40 @@
 !
 ! Domain type
 !
-  type domm
+  type DOMM
      sequence
      character(len=12) nom
      character(len=1024) path
      integer npex, npey
-  end type domm
-  integer domm_size, domm_num
-  type(domm), allocatable, dimension(:) :: pe_domains
+  end type
 !
 !  symbol tables
 !
   type :: SYMTAB
-  integer :: number
-  character (len=32) :: string
+    integer :: number
+    character (len=32) :: string
   end type
 !
 ! Decomposition tables (definitions should be moved to RPN_COMM_types_int.inc)
 !
   type :: DEC         ! decomposisition description
-  integer :: id       ! "magic" pseudo unique identifier
-  integer :: l1, l2   ! number of points per section
-  integer :: ns       ! start of shorter tiles (1->np) (if ns<np, l2 must be l1-1)
-  integer :: lg       ! total number of points
-  integer :: np       ! number of tiles along axis
+    integer :: id       ! "magic" pseudo unique identifier
+    integer :: l1, l2   ! number of points per section
+    integer :: ns       ! start of shorter tiles (1->np) (if ns .lt. np,  l2 must be l1-1)
+    integer :: lg       ! total number of points
+    integer :: np       ! number of tiles along axis
   end type DEC
   
   type :: DIST_1D     ! 1D type decomposition
-  integer :: id       ! "magic" pseudo unique identifier
-  integer :: a        ! DEC id
-  integer    :: com   ! communicator (row, column, ...)
-  integer    :: grp   ! group
+    integer :: id       ! "magic" pseudo unique identifier
+    integer :: a        ! DEC id
+    integer    :: com   ! communicator (row, column, ...)
+    integer    :: grp   ! group
   end type DIST_1D
 
   type :: DIST_2D     ! 2D type decomposition
-  integer :: id       ! "magic" pseudo unique identifier
-  integer :: idx,idy  ! E-W and N-S DIST_1D id's
-  integer    :: com   ! communicator (grid, subgrid, ...)
-  integer    :: grp   ! group
+    integer :: id       ! "magic" pseudo unique identifier
+    integer :: idx,idy  ! E-W and N-S DIST_1D id's
+    integer    :: com   ! communicator (grid, subgrid, ...)
+    integer    :: grp   ! group
   end type DIST_2D

@@ -29,6 +29,9 @@ module RPN_COMM_windows
   integer, parameter :: RPN_COMM_MAX_WINDOWS = 64
   type(rpncomm_windef), dimension(:), pointer, save :: win_tab => NULL()
 contains
+!===============================================================================
+! allocate and initialize internal single sided communication wwindows table
+!===============================================================================
   subroutine init_win_tab
     implicit none
     integer :: i
@@ -36,54 +39,76 @@ contains
     if(ASSOCIATED(win_tab)) return                  ! already initialized
     allocate(win_tab(RPN_COMM_MAX_WINDOWS))
     do i = 1 , RPN_COMM_MAX_WINDOWS
-      win_tab(i) = NULL_rpncomm_windef
+      win_tab(i) = NULL_rpncomm_windef              ! null entry
+      win_tab(i)%com = MPI_COMM_NULL                ! with null communicator
+      win_tab(i)%typ = MPI_DATATYPE_NULL            ! and null datatype
     enddo
   end subroutine init_win_tab
 
+!===============================================================================
+! check if win_ptr (pointing into win_tab) points to a valid entry
+!===============================================================================
   function valid_win_entry(win_ptr) result(is_valid)
     implicit none
-    type(C_PTR), intent(IN), value :: win_ptr               ! pointer to entry in win_tab
+    type(C_PTR), intent(IN), value :: win_ptr        ! pointer to entry in win_tab
     logical :: is_valid
     type(rpncomm_windef), pointer :: win_entry
+    type(C_PTR) :: temp
 
     is_valid = .false.
     if(.not. c_associated(win_ptr)) return           ! pointer to table entry is not valid_win
-    if(.not. associated(win_tab)) return                    ! win_tab does not exist yet
+    if(.not. associated(win_tab)) return             ! win_tab does not exist yet
 
-    call c_f_ptr(win_ptr,win_entry)
+    call c_f_ptr(win_ptr,win_entry)                  ! make pointer to win_entry
+
+    if(win_entry%indx <=0 .or. win_entry%indx>RPN_COMM_MAX_WINDOWS) return  ! impossible index into window table
+    temp = c_loc(win_tab(win_entry%indx))            ! address pointed to by entry index
+    if(.not. c_associated(temp,win_ptr)) return      ! entry index should point to itself
     if(.not. c_associated(win_entry%base)) return    ! no array associated with entry
+    if(win_entry%com == MPI_COMM_NULL) return        ! no communicator
+    if(win_entry%typ == MPI_DATATYPE_NULL) return    ! no datatype
+    if(win_entry%siz <= 0) return                    ! invalid size
 
     is_valid = .true.
 
   end function valid_win_entry
 
-  subroutine create_win_entry(base,type,size,comm,indx,ierr)
+!===============================================================================
+! create a new one sided communication window
+!
+! if base is a NULL pointer (C_NULL_PTR), allocate an internal array
+!===============================================================================
+  subroutine create_win_entry(base,typ,siz,comm,indx,ierr)
     implicit none
-    type(C_PTR), intent(IN), value :: base        ! base address of array exposed through window
-    integer, intent(IN) :: type            ! MPI data type
-    integer, intent(IN) :: size            ! number of elements
-    integer, intent(IN) :: comm            ! communicator for one sided window
+    type(C_PTR), intent(IN), value :: base ! base address of array exposed through window
+    integer, intent(IN) :: typ             ! MPI data type
+    integer, intent(IN) :: siz             ! number of elements
+    integer, intent(IN) :: comm            ! MPI communicator for one sided window
     integer, intent(OUT) :: indx           ! index into wintab of created window
-    integer, intent(OUT) :: ierr           ! return status RPN_COMM_ERROR or RPN_COMM_OK
+    integer, intent(OUT) :: ierr           ! return status (RPN_COMM_ERROR or RPN_COMM_OK)
     integer :: i, extent, ierror
 
-    if(.not. associated(win_tab)) call init_win_tab
+    if(.not. associated(win_tab)) call init_win_tab  ! create and initialize window table if necessary
     ierr = RPN_COMM_ERROR                  ! preset for failure
     indx = -1
 
-    do i = 1 , RPN_COMM_MAX_WINDOWS
+    do i = 1 , RPN_COMM_MAX_WINDOWS        ! loop over window table entries (we are looking for an unused entry)
       if(.not. c_associated(win_tab(i)%base) ) then
         if(c_associated(base)) then    ! user has already allocated space
           win_tab(i)%base = base
-        else                           ! allocate needed space
-          call MPI_TYPE_EXTENT(type, extent, ierror)
+        else                           ! allocate needed space with MPI_alloc_mem
+          call MPI_TYPE_EXTENT(typ, extent, ierror)
           if(ierror .ne. MPI_SUCCESS) return     ! invalid type ? 
-          win_tab(i)%base = base
+          call MPI_alloc_mem(extent*siz, MPI_INFO_NULL, win_tab(i)%base,ierr)
+          if(ierr .ne. MPI_SUCCESS) return       ! could not allocate memory
         endif
+        indx = i
         win_tab(i)%is_open = .false.
         win_tab(i)%is_user = c_associated(base)
-        win_tab(i)%type = type
-        win_tab(i)%size = size
+        win_tab(i)%typ = typ
+        win_tab(i)%indx = indx        ! entry index points to itself
+        win_tab(i)%siz = siz
+        win_tab(i)%com = comm
         ierr = RPN_COMM_OK
         return
       endif
@@ -126,12 +151,12 @@ subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
   ierr = RPN_COMM_ERROR
   window = NULL_rpncomm_window
 
-  call create_win_entry(array,dtype,siz,com,indx,ierr)
+  call create_win_entry(array,dtype%t2,siz,com%t2,indx,ierr)
   if(ierr .ne. RPN_COMM_OK) return
 
-  window%p = c_loc(win_tab[indx])
-  window%t1 = indx
-  window%t2 = -indx
+  window%p = c_loc(win_tab(indx))   ! point to entry in window table
+  window%t1 = -indx
+  window%t2 = indx                  ! index into table
 
   ierr = RPN_COMM_OK
   return
@@ -190,9 +215,9 @@ function RPN_COMM_i_win_valid(window,ierr) result(is_valid)           !InTf!
 
   if(.not. c_associated(window%p)) return    ! no win_tab entry pointer
   if(window%t1 + window%t2 .ne. 0) return    ! bad tags
-  if(window%t1 < 0 .or. window%t1>RPN_COMM_MAX_WINDOWS) return  ! invalid index
+  if(window%t2 < 0 .or. window%t2>RPN_COMM_MAX_WINDOWS) return  ! invalid index
 
-  temp = c_loc(win_tab(window%t1))
+  temp = c_loc(win_tab(window%t2))
   if( .not.c_associated(window%p,temp)) return     ! window%p must point to proper entry in window table
 
   is_valid = valid_win_entry(window%p)             ! check that window description is good

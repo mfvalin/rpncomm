@@ -18,17 +18,23 @@
 ! ! Boston, MA 02111-1307, USA.
 ! !/
 !InTf!
-	SUBROUTINE RPN_COMM_defo(com)           !InTf!
-	use rpn_comm
-	implicit none                           !InTf!
-	character(len=*), intent(IN) ::  com    !InTf!
-	integer comm
-	integer, external :: rpn_comm_comm
-
-!        include 'mpif.h'
 !
-        comm=rpn_comm_comm(com)
-	pe_defcomm = comm
+! this routine sets the default communicator for some collective operations
+!   halo exchanges, adj halo exchanges, RPN_COMM_diag, RPN_COMM_bcst_world,
+!   RPN_COMM_dist, RPN_COMM_coll, RPN_COMM_globalsum,
+!   RPN_COMM_tmg_wrt, RPN_COMM_move
+!
+SUBROUTINE RPN_COMM_defo(com)             !InTf!
+  use rpncomm_com
+  implicit none                           !InTf!
+  character(len=*), intent(IN) ::  com    !InTf!
+  integer comm
+  integer, external :: rpn_comm_comm
 
-	return
-	end SUBROUTINE RPN_COMM_defo            !InTf!
+  if(.not. associated(com_tab)) call init_com_tab   ! in case communicator table is not initialized yet
+  comm=rpn_comm_comm(com)               ! get communicator
+  pe_defcomm = comm                     ! set default communicator
+  com_tab(defcom_index)%number = comm   ! do not forget to update the communicator symbol table
+
+  return
+end SUBROUTINE RPN_COMM_defo              !InTf!
