@@ -17,12 +17,13 @@
     type(C_PTR) :: base    ! base address of array
     integer :: indx        ! index of this entry in window table
     integer :: typ         ! MPI datatype
+    integer :: win         ! MPI window
     integer :: com         ! MPI communicator
     integer :: siz         ! deliberately limiting window size to less than 2GB
     logical :: is_open     ! .true. if window is "exposed"
     logical :: is_user     ! .true. if array associated with window was user supplied rather thatn internal
   end type rpncomm_windef
-  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(C_NULL_PTR,0,0,0,0,.false.,.false.)
+  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(C_NULL_PTR,0,0,0,0,0,.false.,.false.)
 
   type, bind(C)    :: rpncomm_bnds
     integer(c_int) :: lo, hi, lnp, gnp  ! low bound, high bound, local dimension, global dimension

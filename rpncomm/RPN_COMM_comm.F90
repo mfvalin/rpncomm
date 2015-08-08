@@ -263,6 +263,6 @@ end module rpncomm_com
 
         ctyp%p = C_LOC(WORLD_COMM_MPI)            ! signature
         ctyp%t2 = RPN_COMM_comm(ctyp_c)           ! communicator value
-        ctyp%t1 = -ctyp%t2                        ! - communicator value
+        ctyp%t1 = ieor(ctyp%t2,RPN_COMM_MAGIC)     ! xor with magic token
         end subroutine RPN_COMM_i_comm                    !InTf!
 

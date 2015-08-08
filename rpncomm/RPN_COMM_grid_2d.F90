@@ -83,13 +83,14 @@ contains
 
   function find_grid(id) result(indx)   ! find index in table gt associated to grid_id id
     implicit none
+    include 'RPN_COMM_constants.inc'
     integer, intent(IN) :: id
     integer :: indx
 
     integer :: i
 
     indx = -1
-    i = ieor(id,Z'CAFEFADE')
+    i = ieor(id,RPN_COMM_MAGIC)
     if(i <= 0 .or. i > MAX_GRIDS) return  ! invalid index, not a grid_id
     if(gt(i)%grid_id /= id)       return  ! wrong grid id, index is not coherent
     indx = i
@@ -148,7 +149,7 @@ function rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj) result (grid_id)  !
   enddo
   gt(ix)%lnj     = gt(ix)%count_j(pe_mey + 1)    ! adjust local lnj
 
-  gt(ix)%grid_id = ieor(ix , Z'CAFEFADE')
+  gt(ix)%grid_id = ieor(ix , RPN_COMM_MAGIC)
   grid_id = gt(ix)%grid_id
 
 end function rpn_comm_create_2dgrid                                    !InTf!
@@ -234,7 +235,7 @@ function rpn_comm_2dgrid_test(nparams,params) result(status)
     maxj = lnj + 4
     do i = 1, 5
       grid_id = rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj)
-      if(pe_me == 0) print 100,'grid id =',grid_id,ieor(grid_id,z'CAFEFADE')
+      if(pe_me == 0) print 100,'grid id =',grid_id,ieor(grid_id,RPN_COMM_MAGIC)
       gni = gni + 1
       gnj = gnj + 1
       gid(i) = grid_id
@@ -251,7 +252,7 @@ function rpn_comm_2dgrid_test(nparams,params) result(status)
           print 101,'                              counti',counti(1:pe_nx)
           print 101,'                              startj',startj(1:pe_ny)
           print 101,'                              countj',countj(1:pe_ny)
-          print 100,'SUCCESS: id =',gid(i),ieor(gid(i),Z'cafefade')
+          print 100,'SUCCESS: id =',gid(i),ieor(gid(i),RPN_COMM_MAGIC)
         else
           print 100,'ERROR: id, status =',gid(i),status
         endif

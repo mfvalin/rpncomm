@@ -129,14 +129,13 @@ contains
 
   is_valid = .false.
 
-  if(.not. c_associated(window%p)) return    ! no win_tab entry pointer
-  if(window%t1 + window%t2 .ne. 0) return    ! bad tags
+  if( ieor(window%t1,RPN_COMM_MAGIC) .ne. window%t2 )   return  ! inconsistent tags
   if(window%t2 < 0 .or. window%t2>RPN_COMM_MAX_WINDOWS) return  ! invalid index
 
-  temp = c_loc(win_tab(window%t2))
-  if( .not.c_associated(window%p,temp)) return     ! window%p must point to proper entry in window table
+  temp = c_loc(win_tab(window%t2))                 ! address of relevant win_tab entry
+  if( .not.c_associated(window%p,temp)) return     ! window%p must point to win_tab(window%t2)
 
-  is_valid = valid_win_entry(window%p)             ! check that window description is good
+  is_valid = valid_win_entry(window%p)             ! check that window description in table is good
   return
 
 end function win_valid
@@ -181,9 +180,9 @@ subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
   call create_win_entry(array,dtype%t2,siz,com%t2,indx,ierr)
   if(ierr .ne. RPN_COMM_OK) return
 
-  window%p = c_loc(win_tab(indx))   ! point to entry in window table
-  window%t1 = -indx
-  window%t2 = indx                  ! index into table
+  window%p = c_loc(win_tab(indx))        ! point to entry in window table
+  window%t1 = ieor(indx,RPN_COMM_MAGIC)  ! xor with magic token
+  window%t2 = indx                       ! index into table
 
   ierr = RPN_COMM_OK
   return
@@ -202,9 +201,21 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(INOUT) :: window                       !InTf!
 
+  integer :: indx
+
   ierr = RPN_COMM_ERROR
   if(.not. win_valid(window) ) return
-! MISSING CODE HERE
+
+  indx = window%t2
+  window = NULL_rpncomm_window
+
+  if(.not. win_tab(indx)%is_user) then   ! internal storage allocation, release it
+    call MPI_free_mem(win_tab(indx)%base,ierr)
+  endif
+  win_tab(indx) = NULL_rpncomm_windef              ! blank entry
+  win_tab(indx)%com = MPI_COMM_NULL                ! with MPI null communicator
+  win_tab(indx)%typ = MPI_DATATYPE_NULL            ! and MPI null datatype
+
   ierr = RPN_COMM_OK
   return
 
@@ -222,10 +233,18 @@ subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
 
+  integer :: ierr2, indx
+  logical ::is_open
+  logical, external :: RPN_COMM_i_win_check
+
   ierr = RPN_COMM_ERROR
-  if(.not. win_valid(window) ) return
-! MISSING CODE HERE
-  ierr = RPN_COMM_OK
+  indx = window%t2                   ! window table entry for this window
+  is_open = RPN_COMM_i_win_check(window,ierr2)
+  if(is_open .or. ierr2 .ne. RPN_COMM_OK) return    ! ERROR: window is already open (exposed) or not valid
+
+  call MPI_win_fence(0,win_tab(indx)%win,ierr2)
+
+  if(ierr2 .eq. MPI_SUCCESS) ierr = RPN_COMM_OK
   return
 
 end subroutine RPN_COMM_i_win_open                                    !InTf!
@@ -243,10 +262,18 @@ subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
 
+  integer :: ierr2, indx
+  logical :: is_not_open
+  logical, external :: RPN_COMM_i_win_check
+
   ierr = RPN_COMM_ERROR
-  if(.not. win_valid(window) ) return
-! MISSING CODE HERE
-  ierr = RPN_COMM_OK
+  indx = window%t2                   ! window table entry for this window
+  is_not_open = .not. RPN_COMM_i_win_check(window,ierr2)
+  if(is_not_open .or. ierr2 .ne. RPN_COMM_OK) return    ! ERROR: window is not open (exposed) or not valid
+
+  call MPI_win_fence(0,win_tab(indx)%win,ierr2)
+
+  if(ierr2 .eq. MPI_SUCCESS) ierr = RPN_COMM_OK
   return
 
 end subroutine RPN_COMM_i_win_close                                   !InTf!
@@ -283,10 +310,15 @@ function RPN_COMM_i_win_check(window,ierr) result(is_open)            !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   logical :: is_open                                                  !InTf!
 
+  integer :: indx
+
   ierr = RPN_COMM_ERROR
   is_open = .false.
   if(.not. win_valid(window) ) return
-! MISSING CODE HERE
+
+  indx = window%t2                   ! window table entry for this window
+  is_open = win_tab(indx)%is_open    ! get open (exposed) flag from window table entry
+
   ierr = RPN_COMM_OK
   return
 
