@@ -17,8 +17,9 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
+!===============================================================================
 ! one sided communication window management code
-!
+!===============================================================================
 module RPN_COMM_windows
   use ISO_C_BINDING
   implicit none
@@ -27,7 +28,7 @@ module RPN_COMM_windows
   include 'RPN_COMM_types_int.inc'
   include 'RPN_COMM_constants.inc'
   integer, parameter :: RPN_COMM_MAX_WINDOWS = 64
-  type(rpncomm_windef), dimension(:), pointer, save :: win_tab => NULL()
+  type(rpncomm_windef), dimension(:), pointer, save :: win_tab => NULL()  ! rpn comm window table
 contains
 !===============================================================================
 ! allocate and initialize internal single sided communication wwindows table
@@ -40,8 +41,8 @@ contains
     allocate(win_tab(RPN_COMM_MAX_WINDOWS))
     do i = 1 , RPN_COMM_MAX_WINDOWS
       win_tab(i) = NULL_rpncomm_windef              ! null entry
-      win_tab(i)%com = MPI_COMM_NULL                ! with null communicator
-      win_tab(i)%typ = MPI_DATATYPE_NULL            ! and null datatype
+      win_tab(i)%com = MPI_COMM_NULL                ! with MPI null communicator
+      win_tab(i)%typ = MPI_DATATYPE_NULL            ! and MPI null datatype
     enddo
   end subroutine init_win_tab
 
@@ -52,14 +53,15 @@ contains
     implicit none
     type(C_PTR), intent(IN), value :: win_ptr        ! pointer to entry in win_tab
     logical :: is_valid
+
     type(rpncomm_windef), pointer :: win_entry
     type(C_PTR) :: temp
 
     is_valid = .false.
-    if(.not. c_associated(win_ptr)) return           ! pointer to table entry is not valid_win
+    if(.not. c_associated(win_ptr)) return           ! pointer to table entry is not valid
     if(.not. associated(win_tab)) return             ! win_tab does not exist yet
 
-    call c_f_ptr(win_ptr,win_entry)                  ! make pointer to win_entry
+    call c_f_ptr(win_ptr,win_entry)                  ! make pointer to win_entry from win_ptr
 
     if(win_entry%indx <=0 .or. win_entry%indx>RPN_COMM_MAX_WINDOWS) return  ! impossible index into window table
     temp = c_loc(win_tab(win_entry%indx))            ! address pointed to by entry index
@@ -69,22 +71,23 @@ contains
     if(win_entry%typ == MPI_DATATYPE_NULL) return    ! no datatype
     if(win_entry%siz <= 0) return                    ! invalid size
 
-    is_valid = .true.
+    is_valid = .true.                                ! no more reason to think entry is not valid
 
   end function valid_win_entry
 
 !===============================================================================
 ! create a new one sided communication window
 !
-! if base is a NULL pointer (C_NULL_PTR), allocate an internal array
+! if argument base is a NULL pointer (C_NULL_PTR), allocate an internal array
+! using the recommended MPI_alloc_mem MPI routine
 !===============================================================================
   subroutine create_win_entry(base,typ,siz,comm,indx,ierr)
     implicit none
-    type(C_PTR), intent(IN), value :: base ! base address of array exposed through window
+    type(C_PTR), intent(IN), value :: base ! base address of array exposed through window (may be C_NULL_PTR)
     integer, intent(IN) :: typ             ! MPI data type
-    integer, intent(IN) :: siz             ! number of elements
-    integer, intent(IN) :: comm            ! MPI communicator for one sided window
-    integer, intent(OUT) :: indx           ! index into wintab of created window
+    integer, intent(IN) :: siz             ! number of elements in array associated to this window
+    integer, intent(IN) :: comm            ! MPI communicator for this one sided window
+    integer, intent(OUT) :: indx           ! index into wintab of created window (used for consistency test)
     integer, intent(OUT) :: ierr           ! return status (RPN_COMM_ERROR or RPN_COMM_OK)
     integer :: i, extent, ierror
 
@@ -92,33 +95,57 @@ contains
     ierr = RPN_COMM_ERROR                  ! preset for failure
     indx = -1
 
-    do i = 1 , RPN_COMM_MAX_WINDOWS        ! loop over window table entries (we are looking for an unused entry)
-      if(.not. c_associated(win_tab(i)%base) ) then
+    do i = 1 , RPN_COMM_MAX_WINDOWS        ! loop over window table entries (we are looking for a free entry)
+      if(.not. c_associated(win_tab(i)%base) ) then  ! this entry is free
         if(c_associated(base)) then    ! user has already allocated space
           win_tab(i)%base = base
         else                           ! allocate needed space with MPI_alloc_mem
-          call MPI_TYPE_EXTENT(typ, extent, ierror)
-          if(ierror .ne. MPI_SUCCESS) return     ! invalid type ? 
+          call MPI_TYPE_EXTENT(typ, extent, ierror)  ! determine size associated with MPI datatype
+          if(ierror .ne. MPI_SUCCESS) return     ! invalid type ? other error ?
           call MPI_alloc_mem(extent*siz, MPI_INFO_NULL, win_tab(i)%base,ierr)
           if(ierr .ne. MPI_SUCCESS) return       ! could not allocate memory
         endif
         indx = i
-        win_tab(i)%is_open = .false.
-        win_tab(i)%is_user = c_associated(base)
-        win_tab(i)%typ = typ
-        win_tab(i)%indx = indx        ! entry index points to itself
-        win_tab(i)%siz = siz
-        win_tab(i)%com = comm
-        ierr = RPN_COMM_OK
+        win_tab(i)%is_open = .false.             ! window is not "exposed"
+        win_tab(i)%is_user = c_associated(base)  ! user supplied space ?
+        win_tab(i)%typ = typ                     ! MPI data type associated to window
+        win_tab(i)%indx = indx                   ! entry index points to itself
+        win_tab(i)%siz = siz                     ! number of elements in window
+        win_tab(i)%com = comm                    ! communicator associated with window
+        ierr = RPN_COMM_OK                       ! all is well
         return
       endif
     enddo
+    return  ! if we fall through the loop, the table was full, ew will return RPN_COMM_ERROR
   end subroutine create_win_entry
+!===============================================================================
+! check if window is indeed a valid one
+!===============================================================================
+  function win_valid(window) result(is_valid)
+  implicit none
+  type(rpncomm_window), intent(IN) :: window
+  logical :: is_valid
+  type(C_PTR) :: temp
+
+  is_valid = .false.
+
+  if(.not. c_associated(window%p)) return    ! no win_tab entry pointer
+  if(window%t1 + window%t2 .ne. 0) return    ! bad tags
+  if(window%t2 < 0 .or. window%t2>RPN_COMM_MAX_WINDOWS) return  ! invalid index
+
+  temp = c_loc(win_tab(window%t2))
+  if( .not.c_associated(window%p,temp)) return     ! window%p must point to proper entry in window table
+
+  is_valid = valid_win_entry(window%p)             ! check that window description is good
+  return
+
+end function win_valid
+
 end module RPN_COMM_windows
 
 !InTf!
 !===============================================================================
-! create a one sided communication window
+! create a one sided communication window (user exposed interface)
 !
 ! window (OUT)     rpn_comm window type returned to caller (see RPN_COMM_types.inc)
 ! dtype  (IN)      rpn_comm datatype descriptor (see RPN_COMM_types.inc)
@@ -163,6 +190,9 @@ subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
 
 end subroutine RPN_COMM_i_win_create                                  !InTf!
 
+!===============================================================================
+! delete a previously created one sided communication window (see RPN_COMM_i_win_create)
+!===============================================================================
 !InTf!
 subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
   use RPN_COMM_windows
@@ -173,8 +203,16 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
   type(rpncomm_window), intent(INOUT) :: window                       !InTf!
 
   ierr = RPN_COMM_ERROR
+  if(.not. win_valid(window) ) return
+! MISSING CODE HERE
+  ierr = RPN_COMM_OK
+  return
+
 end subroutine RPN_COMM_i_win_free                                    !InTf!
 
+!===============================================================================
+! "expose" a one sided communication window (see RPN_COMM_i_win_create)
+!===============================================================================
 !InTf!
 subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
   use RPN_COMM_windows
@@ -185,8 +223,17 @@ subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
 
   ierr = RPN_COMM_ERROR
+  if(.not. win_valid(window) ) return
+! MISSING CODE HERE
+  ierr = RPN_COMM_OK
+  return
+
 end subroutine RPN_COMM_i_win_open                                    !InTf!
 
+!===============================================================================
+! stop "exposing" a one sided communication window (see RPN_COMM_i_win_create)
+! the result of all remotely performed get/put operations may now be used
+!===============================================================================
 !InTf!
 subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
   use RPN_COMM_windows
@@ -197,6 +244,11 @@ subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
 
   ierr = RPN_COMM_ERROR
+  if(.not. win_valid(window) ) return
+! MISSING CODE HERE
+  ierr = RPN_COMM_OK
+  return
+
 end subroutine RPN_COMM_i_win_close                                   !InTf!
 
 !InTf!
@@ -211,19 +263,16 @@ function RPN_COMM_i_win_valid(window,ierr) result(is_valid)           !InTf!
   type(C_PTR) :: temp
 
   ierr = RPN_COMM_ERROR
-  is_valid = .false.
-
-  if(.not. c_associated(window%p)) return    ! no win_tab entry pointer
-  if(window%t1 + window%t2 .ne. 0) return    ! bad tags
-  if(window%t2 < 0 .or. window%t2>RPN_COMM_MAX_WINDOWS) return  ! invalid index
-
-  temp = c_loc(win_tab(window%t2))
-  if( .not.c_associated(window%p,temp)) return     ! window%p must point to proper entry in window table
-
-  is_valid = valid_win_entry(window%p)             ! check that window description is good
+  is_valid = win_valid(window)
+  if(.not. is_valid ) return             ! check that window description is valid
+  ierr = RPN_COMM_OK
+  return
 
 end function RPN_COMM_i_win_valid                                     !InTf!
 
+!===============================================================================
+! check if a one sided communication window (see RPN_COMM_i_win_create) is "exposed"
+!===============================================================================
 !InTf!
 function RPN_COMM_i_win_check(window,ierr) result(is_open)            !InTf!
   use RPN_COMM_windows
@@ -236,6 +285,11 @@ function RPN_COMM_i_win_check(window,ierr) result(is_open)            !InTf!
 
   ierr = RPN_COMM_ERROR
   is_open = .false.
+  if(.not. win_valid(window) ) return
+! MISSING CODE HERE
+  ierr = RPN_COMM_OK
+  return
+
 end function RPN_COMM_i_win_check                                     !InTf!
 
 !InTf!
@@ -252,6 +306,11 @@ subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
 
   ierr = RPN_COMM_ERROR
+  if(.not. win_valid(window) ) return
+! MISSING CODE HERE
+  ierr = RPN_COMM_OK
+  return
+
 end subroutine RPN_COMM_i_win_put_r                                   !InTf!
 
 !InTf!
@@ -267,6 +326,11 @@ subroutine RPN_COMM_i_win_put_l(window,larray,offset,nelem,ierr)      !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
 
   ierr = RPN_COMM_ERROR
+  if(.not. win_valid(window) ) return
+! MISSING CODE HERE
+  ierr = RPN_COMM_OK
+  return
+
 end subroutine RPN_COMM_i_win_put_l                                   !InTf!
 
 !InTf!
@@ -283,6 +347,11 @@ subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
 
   ierr = RPN_COMM_ERROR
+  if(.not. win_valid(window) ) return
+! MISSING CODE HERE
+  ierr = RPN_COMM_OK
+  return
+
 end subroutine RPN_COMM_i_win_get_r                                   !InTf!
 
 !InTf!
@@ -298,4 +367,9 @@ subroutine RPN_COMM_i_win_get_l(window,larray,offset,nelem,ierr)      !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
 
   ierr = RPN_COMM_ERROR
+  if(.not. win_valid(window) ) return
+! MISSING CODE HERE
+  ierr = RPN_COMM_OK
+  return
+
 end subroutine RPN_COMM_i_win_get_l                                   !InTf!
