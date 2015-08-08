@@ -28,6 +28,7 @@ module RPN_COMM_windows
   include 'RPN_COMM_types_int.inc'
   include 'RPN_COMM_constants.inc'
   integer, parameter :: RPN_COMM_MAX_WINDOWS = 64
+  integer, save :: integer_size = 0
   type(rpncomm_windef), dimension(:), pointer, save :: win_tab => NULL()  ! rpn comm window table
 contains
 !===============================================================================
@@ -43,7 +44,9 @@ contains
       win_tab(i) = NULL_rpncomm_windef              ! null entry
       win_tab(i)%com = MPI_COMM_NULL                ! with MPI null communicator
       win_tab(i)%typ = MPI_DATATYPE_NULL            ! and MPI null datatype
+      win_tab(i)%win = MPI_WIN_NULL                 ! MPI null window
     enddo
+    call MPI_TYPE_EXTENT(MPI_INTEGER, integer_size, i) ! get size of MPI_INTEGER
   end subroutine init_win_tab
 
 !===============================================================================
@@ -69,6 +72,7 @@ contains
     if(.not. c_associated(win_entry%base)) return    ! no array associated with entry
     if(win_entry%com == MPI_COMM_NULL) return        ! no communicator
     if(win_entry%typ == MPI_DATATYPE_NULL) return    ! no datatype
+    if(win_entry%win == MPI_WIN_NULL) return         ! no window
     if(win_entry%siz <= 0) return                    ! invalid size
 
     is_valid = .true.                                ! no more reason to think entry is not valid
@@ -97,18 +101,21 @@ contains
 
     do i = 1 , RPN_COMM_MAX_WINDOWS        ! loop over window table entries (we are looking for a free entry)
       if(.not. c_associated(win_tab(i)%base) ) then  ! this entry is free
+        call MPI_TYPE_EXTENT(typ, extent, ierror)  ! determine size associated with MPI datatype
+        if( mod(extent,integer_size) .ne. 0 ) return    ! extent of data type not a multiple of integer
+        if(ierror .ne. MPI_SUCCESS) return         ! invalid type ? other error ?
         if(c_associated(base)) then    ! user has already allocated space
           win_tab(i)%base = base
         else                           ! allocate needed space with MPI_alloc_mem
-          call MPI_TYPE_EXTENT(typ, extent, ierror)  ! determine size associated with MPI datatype
-          if(ierror .ne. MPI_SUCCESS) return     ! invalid type ? other error ?
           call MPI_alloc_mem(extent*siz, MPI_INFO_NULL, win_tab(i)%base,ierr)
           if(ierr .ne. MPI_SUCCESS) return       ! could not allocate memory
         endif
         indx = i
+        call c_f_ptr(win_tab(i)%base,win_tab(i)%remote,extent*siz)
         win_tab(i)%is_open = .false.             ! window is not "exposed"
         win_tab(i)%is_user = c_associated(base)  ! user supplied space ?
         win_tab(i)%typ = typ                     ! MPI data type associated to window
+        win_tab(i)%ext = extent/integer_size     ! size (extent) of MPI data type in MPI_INTEGER units
         win_tab(i)%indx = indx                   ! entry index points to itself
         win_tab(i)%siz = siz                     ! number of elements in window
         win_tab(i)%com = comm                    ! communicator associated with window
@@ -128,6 +135,7 @@ contains
   type(C_PTR) :: temp
 
   is_valid = .false.
+  if(.not. associated(win_tab)) call init_win_tab  ! create and initialize window table if necessary
 
   if( ieor(window%t1,RPN_COMM_MAGIC) .ne. window%t2 )   return  ! inconsistent tags
   if(window%t2 < 0 .or. window%t2>RPN_COMM_MAX_WINDOWS) return  ! invalid index
@@ -213,8 +221,9 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
     call MPI_free_mem(win_tab(indx)%base,ierr)
   endif
   win_tab(indx) = NULL_rpncomm_windef              ! blank entry
-  win_tab(indx)%com = MPI_COMM_NULL                ! with MPI null communicator
-  win_tab(indx)%typ = MPI_DATATYPE_NULL            ! and MPI null datatype
+  win_tab(indx)%com = MPI_COMM_NULL                ! MPI null communicator
+  win_tab(indx)%typ = MPI_DATATYPE_NULL            ! MPI null datatype
+  win_tab(indx)%win = MPI_WIN_NULL                 ! MPI null window
 
   ierr = RPN_COMM_OK
   return
@@ -324,6 +333,10 @@ function RPN_COMM_i_win_check(window,ierr) result(is_open)            !InTf!
 
 end function RPN_COMM_i_win_check                                     !InTf!
 
+!===============================================================================
+! one sided communication remote put (write) into one sided communication window
+! from a local array
+!===============================================================================
 !InTf!
 subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
   use RPN_COMM_windows
@@ -337,14 +350,32 @@ subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
 
+  logical :: is_open
+  integer :: ierr2, indx
+  logical, external :: RPN_COMM_i_win_check
+  integer, dimension(:), pointer :: local
+  type(rpncomm_windef), pointer :: win_entry
+
   ierr = RPN_COMM_ERROR
-  if(.not. win_valid(window) ) return
-! MISSING CODE HERE
-  ierr = RPN_COMM_OK
+  is_open = RPN_COMM_i_win_check(window,ierr2)
+  if( (.not. is_open) .or. (ierr2 .ne. MPI_SUCCESS) )  return  ! bad window reference or window not open (exposed)
+
+  indx = window%t2
+  call c_f_ptr( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
+  if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
+  call c_f_ptr( larray , local, nelem* win_entry%ext )   ! pointer to local array
+
+  call MPI_put(local,nelem,win_entry%typ,target,offset,nelem,win_entry%typ,win_entry%win,ierr2)
+
+  if(ierr2 == MPI_SUCCESS) ierr = RPN_COMM_OK
   return
 
 end subroutine RPN_COMM_i_win_put_r                                   !InTf!
 
+!===============================================================================
+! one sided communication local put (write) into one sided communication window
+! from a local array
+!===============================================================================
 !InTf!
 subroutine RPN_COMM_i_win_put_l(window,larray,offset,nelem,ierr)      !InTf!
   use RPN_COMM_windows
@@ -357,14 +388,34 @@ subroutine RPN_COMM_i_win_put_l(window,larray,offset,nelem,ierr)      !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
 
+  logical :: is_open
+  integer :: ierr2, i, indx, extent
+  type(rpncomm_windef), pointer :: win_entry
+  integer, dimension(:), pointer :: local
+  logical, external :: RPN_COMM_i_win_check
+
   ierr = RPN_COMM_ERROR
-  if(.not. win_valid(window) ) return
-! MISSING CODE HERE
+  is_open = RPN_COMM_i_win_check(window,ierr2)
+  if( (is_open) .or. (ierr2 .ne. MPI_SUCCESS) )  return  ! bad window reference or window open (exposed)
+
+  indx = window%t2
+  call c_f_ptr( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
+  if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
+  extent = win_entry%ext
+  call c_f_ptr( larray , local, nelem*extent )                   ! pointer to local array
+  do i = 1, nelem*extent
+    win_entry%remote(i+offset*extent) = local(i)
+  enddo
+
   ierr = RPN_COMM_OK
   return
 
 end subroutine RPN_COMM_i_win_put_l                                   !InTf!
 
+!===============================================================================
+! one sided communication remote get (read) from one sided communication window
+! into a local array
+!===============================================================================
 !InTf!
 subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
   use RPN_COMM_windows
@@ -378,14 +429,32 @@ subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
 
+  logical :: is_open
+  integer :: ierr2, indx
+  logical, external :: RPN_COMM_i_win_check
+  integer, dimension(:), pointer :: local
+  type(rpncomm_windef), pointer :: win_entry
+
   ierr = RPN_COMM_ERROR
-  if(.not. win_valid(window) ) return
-! MISSING CODE HERE
-  ierr = RPN_COMM_OK
+  is_open = RPN_COMM_i_win_check(window,ierr2)
+  if( (.not. is_open) .or. (ierr2 .ne. MPI_SUCCESS) )  return  ! bad window reference or window not open (exposed)
+
+  indx = window%t2
+  call c_f_ptr( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
+  if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
+  call c_f_ptr( larray , local, nelem* win_entry%ext )   ! pointer to local array
+
+  call MPI_get(local,nelem,win_entry%typ,target,offset,nelem,win_entry%typ,win_entry%win,ierr2)
+
+  if(ierr2 == MPI_SUCCESS) ierr = RPN_COMM_OK
   return
 
 end subroutine RPN_COMM_i_win_get_r                                   !InTf!
 
+!===============================================================================
+! one sided communication local get (read) from one sided communication window
+! into a local array
+!===============================================================================
 !InTf!
 subroutine RPN_COMM_i_win_get_l(window,larray,offset,nelem,ierr)      !InTf!
   use RPN_COMM_windows
@@ -398,9 +467,25 @@ subroutine RPN_COMM_i_win_get_l(window,larray,offset,nelem,ierr)      !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
 
+  logical :: is_open
+  integer :: ierr2, i, indx, extent
+  type(rpncomm_windef), pointer :: win_entry
+  integer, dimension(:), pointer :: local
+  logical, external :: RPN_COMM_i_win_check
+
   ierr = RPN_COMM_ERROR
-  if(.not. win_valid(window) ) return
-! MISSING CODE HERE
+  is_open = RPN_COMM_i_win_check(window,ierr2)
+  if( (.not. is_open) .or. (ierr2 .ne. MPI_SUCCESS) )  return  ! bad window reference or window open (exposed)
+
+  indx = window%t2
+  call c_f_ptr( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
+  if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
+  extent = win_entry%ext
+  call c_f_ptr( larray , local, nelem*extent )                   ! pointer to local array
+  do i = 1, nelem*extent
+     local(i) = win_entry%remote(i+offset*extent)
+  enddo
+
   ierr = RPN_COMM_OK
   return
 
