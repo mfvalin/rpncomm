@@ -57,59 +57,67 @@ interface RPN_COMM_c2f
 end interface
 
 interface RPN_COMM_f2c
-  function type_f2c(ftn) result(c) bind(C,name='RPN_COMM_type_f2c')
-    import :: C_PTR, rpncomm_datatype
+  function type_f2c(ftn,mpi_fval) result(c) bind(C,name='RPN_COMM_type_f2c')
+    import :: C_PTR, rpncomm_datatype, C_INT
     implicit none
-    type(rpncomm_datatype), intent(IN) :: ftn
+    type(rpncomm_datatype), intent(INOUT) :: ftn
+    integer(C_INT), intent(IN), value :: mpi_fval
     type(C_PTR) :: c
   end function type_f2c
 
-  function group_f2c(ftn) result(c) bind(C,name='RPN_COMM_group_f2c')
-    import :: C_PTR, rpncomm_group
+  function group_f2c(ftn,mpi_fval) result(c) bind(C,name='RPN_COMM_group_f2c')
+    import :: C_PTR, rpncomm_group, C_INT
     implicit none
-    type(rpncomm_group), intent(IN) :: ftn
+    type(rpncomm_group), intent(INOUT) :: ftn
+    integer(C_INT), intent(IN), value :: mpi_fval
     type(C_PTR) :: c
   end function group_f2c
 
-  function win_f2c(ftn) result(c) bind(C,name='RPN_COMM_window_f2c')
-    import :: C_PTR, rpncomm_window
+  function win_f2c(ftn,mpi_fval) result(c) bind(C,name='RPN_COMM_window_f2c')
+    import :: C_PTR, rpncomm_window, C_INT
     implicit none
-    type(rpncomm_window), intent(IN) :: ftn
+    type(rpncomm_window), intent(INOUT) :: ftn
+    integer(C_INT), intent(IN), value :: mpi_fval
     type(C_PTR) :: c
   end function win_f2c
 
-  function op_f2c(ftn) result(c) bind(C,name='RPN_COMM_op_f2c')
-    import :: C_PTR, rpncomm_operator
+  function op_f2c(ftn,mpi_fval) result(c) bind(C,name='RPN_COMM_op_f2c')
+    import :: C_PTR, rpncomm_operator, C_INT
     implicit none
-    type(rpncomm_operator), intent(IN) :: ftn
+    type(rpncomm_operator), intent(INOUT) :: ftn
+    integer(C_INT), intent(IN), value :: mpi_fval
     type(C_PTR) :: c
   end function op_f2c
 
-  function file_f2c(ftn) result(c) bind(C,name='RPN_COMM_comm_f2c')
-    import :: C_PTR, rpncomm_file
+  function file_f2c(ftn,mpi_fval) result(c) bind(C,name='RPN_COMM_comm_f2c')
+    import :: C_PTR, rpncomm_file, C_INT
     implicit none
-    type(rpncomm_file), intent(IN) :: ftn
+    type(rpncomm_file), intent(INOUT) :: ftn
+    integer(C_INT), intent(IN), value :: mpi_fval
     type(C_PTR) :: c
   end function file_f2c
 
-  function comm_f2c(ftn) result(c) bind(C,name='RPN_COMM_comm_f2c')
-    import :: C_PTR, rpncomm_communicator
+  function comm_f2c(ftn,mpi_fval) result(c) bind(C,name='RPN_COMM_comm_f2c')
+    import :: C_PTR, rpncomm_communicator, C_INT
     implicit none
-    type(rpncomm_communicator), intent(IN) :: ftn
+    type(rpncomm_communicator), intent(INOUT) :: ftn
+    integer(C_INT), intent(IN), value :: mpi_fval
     type(C_PTR) :: c
   end function comm_f2c
 
-  function req_f2c(ftn) result(c) bind(C,name='RPN_COMM_request_f2c')
-    import :: C_PTR, rpncomm_request
+  function req_f2c(ftn,mpi_fval) result(c) bind(C,name='RPN_COMM_request_f2c')
+    import :: C_PTR, rpncomm_request, C_INT
     implicit none
-    type(rpncomm_request), intent(IN) :: ftn
+    type(rpncomm_request), intent(INOUT) :: ftn
+    integer(C_INT), intent(IN), value :: mpi_fval
     type(C_PTR) :: c
   end function req_f2c
 
-  function info_f2c(ftn) result(c) bind(C,name='RPN_COMM_info_f2c')
-    import :: C_PTR, rpncomm_info
+  function info_f2c(ftn,mpi_fval) result(c) bind(C,name='RPN_COMM_info_f2c')
+    import :: C_PTR, rpncomm_info, C_INT
     implicit none
-    type(rpncomm_info), intent(IN) :: ftn
+    type(rpncomm_info), intent(INOUT) :: ftn
+    integer(C_INT), intent(IN), value :: mpi_fval
     type(C_PTR) :: c
   end function info_f2c
 end interface
