@@ -11,7 +11,6 @@ subroutine rpn_comm_test_012
   implicit none
   include 'mpif.h'
   include 'RPN_COMM_types.inc'
-  include 'RPN_COMM_ftoc.inc'
 
   type(rpncomm_datatype) :: my_type
   type(rpncomm_group) :: my_group

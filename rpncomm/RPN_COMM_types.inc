@@ -98,3 +98,8 @@
     integer(c_int) :: t2    ! tag2 (reserved for rpn_comm usage)
   end type rpncomm_pattern
   type(rpncomm_pattern), parameter :: NULL_rpncomm_pattern = rpncomm_pattern(C_NULL_PTR,0,0)
+!
+! add interfaces to fortran <-> c conversion routines
+!
+include 'RPN_COMM_ftoc.inc'
+
