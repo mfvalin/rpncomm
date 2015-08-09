@@ -43,6 +43,27 @@
   end type rpncomm_communicator
   type(rpncomm_communicator), parameter :: NULL_rpncomm_communicator = rpncomm_communicator(C_NULL_PTR,0,0)
 
+  type, bind(C)    :: rpncomm_info
+    type(c_ptr)    :: p
+    integer(c_int) :: t1    ! tag1 (reserved for rpn_comm usage)
+    integer(c_int) :: t2    ! tag2 (reserved for rpn_comm usage)
+  end type rpncomm_info
+  type(rpncomm_info), parameter :: NULL_rpncomm_info = rpncomm_info(C_NULL_PTR,0,0)
+
+  type, bind(C)    :: rpncomm_file
+    type(c_ptr)    :: p
+    integer(c_int) :: t1    ! tag1 (reserved for rpn_comm usage)
+    integer(c_int) :: t2    ! tag2 (reserved for rpn_comm usage)
+  end type rpncomm_file
+  type(rpncomm_file), parameter :: NULL_rpncomm_file = rpncomm_file(C_NULL_PTR,0,0)
+
+  type, bind(C)    :: rpncomm_request
+    type(c_ptr)    :: p
+    integer(c_int) :: t1    ! tag1 (reserved for rpn_comm usage)
+    integer(c_int) :: t2    ! tag2 (reserved for rpn_comm usage)
+  end type rpncomm_request
+  type(rpncomm_request), parameter :: NULL_rpncomm_request = rpncomm_request(C_NULL_PTR,0,0)
+
   type, bind(C)    :: rpncomm_datatype
     type(c_ptr)    :: p
     integer(c_int) :: t1    ! tag1 (reserved for rpn_comm usage)
