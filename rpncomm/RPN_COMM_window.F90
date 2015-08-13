@@ -151,6 +151,10 @@ end function win_valid
 
 end module RPN_COMM_windows
 
+!===============================================================================
+! beginning of USER CALLABLE routines/functions
+!===============================================================================
+
 !InTf!
 subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
 !===============================================================================
@@ -202,6 +206,9 @@ end subroutine RPN_COMM_i_win_create                                  !InTf!
 subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
 !===============================================================================
 ! delete a previously created one sided communication window (see RPN_COMM_i_win_create)
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
   use RPN_COMM_windows
   implicit none
@@ -235,6 +242,9 @@ end subroutine RPN_COMM_i_win_free                                    !InTf!
 subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
 !===============================================================================
 ! "expose" a one sided communication window (see RPN_COMM_i_win_create)
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
   use RPN_COMM_windows
   implicit none
@@ -264,6 +274,9 @@ subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
 !===============================================================================
 ! stop "exposing" a one sided communication window (see RPN_COMM_i_win_create)
 ! the result of all remotely performed get/put operations may now be used
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
   use RPN_COMM_windows
   implicit none
@@ -292,6 +305,11 @@ end subroutine RPN_COMM_i_win_close                                   !InTf!
 function RPN_COMM_i_win_valid(window,ierr) result(is_valid)           !InTf!
 !===============================================================================
 ! find if a one sided communication window description is valid
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
+!
+! function value : .true. (window description is valid) or .false. (not valid)
 !===============================================================================
   use RPN_COMM_windows
   implicit none
@@ -314,6 +332,11 @@ end function RPN_COMM_i_win_valid                                     !InTf!
 function RPN_COMM_i_win_check(window,ierr) result(is_open)            !InTf!
 !===============================================================================
 ! check if a one sided communication window (see RPN_COMM_i_win_create) is "exposed"
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
+!
+! function value : .true. (window "exposed") or .false. (window not "exposed")
 !===============================================================================
   use RPN_COMM_windows
   implicit none
@@ -341,6 +364,12 @@ end function RPN_COMM_i_win_check                                     !InTf!
 function RPN_COMM_i_get_data(window,ierr) result(ptr)                 !InTf!
 !===============================================================================
 ! get a one sided communication window (see RPN_COMM_i_win_create) data pointer
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
+!
+! function value : C compatible (type(C_PTR)) pointer to the data array associated with window
+!                  in case of error, C_NULL_PTR is returned (null pointer)
 !===============================================================================
   use RPN_COMM_windows
   implicit none
@@ -370,6 +399,13 @@ subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
 ! one sided communication remote put (write) into one sided communication window
 ! from a local array
 ! it is an error to attempt a "remote" put when the window is not "exposed"
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! larray (IN)     C compatible pointer (type(C_PTR)) to local array (source of put)
+! target (IN)     ordinal in window communicator of remote PE
+! offset (IN)     displacement (origin 0) into remote PE window data array
+! nelem  (IN)     number of elements to transfer (type of element was defined at window creation)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
   use RPN_COMM_windows
   implicit none
@@ -410,6 +446,12 @@ subroutine RPN_COMM_i_win_put_l(window,larray,offset,nelem,ierr)      !InTf!
 ! one sided communication local put (write) into one sided communication window
 ! from a local array
 ! it is an error to attempt a "local" put when the window is "exposed"
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! larray (IN)     C compatible pointer (type(C_PTR)) to local array (source of put)
+! offset (IN)     displacement (origin 0) into this PE window data array
+! nelem  (IN)     number of elements to transfer (type of element was defined at window creation)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
   use RPN_COMM_windows
   implicit none
@@ -451,6 +493,13 @@ subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
 ! one sided communication remote get (read) from one sided communication window
 ! into a local array
 ! it is an error to attempt a "remote" get when the window is not "exposed"
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! larray (IN)     C compatible pointer (type(C_PTR)) to local array (destination of get)
+! target (IN)     ordinal in window communicator of remote PE
+! offset (IN)     displacement (origin 0) into remote PE window data array
+! nelem  (IN)     number of elements to transfer (type of element was defined at window creation)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
   use RPN_COMM_windows
   implicit none
@@ -491,6 +540,12 @@ subroutine RPN_COMM_i_win_get_l(window,larray,offset,nelem,ierr)      !InTf!
 ! one sided communication local get (read) from one sided communication window
 ! into a local array
 ! it is an error to attempt a "local" get when the window is "exposed"
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! larray (IN)     C compatible pointer (type(C_PTR)) to local array (destination of get)
+! offset (IN)     displacement (origin 0) into this PE window data array
+! nelem  (IN)     number of elements to transfer (type of element was defined at window creation)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
   use RPN_COMM_windows
   implicit none
