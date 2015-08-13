@@ -175,12 +175,12 @@ subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
   integer, intent(IN) :: siz                                          !InTf!
   type(rpncomm_communicator), intent(IN) :: com                       !InTf!
   type(C_PTR), intent(IN), value :: array
-! !  integer :: array                                                  !InTf!
-! !  !DEC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
-! !  !GCC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
-! !  !IBM* ignore_tkr array                                            !InTf!
-! !  !DIR$ ignore_tkr array                                            !InTf!
-! !  !$PRAGMA ignore_tkr array                                         !InTf!
+!!  integer :: array                                                  !InTf!
+!!!DEC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
+!!!GCC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
+!!!IBM* ignore_tkr array                                            !InTf!
+!!!DIR$ ignore_tkr array                                            !InTf!
+!! !$PRAGMA ignore_tkr array                                         !InTf!
   integer :: indx
 
   ierr = RPN_COMM_ERROR
