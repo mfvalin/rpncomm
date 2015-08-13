@@ -17,6 +17,60 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
+#if defined(ROBODOC)
+!****P* rpn_comm/windows  simplified/restricted version of MPI one sided communications
+! DESCRIPTION
+!   This is a simplified and restricted version of MPI-2 one sided communications.
+!
+!   When creating the "communication window", some attributes are 
+!   determined for said window and will not change during its life.
+!   1 - the MPI communicator
+!   2 - the MPI data type of the elements contained in the window
+!   3 - the size of the window (in number of elements)
+!   4 - an array large enough to contain these elements
+!       (this array can either be supplied by the caller or allocated internall.
+!
+!   all further operations refer to the window by its "identifier" 
+!   Fortran type : type(rpncomm_window)  (include 'RPN_COMM_types.inc')
+!
+!   the window creation is a COLLECTIVE operation, all members of the communicator group
+!   must call RPN_COMM_i_win_create
+!
+!   "exposing" a window and terminating the "exposure" of a window are also a COLLECTIVE operation
+!
+!   remote get/put operations, i.e. sending read/write requests targeting the window
+!   belonging to a remote PE may only happen when the window is "exposed"
+!   remote operations are NOT ALLOWED when the window is "not exposed"
+!
+!   local get/put operations, i.e. reading/writing from/into the window
+!   belonging the local PE may only happen when the window is "not exposed"
+!   local operations are NOT ALLOWED whe the window is "exposed"
+!
+!   a typical sequence of operations would be
+!   1 - create a one sided communication window (COLLECTIVE operation)
+!    repeat as needed
+!    {
+!      2a - modify the local copy of the window (if and as needed)
+!      2b - "expose" the window (COLLECTIVE operation)
+!      2c - perform get/put operations targeting remote PEs (as needed on each PE)
+!      2d - "end exposing" the window (COLLECTIVE operation)
+!      2e - get modifications from the local copy of the window (if and as needed)
+!    }
+!   3 - free the one sided communication window (COLLECTIVE operation)
+!
+!   window creation/destruction : RPN_COMM_i_win_create, RPN_COMM_i_win_free
+!   window status queries       : RPN_COMM_i_win_valid, RPN_COMM_i_win_check
+!   window info queries         : RPN_COMM_i_win_get_ptr
+!   window "exposition"         : RPN_COMM_i_win_open, RPN_COMM_i_win_close
+!   window get operations       : RPN_COMM_i_win_get_r, RPN_COMM_i_win_get_l
+!   window put operations       : RPN_COMM_i_win_put_r, RPN_COMM_i_win_put_l
+!
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+!******
+#endif
+!****iP* rpn_comm/windows  one sided communication window management module
+! SYNOPSIS
 module RPN_COMM_windows
 !===============================================================================
 ! one sided communication window management code
@@ -27,14 +81,18 @@ module RPN_COMM_windows
   include 'RPN_COMM_types.inc'
   include 'RPN_COMM_types_int.inc'
   include 'RPN_COMM_constants.inc'
+!******
   integer, parameter :: RPN_COMM_MAX_WINDOWS = 64
   integer, save :: integer_size = 0
   type(rpncomm_windef), dimension(:), pointer, save :: win_tab => NULL()  ! rpn comm window table
 contains
+!****if* RPN_COMM_windows/init_win_tab
+! SYNOPSIS
   subroutine init_win_tab
 !===============================================================================
-! allocate and initialize internal single sided communication wwindows table
+! allocate and initialize internal single sided communication windows table
 !===============================================================================
+!******
     implicit none
     integer :: i
 
@@ -49,10 +107,13 @@ contains
     call MPI_TYPE_EXTENT(MPI_INTEGER, integer_size, i) ! get size of MPI_INTEGER
   end subroutine init_win_tab
 
+!****if* RPN_COMM_windows/win_ptr
+! SYNOPSIS
   function valid_win_entry(win_ptr) result(is_valid)
 !===============================================================================
 ! check if win_ptr (pointing into win_tab) points to a valid entry
 !===============================================================================
+!******
     implicit none
     type(C_PTR), intent(IN), value :: win_ptr        ! pointer to entry in win_tab
     logical :: is_valid
@@ -79,6 +140,8 @@ contains
 
   end function valid_win_entry
 
+!****if* RPN_COMM_windows/create_win_entry
+! SYNOPSIS
   subroutine create_win_entry(base,typ,siz,comm,indx,ierr)
 !===============================================================================
 ! create a new one sided communication window
@@ -86,6 +149,7 @@ contains
 ! if argument base is a NULL pointer (C_NULL_PTR), allocate an internal array
 ! using the recommended MPI_alloc_mem MPI routine
 !===============================================================================
+!******
     implicit none
     type(C_PTR), intent(IN), value :: base ! base address of array exposed through window (may be C_NULL_PTR)
     integer, intent(IN) :: typ             ! MPI data type
@@ -126,10 +190,13 @@ contains
     return  ! if we fall through the loop, the table was full, ew will return RPN_COMM_ERROR
   end subroutine create_win_entry
 
+!****if* RPN_COMM_windows/win_valid
+! SYNOPSIS
   function win_valid(window) result(is_valid)
 !===============================================================================
 ! check if window is indeed a valid one
 !===============================================================================
+!******
   implicit none
   type(rpncomm_window), intent(IN) :: window
   logical :: is_valid
@@ -156,9 +223,12 @@ end module RPN_COMM_windows
 !===============================================================================
 
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_create create a one sided communication window
+! SYNOPSIS
 subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
 !===============================================================================
 ! create a one sided communication window (user exposed interface)
+!===============================================================================
 !
 ! window (OUT)     rpn_comm window type returned to caller (see RPN_COMM_types.inc)
 ! dtype  (IN)      rpn_comm datatype descriptor (see RPN_COMM_types.inc)
@@ -169,22 +239,28 @@ subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
 !                  if not defined (equal to C_NULL_PTR), an internal array will be allocated and used
 ! ierr   (OUT)     RPN_COMM_OK or RPN_COMM_ERROR will be returned
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window, rpncomm_datatype, rpncomm_communicator  !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(OUT) :: window                         !InTf!
   type(rpncomm_datatype), intent(IN) :: dtype                         !InTf!
   integer, intent(IN) :: siz                                          !InTf!
   type(rpncomm_communicator), intent(IN) :: com                       !InTf!
-  type(C_PTR), intent(IN), value :: array
-!!  integer :: array                                                  !InTf!
-!!!DEC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
-!!!GCC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
-!!!IBM* ignore_tkr array                                            !InTf!
-!!!DIR$ ignore_tkr array                                            !InTf!
+  type(C_PTR), intent(IN), value :: array                             !InTf!
+! IGNORE
+!! !integer :: array                                                  !InTf!
+!! !DEC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
+!! !GCC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
+!! !IBM* ignore_tkr array                                            !InTf!
+!! !DIR$ ignore_tkr array                                            !InTf!
 !! !$PRAGMA ignore_tkr array                                         !InTf!
+!******
   integer :: indx
 
   ierr = RPN_COMM_ERROR
@@ -201,8 +277,9 @@ subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
   return
 
 end subroutine RPN_COMM_i_win_create                                  !InTf!
-
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_free free a one sided communication window
+! SYNOPSIS
 subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
 !===============================================================================
 ! delete a previously created one sided communication window (see RPN_COMM_i_win_create)
@@ -210,12 +287,17 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
 ! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
 ! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(INOUT) :: window                       !InTf!
+!******
 
   integer :: indx
 
@@ -239,6 +321,8 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
 end subroutine RPN_COMM_i_win_free                                    !InTf!
 
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_open open a one sided communication window
+! SYNOPSIS
 subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
 !===============================================================================
 ! "expose" a one sided communication window (see RPN_COMM_i_win_create)
@@ -246,12 +330,17 @@ subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
 ! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
 ! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
+!******
 
   integer :: ierr2, indx
   logical ::is_open
@@ -270,6 +359,8 @@ subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
 end subroutine RPN_COMM_i_win_open                                    !InTf!
 
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_close close a one sided communication window
+! SYNOPSIS
 subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
 !===============================================================================
 ! stop "exposing" a one sided communication window (see RPN_COMM_i_win_create)
@@ -278,12 +369,17 @@ subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
 ! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
 ! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
+!******
 
   integer :: ierr2, indx
   logical :: is_not_open
@@ -302,6 +398,8 @@ subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
 end subroutine RPN_COMM_i_win_close                                   !InTf!
 
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_valid check if a one sided communication window is valid
+! SYNOPSIS
 function RPN_COMM_i_win_valid(window,ierr) result(is_valid)           !InTf!
 !===============================================================================
 ! find if a one sided communication window description is valid
@@ -311,13 +409,18 @@ function RPN_COMM_i_win_valid(window,ierr) result(is_valid)           !InTf!
 !
 ! function value : .true. (window description is valid) or .false. (not valid)
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   logical :: is_valid                                                 !InTf!
+!******
   type(C_PTR) :: temp
 
   ierr = RPN_COMM_ERROR
@@ -329,6 +432,8 @@ function RPN_COMM_i_win_valid(window,ierr) result(is_valid)           !InTf!
 end function RPN_COMM_i_win_valid                                     !InTf!
 
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_check check if a one sided communication window is "exposed"
+! SYNOPSIS
 function RPN_COMM_i_win_check(window,ierr) result(is_open)            !InTf!
 !===============================================================================
 ! check if a one sided communication window (see RPN_COMM_i_win_create) is "exposed"
@@ -338,13 +443,18 @@ function RPN_COMM_i_win_check(window,ierr) result(is_open)            !InTf!
 !
 ! function value : .true. (window "exposed") or .false. (window not "exposed")
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   logical :: is_open                                                  !InTf!
+!******
 
   integer :: indx
 
@@ -361,7 +471,9 @@ function RPN_COMM_i_win_check(window,ierr) result(is_open)            !InTf!
 end function RPN_COMM_i_win_check                                     !InTf!
 
 !InTf!
-function RPN_COMM_i_get_data(window,ierr) result(ptr)                 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_get_ptr get data pointer associated to a one sided communication window
+! SYNOPSIS
+function RPN_COMM_i_win_get_ptr(window,ierr) result(ptr)                 !InTf!
 !===============================================================================
 ! get a one sided communication window (see RPN_COMM_i_win_create) data pointer
 !
@@ -371,13 +483,18 @@ function RPN_COMM_i_get_data(window,ierr) result(ptr)                 !InTf!
 ! function value : C compatible (type(C_PTR)) pointer to the data array associated with window
 !                  in case of error, C_NULL_PTR is returned (null pointer)
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   type(C_PTR) :: ptr                                                  !InTf!
+!******
 
   integer :: indx
 
@@ -391,9 +508,11 @@ function RPN_COMM_i_get_data(window,ierr) result(ptr)                 !InTf!
   ierr = RPN_COMM_OK
   return
 
-end function RPN_COMM_i_get_data                                      !InTf!
+end function RPN_COMM_i_win_get_ptr                                      !InTf!
 
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_put_r write into a remote one sided communication window
+! SYNOPSIS
 subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
 !===============================================================================
 ! one sided communication remote put (write) into one sided communication window
@@ -407,16 +526,21 @@ subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
 ! nelem  (IN)     number of elements to transfer (type of element was defined at window creation)
 ! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   type(C_PTR), intent(IN), value :: larray                            !InTf!
   integer, intent(IN) :: target                                       !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
+!******
 
   logical :: is_open
   integer :: ierr2, indx
@@ -441,6 +565,8 @@ subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
 end subroutine RPN_COMM_i_win_put_r                                   !InTf!
 
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_put_l write into a local one sided communication window
+! SYNOPSIS
 subroutine RPN_COMM_i_win_put_l(window,larray,offset,nelem,ierr)      !InTf!
 !===============================================================================
 ! one sided communication local put (write) into one sided communication window
@@ -453,15 +579,20 @@ subroutine RPN_COMM_i_win_put_l(window,larray,offset,nelem,ierr)      !InTf!
 ! nelem  (IN)     number of elements to transfer (type of element was defined at window creation)
 ! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   type(C_PTR), intent(IN), value :: larray                            !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
+!******
 
   logical :: is_open
   integer :: ierr2, i, indx, extent
@@ -488,6 +619,8 @@ subroutine RPN_COMM_i_win_put_l(window,larray,offset,nelem,ierr)      !InTf!
 end subroutine RPN_COMM_i_win_put_l                                   !InTf!
 
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_get_r read a remote one sided communication window
+! SYNOPSIS
 subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
 !===============================================================================
 ! one sided communication remote get (read) from one sided communication window
@@ -501,16 +634,21 @@ subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
 ! nelem  (IN)     number of elements to transfer (type of element was defined at window creation)
 ! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   type(C_PTR), intent(IN), value :: larray                            !InTf!
   integer, intent(IN) :: target                                       !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
+!******
 
   logical :: is_open
   integer :: ierr2, indx
@@ -535,6 +673,8 @@ subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
 end subroutine RPN_COMM_i_win_get_r                                   !InTf!
 
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_get_l read a local one sided communication window
+! SYNOPSIS
 subroutine RPN_COMM_i_win_get_l(window,larray,offset,nelem,ierr)      !InTf!
 !===============================================================================
 ! one sided communication local get (read) from one sided communication window
@@ -547,15 +687,20 @@ subroutine RPN_COMM_i_win_get_l(window,larray,offset,nelem,ierr)      !InTf!
 ! nelem  (IN)     number of elements to transfer (type of element was defined at window creation)
 ! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_windows
   implicit none
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   type(C_PTR), intent(IN), value :: larray                            !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
+!******
 
   logical :: is_open
   integer :: ierr2, i, indx, extent
