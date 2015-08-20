@@ -48,10 +48,13 @@ $(VPATH)/RPN_COMM_ptr.F90: $(VPATH)/../tools/gen_rpn_comm_ptr.sh
 	(cd $(VPATH) ; ../tools/gen_rpn_comm_ptr.sh >$(VPATH)/RPN_COMM_ptr.F90)
 
 $(VPATH)/RPN_COMM_interfaces.inc: $(wildcard $(VPATH)/RPN_COMM*.?90) $(wildcard $(VPATH)/*.c)
-	(cd $(VPATH) ; cat RPN_COMM_*.?90 RPN_COMM_*.c | ../tools/extract_interface.sh >RPN_COMM_interfaces.inc ; rm -f ../tools/wrap_code.exe)
+	(cd $(VPATH) ; cat RPN_COMM_*.?90 | grep '!InTfX!' | sed 's/^!![ ]*/      /' >RPN_COMM_interfaces.inc )
+	(cd $(VPATH) ; cat RPN_COMM_*.?90 RPN_COMM_*.c | ../tools/extract_interface.sh >>RPN_COMM_interfaces.inc ; rm -f ../tools/wrap_code.exe)
 
 $(VPATH)/RPN_COMM_interfaces_int.inc: $(wildcard $(VPATH)/RPN_COMM*.?90) $(wildcard $(VPATH)/*.c)
-	(cd $(VPATH) ; rm -f RPN_COMM_interfaces_int.inc; for target in RPN_COMM_*.?90 RPN_COMM_*.c ; do ../tools/extract_interface.sh $$target >>RPN_COMM_interfaces_int.inc ; done; rm -f ../tools/wrap_code.exe)
+	(cd $(VPATH) ; rm -f RPN_COMM_interfaces_int.inc;)
+	(cd $(VPATH) ; for target in RPN_COMM_*.?90; do grep -q '!InTfX!' $$target || continue ; ( echo "#if ! defined(IN_$${target%.*})" ; cat $$target | grep '!InTfX!' | sed 's/^!![ ]*/      /' ; echo "#endif" ) >>RPN_COMM_interfaces_int.inc ; done;)
+	(cd $(VPATH) ; for target in RPN_COMM_*.?90 RPN_COMM_*.c ; do ../tools/extract_interface.sh $$target >>RPN_COMM_interfaces_int.inc ; done; rm -f ../tools/wrap_code.exe)
 
 #dep: $(VPATH)/dependencies.mk
 

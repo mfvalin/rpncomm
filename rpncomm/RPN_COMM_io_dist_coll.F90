@@ -17,6 +17,7 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
+#define IN_RPN_COMM_io_dist_coll
 function RPN_COMM_io_dist_coll_check(gni,gnj,halo_x,halo_y) result(status)
   use rpn_comm
   implicit none
@@ -337,13 +338,14 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   return
 end subroutine RPN_COMM_io_dist_coll_test
 !====================================================================================
+!! integer, external :: RPN_COMM_shuf_ezdist  !InTfX!   ! best interface we can provide for the time being
 function RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_i, liste_o) result (status)
 ! important notes:
 !      it is the caller's responsibility to ensure that liste_o is properly initialized to .false. 
 !      before calling the distribute function
   use rpn_comm
   implicit none
-#include <RPN_COMM_interfaces.inc>
+#include <RPN_COMM_interfaces_int.inc>
   integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
   integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
   integer, intent(IN) :: dnk                       ! number of levels to distribute
@@ -377,13 +379,14 @@ function RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_i, 
                           .false.,.false.,status)
 end function RPN_COMM_shuf_ezdist
 !====================================================================================
+!! integer, external :: RPN_COMM_shuf_ezcoll  !InTfX!   ! best interface we can provide for the time being
 function RPN_COMM_shuf_ezcoll(setno, grid_id, global, dnk, local, lnk, liste_o) result (status)
 ! important notes:
 !      it is the caller's responsibility to ensure that liste_o is properly initialized to negative 
 !      numbers before calling the collect function
   use rpn_comm
   implicit none
-#include <RPN_COMM_interfaces.inc>
+#include <RPN_COMM_interfaces_int.inc>
   integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
   integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
   integer, intent(IN) :: dnk                       ! number of levels to collect
