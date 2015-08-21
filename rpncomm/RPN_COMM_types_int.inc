@@ -1,18 +1,41 @@
-! 
-!   type, bind(C)    :: rpncomm_communicator
-!     type(c_ptr)    :: p     ! signature marker
-!     integer(c_int) :: t1    ! tag1 (-tag2)
-!     integer(c_int) :: t2    ! tag2 (MPI communicator)
+!/! RPN_COMM - Library of useful routines for C and FORTRAN programming
+! ! Copyright (C) 1975-2015  Division de Recherche en Prevision Numerique
+! !                          Environnement Canada
+! !
+! ! This library is free software; you can redistribute it and/or
+! ! modify it under the terms of the GNU Lesser General Public
+! ! License as published by the Free Software Foundation,
+! ! version 2.1 of the License.
+! !
+! ! This library is distributed in the hope that it will be useful,
+! ! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+! ! Lesser General Public License for more details.
+! !
+! ! You should have received a copy of the GNU Lesser General Public
+! ! License along with this library; if not, write to the
+! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+! ! Boston, MA 02111-1307, USA.
+! !/
+!====================================================================================
+! internal, private datatypes used by RPN_COMM routines
+! a commented version of some public types is also present, with
+! comments describing their internal usage
+!====================================================================================
+!   type, bind(C)    :: rpncomm_communicator ! (see RPN_COMM_comm.F90)
+!     type(c_ptr)    :: p     ! C MPI communicator
+!     integer(c_int) :: t1    ! t2 .xor. RPN_COMM_MAGIC
+!     integer(c_int) :: t2    ! Fortran MPI communicator
 !   end type rpncomm_communicator
 !   type(rpncomm_communicator), parameter :: NULL_rpncomm_communicator = rpncomm_communicator(C_NULL_PTR,0,0)
-! 
-!   type, bind(C)    :: rpncomm_datatype
-!     type(c_ptr)    :: p     ! signature marker
+!====================================================================================
+!   type, bind(C)    :: rpncomm_datatype ! (see RPN_COMM_datyp.F90)
+!     type(c_ptr)    :: p     ! signature ( to be changed to C MPI data type)
 !     integer(c_int) :: t1    ! tag1 (index into data type table)
-!     integer(c_int) :: t2    ! tag2 (MPI data type)
+!     integer(c_int) :: t2    ! Fortran MPI data type
 !   end type rpncomm_datatype
 !   type(rpncomm_datatype), parameter :: NULL_rpncomm_datatype = rpncomm_datatype(C_NULL_PTR,0,0)
-
+!====================================================================================
   type :: rpncomm_windef
     integer, dimension(:), pointer :: remote   ! base translated as fortran pointer to 1D array
     type(C_PTR) :: base    ! base address of array
@@ -26,12 +49,12 @@
     logical :: is_user     ! .true. if array associated with window was user supplied rather thatn internal
   end type rpncomm_windef
   type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),C_NULL_PTR,0,0,0,0,0,0,.false.,.false.)
-
+!====================================================================================
   type, bind(C)    :: rpncomm_bnds
     integer(c_int) :: lo, hi, lnp, gnp  ! low bound, high bound, local dimension, global dimension
   end type rpncomm_bnds
   type(rpncomm_bnds), parameter :: NULL_rpncomm_bnds = rpncomm_bnds(0,0,0,0)
-
+!====================================================================================
   type, bind(C)    :: rpncomm_field     ! 1/2/3D array, represented as as 3D array
     type(c_ptr)    :: p                 ! pointer to data
     type(c_ptr)    :: m                 ! pointer to metadata
@@ -44,27 +67,28 @@
                        C_NULL_PTR, C_NULL_PTR, 0,                               &
                        NULL_rpncomm_bnds, NULL_rpncomm_bnds, NULL_rpncomm_bnds, &
                        0, 0, 0, 0, 0 )
-
+!====================================================================================
   type, bind(C)    :: rpncomm_vector    ! 1D vector
     type(c_ptr)    :: p                 ! pointer to data
     type(c_ptr)    :: m                 ! pointer to metadata
     integer(c_int) :: x                 ! dimension
   end type rpncomm_vector
   type(rpncomm_vector), parameter :: NULL_rpncomm_vector = rpncomm_vector(C_NULL_PTR, C_NULL_PTR, 0)
-
+!====================================================================================
   type, bind(C)    :: rpncomm_matrix     ! 2D array
     type(c_ptr)    :: p                 ! pointer to data
     type(c_ptr)    :: m                 ! pointer to metadata
     integer(c_int) :: x, y              ! dimensions
   end type rpncomm_matrix
   type(rpncomm_matrix), parameter :: NULL_rpncomm_matrix = rpncomm_matrix(C_NULL_PTR, C_NULL_PTR, 0, 0)
-
+!====================================================================================
   type, bind(C)    :: rpncomm_block     ! 3D array
     type(c_ptr)    :: p                 ! pointer to data
     type(c_ptr)    :: m                 ! pointer to metadata
     integer(c_int) :: x, y, z           ! dimensions
   end type rpncomm_block
   type(rpncomm_block), parameter :: NULL_rpncomm_block = rpncomm_block(C_NULL_PTR, C_NULL_PTR, 0, 0, 0)
+!====================================================================================
 !
 ! Domain type
 !
@@ -74,6 +98,7 @@
      character(len=1024) path
      integer npex, npey
   end type
+!====================================================================================
 !
 !  symbol tables
 !
@@ -81,6 +106,7 @@
     integer :: number
     character (len=32) :: string
   end type
+!====================================================================================
 !
 ! Decomposition tables (definitions should be moved to RPN_COMM_types_int.inc)
 !

@@ -17,6 +17,8 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
+! scan RPN_COMM internal type table to see if data_int is a known type
+! (see RPN_COMM_constants.inc)
 !InTf!
         integer function RPN_COMM_datyp_indx(data_int)            !InTf!
         use rpn_comm
@@ -27,7 +29,7 @@
         character(len=32) :: datatype
         integer :: i
 
-        call rpn_comm_low2up(data_int,datatype)
+        call rpn_comm_low2up(data_int,datatype)  ! force upper case
 
         do i = 1 , size(type_tab)
           if(type_tab(i)%string == datatype) then
@@ -39,6 +41,7 @@
         RPN_COMM_datyp_indx = -1  ! error return
         return
         end function RPN_COMM_datyp_indx                           !InTf!
+!====================================================================================
 !InTf!
         integer function RPN_COMM_datyp(data_int)                 !InTf!
 !   Luc Corbeil, 2000-11-20
@@ -52,10 +55,10 @@
         integer :: i
         integer, external :: RPN_COMM_datyp_indx
 
-        RPN_COMM_datyp = MPI_DATATYPE_NULL
+        RPN_COMM_datyp = MPI_DATATYPE_NULL  ! in case nothing is found in RPN_COMM type table
 
-        i = RPN_COMM_datyp_indx(data_int)
-        if(i >= 0) RPN_COMM_datyp = type_tab(i)%number
+        i = RPN_COMM_datyp_indx(data_int)   ! get index into table (valid if >0)
+        if(i > 0) RPN_COMM_datyp = type_tab(i)%number
         return
 
 #if defined(DEPRECATED)
@@ -120,6 +123,7 @@
 #endif
         return
         end function RPN_COMM_datyp                             !InTf!
+!====================================================================================
 !
 !       fill an entity of type rpncomm_datatype from rpn_comm type string
 !       dtyp_c : character version of data type
@@ -132,10 +136,24 @@
         character(len=*), intent(IN) :: dtyp_c               !InTf!
         integer, external :: RPN_COMM_datyp_indx
 
-        dtyp%p = C_LOC(WORLD_COMM_MPI)            ! signature
+        dtyp%p = C_LOC(WORLD_COMM_MPI)            ! signature (to be changed to C MPI data type)
         dtyp%t1 = RPN_COMM_datyp_indx(dtyp_c)     ! index of datatype from internal table
-        dtyp%t2 = type_tab(dtyp%t1)%number        ! datatype value
+        if(dtyp%t1 > 0) then                      ! valid (found in table)
+          dtyp%t2 = type_tab(dtyp%t1)%number      ! Fortran datatype value
+        else
+          dtyp%t2 = MPI_DATATYPE_NULL             ! NULL datatype if not found in table
+        endif
         end subroutine RPN_COMM_i_datyp                    !InTf!
+!====================================================================================
+        function RPN_COMM_i_datyp_extent(dtyp) result(extent)    !InTf!
+        use rpn_comm
+!!      import :: rpncomm_datatype                               !InTf!
+        implicit none
+        type(rpncomm_datatype), intent(IN) :: dtyp               !InTf!
+        integer :: extent                                        !InTf!
+        extent = -1
+        end function RPN_COMM_i_datyp_extent                     !InTf!
+!====================================================================================
 !
 !       is dtyp a valid item of type rpncomm_datatype ?
 !
@@ -152,8 +170,9 @@
         valid = c_associated( dtyp%p , temp )
         if(.not. valid) return
 
-        valid = (dtyp%t1 > 0) .and. (dtyp%t1 <= size(type_tab))   ! plausible t1 ?
+        valid = (dtyp%t1 >= 0) .and. (dtyp%t1 <= size(type_tab))   ! plausible t1 ?
         if(.not. valid) return
+        if(dtyp%t1 == 0) return   ! data type not in tables (other origin)
 
         valid = type_tab(dtyp%t1)%number == dtyp%t2   ! consistent t1 and t2 ?
 

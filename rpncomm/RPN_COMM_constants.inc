@@ -17,17 +17,18 @@
 ! * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! * Boston, MA 02111-1307, USA.
 ! */
-!
+! error status
         integer, parameter :: RPN_COMM_OK    =  0
         integer, parameter :: RPN_COMM_ERROR = -1
-        integer, parameter :: RPN_COMM_MAGIC = Z'13579BDF'
 !
+        integer, parameter :: RPN_COMM_MAGIC = Z'13579BDF'
+! command op codes
         integer, parameter :: RPN_COMM_MASTER = 0
         integer, parameter :: RPN_COMM_GET=12345
         integer, parameter :: RPN_COMM_SET=12346
         integer, parameter :: RPN_COMM_DEL=12347
-!
-        integer, parameter :: RPN_COMM_FORWARD_X=+1  ! constants for the transpose operations along X/Y
+! constants for the transpose operations along X/Y
+        integer, parameter :: RPN_COMM_FORWARD_X=+1
         integer, parameter :: RPN_COMM_BACKWARD_X=-1
         integer, parameter :: RPN_COMM_FORWARD_y=+2
         integer, parameter :: RPN_COMM_BACKWARD_Y=-2
@@ -36,7 +37,7 @@
         logical,parameter :: RPN_COMM_TOPO_Y      = .false.
         logical,parameter :: RPN_COMM_TOPO_FILL   = .true.
         logical,parameter :: RPN_COMM_TOPO_NOFILL = .false.
-!
+! communicators
         character(len=*),parameter :: RPN_COMM_WORLD      = 'WORLD'      ! PLS do not use
         character(len=*),parameter :: RPN_COMM_ALLGRIDS   = 'ALLGRIDS'   ! use rather than RPN_COMM_WORLD
         character(len=*),parameter :: RPN_COMM_ALL        = 'ALL'
@@ -55,7 +56,7 @@
         character(len=*),parameter :: RPN_COMM_COLUMN     = 'NS'
         character(len=*),parameter :: RPN_COMM_UNIVERSE   = 'UNIVERSE'
 !        character(len=*),parameter :: RPN_COMM_PE0        = 'PE_00'
-!
+! miscellaneous NULL/ANY constants
         character (len=32), parameter :: RPN_COMM_ANY_SOURCE =           &                                   
      &                                  'MPI_ANY_SOURCE'
         character (len=32), parameter :: RPN_COMM_ANY_TAG =              &                                   
@@ -70,7 +71,7 @@
      &                                  'MPI_COMM_WORLD'
         character (len=32), parameter :: RPN_COMM_SUCCESS =              &                                   
      &                                  'MPI_SUCCESS'
-!
+! data types
         character (len=32), parameter :: RPN_COMM_BYTE =                 &                                   
      &                                  'MPI_BYTE'
         character (len=32), parameter :: RPN_COMM_PACKED =               &                                   
@@ -125,7 +126,7 @@
      &                                  'MPI_2COMPLEX'
         character (len=32), parameter :: RPN_COMM_2DOUBLE_COMPLEX =      &                                   
      &                                  'MPI_2DOUBLE_COMPLEX'
-!
+! operations
         character (len=32), parameter :: RPN_COMM_MAX =                  &                                   
      &                                  'MPI_MAX'
         character (len=32), parameter :: RPN_COMM_MIN =                  &                                   
