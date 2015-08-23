@@ -19,6 +19,7 @@
 ! !/
 !====================================================================================
 ! internal, private datatypes used by RPN_COMM routines
+!
 ! a commented version of some public types is also present, with
 ! comments describing their internal usage
 !====================================================================================
@@ -35,6 +36,18 @@
 !     integer(c_int) :: t2    ! Fortran MPI data type
 !   end type rpncomm_datatype
 !   type(rpncomm_datatype), parameter :: NULL_rpncomm_datatype = rpncomm_datatype(C_NULL_PTR,0,0)
+!====================================================================================
+!   type, bind(C)    :: rpncomm_pattern  !  (see RPN_COMM_spread.F90)
+!     type(c_ptr)    :: p     ! pointer to data description
+!     integer(c_int) :: t1    ! tag1 (reserved for rpn_comm usage)
+!     integer(c_int) :: t2    ! tag2 (reserved for rpn_comm usage)
+!   end type rpncomm_pattern
+!====================================================================================
+!   type, bind(C)    :: rpncomm_array
+!     type(c_ptr)    :: p     ! pointer to data description
+!     integer(c_int) :: t1    ! tag1 (reserved for rpn_comm usage)
+!     integer(c_int) :: t2    ! tag2 (reserved for rpn_comm usage)
+!   end type rpncomm_array
 !====================================================================================
   type :: rpncomm_windef
     integer, dimension(:), pointer :: remote   ! base translated as fortran pointer to 1D array

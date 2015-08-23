@@ -27,14 +27,14 @@ function RPN_COMM_spread(contxt,source,npts,ndata,dest)  result(status)   !InTf!
   include 'RPN_COMM_spread.inc'
   include 'mpif.h'
 
-  type(rpncomm_context), intent(IN) :: contxt          ! blind pointer obtained from RPN_COMM_spread_context         !InTf!
+  type(rpncomm_context), intent(IN) :: contxt          ! object obtained from RPN_COMM_spread_context                !InTf!
   integer, intent(IN) :: npts, ndata                   ! dimensions of source array (used only on root PE)           !InTf!
   real, dimension(npts,ndata), intent(IN) :: source    ! source array (used only on root PE)                         !InTf!
   real, dimension(:,:), pointer, intent(INOUT) :: dest ! pointer to output data                                      !InTf!
   integer :: status                                    ! < 0 : error,  >=0 : number of valid npoints in dest array   !InTf!
 !
 ! NOTES:
-!   contxt  is a C pointer (see ISO_C_BINDING documentation) obtained from function RPN_COMM_spread_context
+!   contxt  is a typed object obtained from function RPN_COMM_spread_context
 !           that describes how the data will be spread from the "root" PE (who has the data) and the "client" PEs
 !           who will receive some (or none) of that data
 !           the application code is responsible for preserving this pointer (save attribute strongly recommended)
