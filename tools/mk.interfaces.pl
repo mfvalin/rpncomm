@@ -23,14 +23,22 @@ foreach $file (@listfile) {
         $line = $1;
       }
       if($line  =~ /^!VOID[\$].*[ ]([a-zA-Z][a-zA-Z_0-9]*)[ ]*$/) {   # special IGNORE TKR
-        print "# if __GNUC__  > 3 && __GNUC_MINOR__ > 7\n type(*), dimension(..) :: $1\n";
-        print "#else\n integer :: $1\n";
-        print "# if __GNUC__  > 3 && __GNUC_MINOR__ > 8\n!GCC\$ ATTRIBUTES NO_ARG_CHECK :: $1\n";
-        print "# elif defined(__INTEL_COMPILER)\n!DEC\$ ATTRIBUTES NO_ARG_CHECK :: $1\n";
-        print "# elif defined (__PPC__)\n!IBM* ignore_tkr $1\n";
-        print "# elif defined(__PGI)\n!DIR\$ ignore_tkr $1\n";
-        print "# else\n!\$PRAGMA ignore_tkr $1\n";
-        print "# endif\n#endif\n";
+        print "# if __GNUC__  > 3 && __GNUC_MINOR__ > 7\n";           # gfortran 4.8 and up
+        print" type(*), dimension(..) :: $1\n";                       # deferred type and rank
+        print "#else\n";
+        print" integer :: $1\n";
+        print "# if __GNUC__  > 3 && __GNUC_MINOR__ > 8\n";           # gfortran 4.9 and up (never reached now)
+        print"!GCC\$ ATTRIBUTES NO_ARG_CHECK :: $1\n";
+        print "# elif defined(__INTEL_COMPILER)\n";                   # Intel ifort
+        print"!DEC\$ ATTRIBUTES NO_ARG_CHECK :: $1\n";
+        print "# elif defined (__PPC__)\n";                           # Power PC (IBM xlf)
+        print"!IBM* ignore_tkr $1\n";
+        print "# elif defined(__PGI)\n";                              # Portland Group Fortran
+        print"!DIR\$ ignore_tkr $1\n";
+        print "# else\n";
+        print"!\$PRAGMA ignore_tkr $1\n";                             # Others (Sun Studio)
+        print "# endif\n";
+        print"#endif\n";
         next;
       }
       $line =~ s/^\s+// ; $line =~ s/\s+$// ;   # trim space at both ends
