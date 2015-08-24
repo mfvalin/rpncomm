@@ -13,7 +13,7 @@ foreach $file (@listfile) {
       next;}
 
   if($file =~ /^(.*)[.].*/) {
-    print "#if defined(IN_$1)\n" ;
+    print "#if ! defined(IN_$1)\n" ;
     }
 
   while (<INPUT>) {
