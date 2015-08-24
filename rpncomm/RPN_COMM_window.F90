@@ -254,12 +254,7 @@ subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
   type(rpncomm_communicator), intent(IN) :: com                       !InTf!
   type(C_PTR), intent(IN), value :: array                             !InTf!
 ! IGNORE
-!! !integer :: array                                                  !InTf!
-!! !DEC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
-!! !GCC$ ATTRIBUTES NO_ARG_CHECK :: array                            !InTf!
-!! !IBM* ignore_tkr array                                            !InTf!
-!! !DIR$ ignore_tkr array                                            !InTf!
-!! !$PRAGMA ignore_tkr array                                         !InTf!
+!!! VOID$ array                                                         !InTf!
 !******
   integer :: indx
 
