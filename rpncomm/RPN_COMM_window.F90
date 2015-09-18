@@ -85,6 +85,7 @@ module RPN_COMM_windows
   integer, parameter :: RPN_COMM_MAX_WINDOWS = 64
   integer, save :: integer_size = 0
   type(rpncomm_windef), dimension(:), pointer, save :: win_tab => NULL()  ! rpn comm window table
+  logical, save :: active_mode = .true.
 contains
 !****if* RPN_COMM_windows/init_win_tab
 ! SYNOPSIS
@@ -354,9 +355,12 @@ subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
   is_open = RPN_COMM_i_win_check(window,ierr2)
   if(is_open .or. ierr2 .ne. RPN_COMM_OK) return    ! ERROR: window is already open (exposed) or not valid
 
-  call MPI_win_fence(0,win_tab(indx)%win,ierr2)
+  if(active_mode) call MPI_win_fence(MPI_MODE_NOPRECEDE,win_tab(indx)%win,ierr2)
 
-  if(ierr2 .eq. MPI_SUCCESS) ierr = RPN_COMM_OK
+  if(ierr2 .eq. MPI_SUCCESS) then
+    ierr = RPN_COMM_OK
+    win_tab(indx)%is_open = .true.   ! set window open flag
+  endif
   return
 
 end subroutine RPN_COMM_i_win_open                                    !InTf!
@@ -393,9 +397,12 @@ subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
   is_not_open = .not. RPN_COMM_i_win_check(window,ierr2)
   if(is_not_open .or. ierr2 .ne. RPN_COMM_OK) return    ! ERROR: window is not open (exposed) or not valid
 
-  call MPI_win_fence(0,win_tab(indx)%win,ierr2)
+  if(active_mode) call MPI_win_fence(MPI_MODE_NOSUCCEED,win_tab(indx)%win,ierr2)
 
-  if(ierr2 .eq. MPI_SUCCESS) ierr = RPN_COMM_OK
+  if(ierr2 .eq. MPI_SUCCESS) then
+    ierr = RPN_COMM_OK
+    win_tab(indx)%is_open = .false.   ! unset window open flag
+  endif
   return
 
 end subroutine RPN_COMM_i_win_close                                   !InTf!
@@ -560,9 +567,14 @@ subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
   if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
   call c_f_ptr( larray , local, nelem* win_entry%ext )   ! pointer to local array
 
+  if(.not. active_mode) call mpi_win_lock(MPI_LOCK_EXCLUSIVE, target, 0, win_entry%win, ierr2)
+  if(ierr2 .ne. MPI_SUCCESS) return
   call MPI_put(local,nelem,win_entry%typ,target,offset,nelem,win_entry%typ,win_entry%win,ierr2)
+  if(ierr2 .ne. MPI_SUCCESS) return
+  if(.not. active_mode) call mpi_win_unlock(target, win_entry%win, ierr2)
+  if(ierr2 .ne. MPI_SUCCESS) return
 
-  if(ierr2 == MPI_SUCCESS) ierr = RPN_COMM_OK
+  ierr = RPN_COMM_OK
   return
 
 end subroutine RPN_COMM_i_win_put_r                                   !InTf!
@@ -668,9 +680,14 @@ subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
   if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
   call c_f_ptr( larray , local, nelem* win_entry%ext )   ! pointer to local array
 
+  if(.not. active_mode) call mpi_win_lock(MPI_LOCK_EXCLUSIVE, target, 0, win_entry%win, ierr2)
+  if(ierr2 .ne. MPI_SUCCESS) return
   call MPI_get(local,nelem,win_entry%typ,target,offset,nelem,win_entry%typ,win_entry%win,ierr2)
+  if(ierr2 .ne. MPI_SUCCESS) return
+  if(.not. active_mode) call mpi_win_unlock(target, win_entry%win, ierr2)
+  if(ierr2 .ne. MPI_SUCCESS) return
 
-  if(ierr2 == MPI_SUCCESS) ierr = RPN_COMM_OK
+  ierr = RPN_COMM_OK
   return
 
 end subroutine RPN_COMM_i_win_get_r                                   !InTf!
