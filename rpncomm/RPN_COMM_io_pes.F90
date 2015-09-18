@@ -36,7 +36,7 @@ module RPN_COMM_io_pe_tables   ! this module may also be used by data distributi
     integer :: comm                        ! MPI communicator  for this IO PE set     if it belongs to the set (MPI_COMM_NULL otherwise)
     integer :: me                          ! ordinal of this PE in above communicator if it belongs to the set (-1 otherwise)
     integer :: megrid                      ! ordinal of this PE in grid               if it belongs to the set (-1 otherwise)
-    integer :: npe                         ! number of OP PEs in this set
+    integer :: npe                         ! number of IO PEs in this set
     integer :: ngroups                     ! number of PE groups in this set (size of a group may not exceed MIN(pe_nx,pe_ny) )
     integer :: groupsize                   ! size of groups (last group may be shorter)
     integer :: reserved                    ! unused for now
@@ -496,6 +496,20 @@ function RPN_COMM_is_io_pe(setno) result(ordinal)   !InTf!  ! is this PE part of
   ordinal = is_io_pe(setno)
 end function RPN_COMM_is_io_pe        !InTf!  
 !
+function RPN_COMM_io_pe_gridid(setno,n) result(ordinal)   !InTf!  ! ordinal in "grid" of PE n of IO set setno
+  use RPN_COMM_io_pe_tables
+  implicit none                      !InTf!
+  integer, intent(IN) :: setno       !InTf!  ! set number as returned by RPN_COMM_create_io_set
+  integer, intent(IN) :: n           !InTf!  ! ordinal of PE for which ordinal in grid is sought (origin 0)
+  integer :: ordinal                 !InTf!  ! ordinal in "grid" if n not larger than IO set size, -1 otherwise
+!
+  ordinal = -1
+  if(setno < 1 .or. setno > iosets)   return  ! setno out of bounds
+  if(io_set(setno)%ioset .ne. setno)  return  ! IO set is no longer valid
+  if(n<0 .or. n >= io_set(setno)%npe) return  ! n <= population of IO set setno or negative
+  ordinal = pe_id(io_set(setno)%x(n+1) , io_set(setno)%y(n+1))
+end function RPN_COMM_io_pe_gridid        !InTf!  
+!
 function RPN_COMM_io_pe_comm(setno) result(communicator)  !InTf!   ! get communicator of IO set setno
   use RPN_COMM_io_pe_tables
   implicit none                       !InTf!
@@ -605,6 +619,7 @@ integer function RPN_COMM_comm(what)
   RPN_COMM_comm = MPI_COMM_WORLD
   return
 end
+!
 integer function RPN_COMM_datyp(what)
   implicit none
   include 'mpif.h'
@@ -613,6 +628,7 @@ integer function RPN_COMM_datyp(what)
   if(trim(what) .ne. 'MPI_INTEGER') return
   RPN_COMM_datyp = MPI_INTEGER
 end function RPN_COMM_datyp
+!
 integer function RPN_COMM_mype(pe_me,pe_mex,pe_mey)
   implicit none
   include 'mpif.h'
