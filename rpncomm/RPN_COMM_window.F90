@@ -85,7 +85,9 @@ module RPN_COMM_windows
   integer, parameter :: RPN_COMM_MAX_WINDOWS = 64
   integer, save :: integer_size = 0
   type(rpncomm_windef), dimension(:), pointer, save :: win_tab => NULL()  ! rpn comm window table
-  logical, save :: active_mode = .true.
+!  logical, save :: active_mode = .true.
+!  integer , save :: receive_group = MPI_GROUP_NULL
+!  integer , save :: send_group = MPI_GROUP_NULL
 contains
 !****if* RPN_COMM_windows/init_win_tab
 ! SYNOPSIS
@@ -126,7 +128,7 @@ contains
     if(.not. c_associated(win_ptr)) return           ! pointer to table entry is not valid
     if(.not. associated(win_tab)) return             ! win_tab does not exist yet
 
-    call c_f_ptr(win_ptr,win_entry)                  ! make pointer to win_entry from win_ptr
+    call c_f_pointer(win_ptr,win_entry)                  ! make pointer to win_entry from win_ptr
 
     if(win_entry%indx <=0 .or. win_entry%indx>RPN_COMM_MAX_WINDOWS) return  ! impossible index into window table
     temp = c_loc(win_tab(win_entry%indx))            ! address pointed to by entry index
@@ -176,7 +178,7 @@ contains
           if(ierr .ne. MPI_SUCCESS) return       ! could not allocate memory
         endif
         indx = i
-        call c_f_ptr(win_tab(i)%base,win_tab(i)%remote,extent*siz)
+        call c_f_pointer(win_tab(i)%base,win_tab(i)%remote,[extent*siz])
         win_tab(i)%is_open = .false.             ! window is not "exposed"
         win_tab(i)%is_user = c_associated(base)  ! user supplied space ?
         win_tab(i)%typ = typ                     ! MPI data type associated to window
@@ -184,11 +186,14 @@ contains
         win_tab(i)%indx = indx                   ! entry index points to itself
         win_tab(i)%siz = siz                     ! number of elements in window
         win_tab(i)%com = comm                    ! communicator associated with window
+        win_tab(i)%active_mode = .true.          ! use active mode by default
+        win_tab(i)%s_group = MPI_GROUP_NULL      ! no send (put) group by default
+        win_tab(i)%r_group = MPI_GROUP_NULL      ! no receive (get) group by default
         ierr = RPN_COMM_OK                       ! all is well
         return
       endif
     enddo
-    return  ! if we fall through the loop, the table was full, ew will return RPN_COMM_ERROR
+    return  ! if we fall through the loop, the table was full, we will return RPN_COMM_ERROR
   end subroutine create_win_entry
 
 !****if* RPN_COMM_windows/win_valid
@@ -355,7 +360,7 @@ subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
   is_open = RPN_COMM_i_win_check(window,ierr2)
   if(is_open .or. ierr2 .ne. RPN_COMM_OK) return    ! ERROR: window is already open (exposed) or not valid
 
-  if(active_mode) call MPI_win_fence(MPI_MODE_NOPRECEDE,win_tab(indx)%win,ierr2)
+  if(win_tab(indx)%active_mode) call MPI_win_fence(MPI_MODE_NOPRECEDE,win_tab(indx)%win,ierr2)
 
   if(ierr2 .eq. MPI_SUCCESS) then
     ierr = RPN_COMM_OK
@@ -397,7 +402,7 @@ subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
   is_not_open = .not. RPN_COMM_i_win_check(window,ierr2)
   if(is_not_open .or. ierr2 .ne. RPN_COMM_OK) return    ! ERROR: window is not open (exposed) or not valid
 
-  if(active_mode) call MPI_win_fence(MPI_MODE_NOSUCCEED,win_tab(indx)%win,ierr2)
+  if(win_tab(indx)%active_mode) call MPI_win_fence(MPI_MODE_NOSUCCEED,win_tab(indx)%win,ierr2)
 
   if(ierr2 .eq. MPI_SUCCESS) then
     ierr = RPN_COMM_OK
@@ -563,15 +568,15 @@ subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
   if( (.not. is_open) .or. (ierr2 .ne. MPI_SUCCESS) )  return  ! bad window reference or window not open (exposed)
 
   indx = window%t2
-  call c_f_ptr( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
+  call c_f_pointer( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
   if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
-  call c_f_ptr( larray , local, nelem* win_entry%ext )   ! pointer to local array
+  call c_f_pointer( larray , local, [nelem* win_entry%ext] )   ! pointer to local array
 
-  if(.not. active_mode) call mpi_win_lock(MPI_LOCK_EXCLUSIVE, target, 0, win_entry%win, ierr2)
+  if(.not. win_entry%active_mode) call mpi_win_lock(MPI_LOCK_EXCLUSIVE, target, 0, win_entry%win, ierr2)
   if(ierr2 .ne. MPI_SUCCESS) return
   call MPI_put(local,nelem,win_entry%typ,target,offset,nelem,win_entry%typ,win_entry%win,ierr2)
   if(ierr2 .ne. MPI_SUCCESS) return
-  if(.not. active_mode) call mpi_win_unlock(target, win_entry%win, ierr2)
+  if(.not. win_entry%active_mode) call mpi_win_unlock(target, win_entry%win, ierr2)
   if(ierr2 .ne. MPI_SUCCESS) return
 
   ierr = RPN_COMM_OK
@@ -620,10 +625,10 @@ subroutine RPN_COMM_i_win_put_l(window,larray,offset,nelem,ierr)      !InTf!
   if( (is_open) .or. (ierr2 .ne. MPI_SUCCESS) )  return  ! bad window reference or window open (exposed)
 
   indx = window%t2
-  call c_f_ptr( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
+  call c_f_pointer( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
   if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
   extent = win_entry%ext
-  call c_f_ptr( larray , local, nelem*extent )                   ! pointer to local array
+  call c_f_pointer( larray , local, [nelem*extent] )                   ! pointer to local array
   do i = 1, nelem*extent
     win_entry%remote(i+offset*extent) = local(i)
   enddo
@@ -676,15 +681,15 @@ subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
   if( (.not. is_open) .or. (ierr2 .ne. MPI_SUCCESS) )  return  ! bad window reference or window not open (exposed)
 
   indx = window%t2
-  call c_f_ptr( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
+  call c_f_pointer( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
   if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
-  call c_f_ptr( larray , local, nelem* win_entry%ext )   ! pointer to local array
+  call c_f_pointer( larray , local, [nelem*win_entry%ext] )   ! pointer to local array
 
-  if(.not. active_mode) call mpi_win_lock(MPI_LOCK_EXCLUSIVE, target, 0, win_entry%win, ierr2)
+  if(.not. win_entry%active_mode) call mpi_win_lock(MPI_LOCK_EXCLUSIVE, target, 0, win_entry%win, ierr2)
   if(ierr2 .ne. MPI_SUCCESS) return
   call MPI_get(local,nelem,win_entry%typ,target,offset,nelem,win_entry%typ,win_entry%win,ierr2)
   if(ierr2 .ne. MPI_SUCCESS) return
-  if(.not. active_mode) call mpi_win_unlock(target, win_entry%win, ierr2)
+  if(.not. win_entry%active_mode) call mpi_win_unlock(target, win_entry%win, ierr2)
   if(ierr2 .ne. MPI_SUCCESS) return
 
   ierr = RPN_COMM_OK
@@ -733,10 +738,10 @@ subroutine RPN_COMM_i_win_get_l(window,larray,offset,nelem,ierr)      !InTf!
   if( (.not. is_open) .or. (ierr2 .ne. MPI_SUCCESS) )  return  ! bad window reference or window open (exposed)
 
   indx = window%t2
-  call c_f_ptr( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
+  call c_f_pointer( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
   if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
   extent = win_entry%ext
-  call c_f_ptr( larray , local, nelem*extent )                   ! pointer to local array
+  call c_f_pointer( larray , local, [nelem*extent] )                   ! pointer to local array
   do i = 1, nelem*extent
      local(i) = win_entry%remote(i+offset*extent)
   enddo

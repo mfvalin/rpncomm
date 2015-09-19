@@ -17,6 +17,32 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
+! make a new rpn comm group from character string communicator
+!InTf!
+      subroutine RPN_COMM_i_group(com,group)       !InTf!
+      use rpn_comm
+      use ISO_C_BINDING
+!!  import :: rpncomm_group                        !InTf!
+      implicit none                                !InTf!
+      character(len=*), intent(IN) :: com          !InTf!
+      type(rpncomm_group), intent(OUT) :: group    !InTf!
+
+      integer, external :: RPN_COMM_group
+      integer :: temp
+
+      temp = RPN_COMM_group(com)
+      if(temp .ne. MPI_GROUP_NULL) then
+        group%p = C_LOC(WORLD_COMM_MPI)              ! temporary signature
+        group%t1 = ieor(temp,RPN_COMM_MAGIC)     ! to be adjusted later
+        group%t2 = temp
+      else
+        group%p = C_NULL_PTR
+        group%t1 = temp
+        group%t2 = temp
+      endif
+
+      return
+      end subroutine RPN_COMM_i_group              !InTf!
 !InTf!
       integer function RPN_COMM_group(com)         !InTf!
 !      Luc Corbeil, 2000-11-21
@@ -32,6 +58,8 @@
       character(len=*), intent(IN) :: com           !InTf!
       character(len=32) comm
       integer ierr,world_group
+
+      RPN_COMM_group = MPI_GROUP_NULL
       call rpn_comm_low2up(com,comm)
 
       if (comm(1:9) == RPN_COMM_GRIDPEERS) then

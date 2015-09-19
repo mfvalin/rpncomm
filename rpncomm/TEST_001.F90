@@ -10,18 +10,25 @@
 	integer :: RPN_COMM_dist_test
 	external RPN_COMM_dist_test
 	integer :: Pelocal,Petotal,Pex,Pey,ierr,iun,test_to_perform
-        integer :: nparams
+        integer :: nparams, i, ier
         integer, dimension(100) :: params
+        character(len=256) :: RPN_COMM_TEST_CFG
 
         Pex = 0
         Pey = 0
 !       UserInit supplied by TEST_helpers.f
         call RPN_COMM_init(TestUserInit,Pelocal,Petotal,Pex,Pey)
         print *,' Pelocal,Petotal,Pex,Pey =',Pelocal,Petotal,Pex,Pey
-        iun=get_a_free_unit()
-        open(UNIT=iun,FILE='TEST_001.cfg',STATUS='OLD')
-        read(UNIT=iun,FMT=*)test_to_perform,nparams,params(1:nparams)
-        close(UNIT=iun)
+
+        call get_environment_variable("RPN_COMM_TEST_CFG",RPN_COMM_TEST_CFG,i,ier)
+        if(ier==0) then
+          read(RPN_COMM_TEST_CFG,FMT=*)test_to_perform,nparams,params(1:nparams)
+        else
+          iun=get_a_free_unit()
+          open(UNIT=iun,FILE='TEST_001.cfg',STATUS='OLD')
+          read(UNIT=iun,FMT=*)test_to_perform,nparams,params(1:nparams)
+          close(UNIT=iun)
+        endif
         if(IAND(test_to_perform,1)==1)then
           ierr=RPN_COMM_dist_test(Petotal)
         endif
@@ -47,7 +54,11 @@
         endif
         if(IAND(test_to_perform,64)==64)then
           print *,'start 2D grid definition test'
-          call rpn_comm_test_2dgrid(nparams,params)
+!          call rpn_comm_test_2dgrid(nparams,params)
+        endif
+        if(IAND(test_to_perform,128)==128)then
+          print *,'start one sided communications test'
+          call RPN_COMM_i_win_test(nparams,params)
         endif
         call RPN_COMM_finalize(ierr)
         stop

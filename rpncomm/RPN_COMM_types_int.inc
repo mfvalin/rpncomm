@@ -57,11 +57,14 @@
     integer :: ext         ! size of MPI datatype  (extent)
     integer :: win         ! MPI window
     integer :: com         ! MPI communicator
+    integer :: s_group     ! MPI send (put) group
+    integer :: r_group     ! MPI receive (get) group
     integer :: siz         ! deliberately limiting window size to less than 2GB
     logical :: is_open     ! .true. if window is "exposed"
     logical :: is_user     ! .true. if array associated with window was user supplied rather thatn internal
+    logical :: active_mode ! use active mode for this window's communications
   end type rpncomm_windef
-  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),C_NULL_PTR,0,0,0,0,0,0,.false.,.false.)
+  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),C_NULL_PTR,0,0,0,0,0,0,0,0,.false.,.false.,.true.)
 !====================================================================================
   type, bind(C)    :: rpncomm_bnds
     integer(c_int) :: lo, hi, lnp, gnp  ! low bound, high bound, local dimension, global dimension
