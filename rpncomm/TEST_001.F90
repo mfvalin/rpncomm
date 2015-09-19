@@ -10,9 +10,10 @@
 	integer :: RPN_COMM_dist_test
 	external RPN_COMM_dist_test
 	integer :: Pelocal,Petotal,Pex,Pey,ierr,iun,test_to_perform
-        integer :: nparams, i, ier
+        integer :: nparams, i, ier, status
         integer, dimension(100) :: params
         character(len=256) :: RPN_COMM_TEST_CFG
+        integer, external :: rpn_comm_2dgrid_test
 
         Pex = 0
         Pey = 0
@@ -54,7 +55,7 @@
         endif
         if(IAND(test_to_perform,64)==64)then
           print *,'start 2D grid definition test'
-!          call rpn_comm_test_2dgrid(nparams,params)
+         status = rpn_comm_2dgrid_test(nparams,params)
         endif
         if(IAND(test_to_perform,128)==128)then
           print *,'start one sided communications test'

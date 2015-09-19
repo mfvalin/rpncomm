@@ -18,27 +18,36 @@
 ! ! Boston, MA 02111-1307, USA.
 ! !/
 ! make a new rpn comm group from character string communicator
+! or type rpn comm communicator (via optional argument)
+! if rcom is present, com is ignored
 !InTf!
-      subroutine RPN_COMM_i_group(com,group)       !InTf!
+      subroutine RPN_COMM_i_group(com,rgroup,rcom)  !InTf!
       use rpn_comm
       use ISO_C_BINDING
 !!  import :: rpncomm_group                        !InTf!
+!!  import :: rpncomm_communicator                 !InTf!
       implicit none                                !InTf!
       character(len=*), intent(IN) :: com          !InTf!
-      type(rpncomm_group), intent(OUT) :: group    !InTf!
+      type(rpncomm_group), intent(OUT) :: rgroup    !InTf!
+      type(rpncomm_communicator), optional, intent(IN) :: rcom        !InTf!
 
       integer, external :: RPN_COMM_group
-      integer :: temp
+      integer :: temp, ierr
 
-      temp = RPN_COMM_group(com)
-      if(temp .ne. MPI_GROUP_NULL) then
-        group%p = C_LOC(WORLD_COMM_MPI)              ! temporary signature
-        group%t1 = ieor(temp,RPN_COMM_MAGIC)     ! to be adjusted later
-        group%t2 = temp
+      if( present(rcom) ) then
+        call MPI_comm_group(rcom%t2,temp,ierr)
+        if(ierr .ne. MPI_SUCCESS) temp = MPI_GROUP_NULL
       else
-        group%p = C_NULL_PTR
-        group%t1 = temp
-        group%t2 = temp
+        temp = RPN_COMM_group(com)
+      endif
+      if(temp .ne. MPI_GROUP_NULL) then
+        rgroup%p = C_LOC(WORLD_COMM_MPI)              ! temporary signature
+        rgroup%t1 = ieor(temp,RPN_COMM_MAGIC)     ! to be adjusted later
+        rgroup%t2 = temp
+      else
+        rgroup%p = C_NULL_PTR
+        rgroup%t1 = temp
+        rgroup%t2 = temp
       endif
 
       return

@@ -227,10 +227,13 @@ end module RPN_COMM_windows
 !===============================================================================
 ! test code for one sided communication window package
 !===============================================================================
-subroutine RPN_COMM_i_win_test()
+subroutine RPN_COMM_i_win_test(nparams,params)
   use RPN_COMM_windows
   implicit none
+  integer, intent(IN) :: nparams
+  integer, intent(IN), dimension(nparams) :: params
 
+  return
 end subroutine RPN_COMM_i_win_test
 !===============================================================================
 ! beginning of USER CALLABLE routines/functions

@@ -22,7 +22,7 @@
         implicit none
         integer, intent(IN) :: nparams
         integer, intent(IN), dimension(nparams) :: params
-#include <RPN_COMM_interfaces.inc>
+        include 'RPN_COMM_interfaces.inc'
 
         integer, dimension(:,:,:,:), allocatable :: garr
         integer :: ghalox,ghaloy,gmini,gmaxi,gmaxj,gminj

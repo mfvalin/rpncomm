@@ -94,7 +94,7 @@ contains
   end function indx_com_tab
 end module rpncomm_com
 !InTf!
-      integer function RPN_COMM_comm(com)           !InTf!
+      integer function RPN_COMM_comm(com)                    !InTf!
 !	Luc Corbeil, 2000-11-21
 !
 !	lien entre chaine de caractere de communicateur
@@ -253,16 +253,26 @@ end module rpncomm_com
 !       ctyp_c : character version of communicator (rpn comm char style) (see RPN_COMM_constants.inc)
 !       ctyp   : new item of type rpncomm_communicator
 !InTf!
-        subroutine RPN_COMM_i_comm(ctyp_c,ctyp)            !InTf!
+        subroutine RPN_COMM_i_comm(ctyp_c,ctyp,mcom)         !InTf!
         use rpn_comm
 !!      import :: rpncomm_communicator                       !InTf!
         implicit none
         type(rpncomm_communicator), intent(OUT) :: ctyp      !InTf!
         character(len=*), intent(IN) :: ctyp_c               !InTf!
-        integer, external :: RPN_COMM_comm
+        integer, optional, intent(IN) :: mcom                !InTf!
 
+        integer, external :: RPN_COMM_comm
+        integer :: temp, siz, ierr
+
+        if( present(mcom) ) then
+          temp = mcom
+        else
+          temp = RPN_COMM_comm(ctyp_c)           ! converted communicator value
+        endif
+        call MPI_comm_size(temp,siz,ierr)        ! test communicator validity
+        if( ierr .ne. MPI_SUCCESS ) temp = MPI_COMM_NULL
         ctyp%p = C_LOC(WORLD_COMM_MPI)            ! signature
-        ctyp%t2 = RPN_COMM_comm(ctyp_c)           ! communicator value
-        ctyp%t1 = ieor(ctyp%t2,RPN_COMM_MAGIC)     ! xor with magic token
+        ctyp%t2 = temp
+        ctyp%t1 = ieor(temp,RPN_COMM_MAGIC)     ! xor with magic token
         end subroutine RPN_COMM_i_comm                    !InTf!
 
