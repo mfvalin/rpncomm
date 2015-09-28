@@ -160,22 +160,26 @@ contains
     integer, intent(IN) :: comm            ! MPI communicator for this one sided window
     integer, intent(OUT) :: indx           ! index into wintab of created window (used for consistency test)
     integer, intent(OUT) :: ierr           ! return status (RPN_COMM_ERROR or RPN_COMM_OK)
-    integer :: i, extent, ierror
+    integer :: i, extent, ierror, group
 
     if(.not. associated(win_tab)) call init_win_tab  ! create and initialize window table if necessary
     ierr = RPN_COMM_ERROR                  ! preset for failure
     indx = -1
 
+    call MPI_comm_group(comm,group,ierror)
+    if(ierror .ne. MPI_SUCCESS) return     ! error getting group associated with communicator (bad communicator ?)
+
+    call MPI_TYPE_EXTENT(typ, extent, ierror)  ! determine size associated with MPI datatype
+    if(ierror .ne. MPI_SUCCESS) return         !  invalid type ? other error ?
+    if( mod(extent,integer_size) .ne. 0 ) return    ! extent of data type is not a multiple of integer
+
     do i = 1 , RPN_COMM_MAX_WINDOWS        ! loop over window table entries (we are looking for a free entry)
       if(.not. c_associated(win_tab(i)%base) ) then  ! this entry is free
-        call MPI_TYPE_EXTENT(typ, extent, ierror)  ! determine size associated with MPI datatype
-        if( mod(extent,integer_size) .ne. 0 ) return    ! extent of data type not a multiple of integer
-        if(ierror .ne. MPI_SUCCESS) return         ! invalid type ? other error ?
-        if(c_associated(base)) then    ! user has already allocated space
+        if(c_associated(base)) then    ! if user has already allocated space
           win_tab(i)%base = base
-        else                           ! allocate needed space with MPI_alloc_mem
+        else                           ! otherwise allocate needed space with MPI_alloc_mem
           call MPI_alloc_mem(extent*siz, MPI_INFO_NULL, win_tab(i)%base,ierr)
-          if(ierr .ne. MPI_SUCCESS) return       ! could not allocate memory
+          if(ierr .ne. MPI_SUCCESS) return       ! could not allocate memory, OUCH !!
         endif
         indx = i
         call c_f_pointer(win_tab(i)%base,win_tab(i)%remote,[extent*siz])
@@ -186,6 +190,7 @@ contains
         win_tab(i)%indx = indx                   ! entry index points to itself
         win_tab(i)%siz = siz                     ! number of elements in window
         win_tab(i)%com = comm                    ! communicator associated with window
+        win_tab(i)%grp = group                   ! group associated with said communicator
         win_tab(i)%active_mode = .true.          ! use active mode by default
         win_tab(i)%s_group = MPI_GROUP_NULL      ! no send (put) group by default
         win_tab(i)%r_group = MPI_GROUP_NULL      ! no receive (get) group by default
@@ -238,7 +243,66 @@ end subroutine RPN_COMM_i_win_test
 !===============================================================================
 ! beginning of USER CALLABLE routines/functions
 !===============================================================================
+!InTf!
+!****f* rpn_comm/RPN_COMM_i_win_group control membership of get and put groups for this PE and this window
+! SYNOPSIS
+subroutine RPN_COMM_i_win_group(window,pes_to,n_to,pes_from,n_from,ierr)  !InTf!
+!===============================================================================
+! for this one sided communication window,
+! provide a list of PEs into which remote operations (get/put/acc) will be performed
+! provide a list of PEs from which remote operations (get/put/acc) will be accepted
+!===============================================================================
+!
+! window   (IN)      rpn_comm window (see RPN_COMM_types.inc)
+! pes_to   (IN)      array of dimension n_to listing the pe_s who's window will be 
+!                    the target of remote operations from this PE (get/put/acc)
+! pes_from (IN)      array of dimension n_from listing the pe_s that will be 
+!                    the source of remote operations into this PE's window (get/put/acc)
+! ierr     (OUT)     will be set to RPN_COMM_OK or RPN_COMM_ERROR
+!===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
+  use RPN_COMM_windows
+  implicit none
+!!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
+  integer, intent(IN) :: n_to                                         !InTf!
+  integer, dimension(n_to), intent(IN) :: pes_to                      !InTf!
+  integer, intent(IN) :: n_from                                       !InTf!
+  integer, dimension(n_to), intent(IN) :: pes_from                    !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+!******
 
+  integer :: ierr2, index
+  type(rpncomm_windef), pointer :: win_entry
+
+  ierr = RPN_COMM_ERROR
+  if( .not. win_valid(window) )  return  ! bad window reference
+  if(n_to <= 0 .or. n_from <= 0) return  ! bad list of PEs
+
+!  indx = window%t2                   ! window table entry for this window is win_tab(indx)
+  call c_f_pointer( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
+  if(win_entry%is_open) return           ! no change allowed if window is "exposed"
+  if(win_entry%s_group .ne. MPI_GROUP_NULL) then   ! free group, it will be re-creataed
+    call MPI_group_free(win_entry%s_group,ierr2)
+    if(ierr2 .ne. MPI_SUCCESS) return
+  endif
+  if(win_entry%r_group .ne. MPI_GROUP_NULL) then   ! free group, it will be re-creataed
+    call MPI_group_free(win_entry%r_group,ierr2)
+    if(ierr2 .ne. MPI_SUCCESS) return
+  endif
+
+  call MPI_group_incl(win_entry%grp, n_to, pes_to, win_entry%s_group, ierr2)
+  if(ierr2 .ne. MPI_SUCCESS) return                ! group include failed
+
+  call MPI_group_incl(win_entry%grp, n_from, pes_from, win_entry%r_group, ierr2)
+  if(ierr2 .ne. MPI_SUCCESS) return                ! group include failed
+
+  ierr = RPN_COMM_OK
+  return
+end subroutine RPN_COMM_i_win_group                                   !InTf!
 !InTf!
 !****f* rpn_comm/RPN_COMM_i_win_create create a one sided communication window
 ! SYNOPSIS
@@ -354,7 +418,7 @@ subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
 !******
 
-  integer :: ierr2, indx
+  integer :: ierr1, ierr2, indx
   logical ::is_open
   logical, external :: RPN_COMM_i_win_check
 
@@ -363,9 +427,20 @@ subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
   is_open = RPN_COMM_i_win_check(window,ierr2)
   if(is_open .or. ierr2 .ne. RPN_COMM_OK) return    ! ERROR: window is already open (exposed) or not valid
 
-  if(win_tab(indx)%active_mode) call MPI_win_fence(MPI_MODE_NOPRECEDE,win_tab(indx)%win,ierr2)
+  if(win_tab(indx)%active_mode) then           ! active mode
+    if(win_tab(indx)%s_group == MPI_COMM_NULL .and. win_tab(indx)%r_group == MPI_COMM_NULL) then  ! fence mode
+      ierr1 = MPI_SUCCESS
+      call MPI_win_fence(MPI_MODE_NOPRECEDE,win_tab(indx)%win,ierr2)
+    else                                                                                         ! start/complete/post/wait mode
+      call MPI_win_start(win_tab(indx)%s_group,0,win_tab(indx)%win,ierr1)    ! start RMA access epoch on win to members of s_group
+      call MPI_win_post (win_tab(indx)%r_group,0,win_tab(indx)%win,ierr2)    ! start RMA exposure epoch on win from members of r_group
+    endif
+  else                                         ! nothing to do in passive mode
+    ierr1 = MPI_SUCCESS
+    ierr2 = RPN_COMM_OK
+  endif
 
-  if(ierr2 .eq. MPI_SUCCESS) then
+  if(ierr1 .eq. MPI_SUCCESS .and. ierr2 .eq. MPI_SUCCESS) then
     ierr = RPN_COMM_OK
     win_tab(indx)%is_open = .true.   ! set window open flag
   endif
@@ -396,7 +471,7 @@ subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
 !******
 
-  integer :: ierr2, indx
+  integer :: ierr1, ierr2, indx
   logical :: is_not_open
   logical, external :: RPN_COMM_i_win_check
 
@@ -405,9 +480,20 @@ subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
   is_not_open = .not. RPN_COMM_i_win_check(window,ierr2)
   if(is_not_open .or. ierr2 .ne. RPN_COMM_OK) return    ! ERROR: window is not open (exposed) or not valid
 
-  if(win_tab(indx)%active_mode) call MPI_win_fence(MPI_MODE_NOSUCCEED,win_tab(indx)%win,ierr2)
+  if(win_tab(indx)%active_mode) then           ! active mode
+    if( win_tab(indx)%s_group == MPI_COMM_NULL .and. win_tab(indx)%r_group == MPI_COMM_NULL ) then  ! fence mode
+      ierr1 = MPI_SUCCESS
+      call MPI_win_fence(MPI_MODE_NOSUCCEED,win_tab(indx)%win,ierr2)
+    else                                                                                            ! start/complete/post/wait mode
+      call MPI_win_complete(win_tab(indx)%win, ierr1)    ! Complete RMA access epoch on win started MPI_WIN_START
+      call MPI_win_wait    (win_tab(indx)%win, ierr2)    ! Complete RMA exposure epoch started by MPI_WIN_POST on win
+    endif
+  else                                         ! nothing to do in passive mode
+    ierr1 = MPI_SUCCESS
+    ierr2 = MPI_SUCCESS
+  endif
 
-  if(ierr2 .eq. MPI_SUCCESS) then
+  if(ierr1 .eq. MPI_SUCCESS .and. ierr2 .eq. MPI_SUCCESS) then
     ierr = RPN_COMM_OK
     win_tab(indx)%is_open = .false.   ! unset window open flag
   endif

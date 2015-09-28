@@ -24,7 +24,7 @@
 ! comments describing their internal usage
 !====================================================================================
 !   type, bind(C)    :: rpncomm_communicator ! (see RPN_COMM_comm.F90)
-!     type(c_ptr)    :: p     ! C MPI communicator
+!     type(c_ptr)    :: p     ! signature ( to be changed to C MPI communicator)
 !     integer(c_int) :: t1    ! t2 .xor. RPN_COMM_MAGIC
 !     integer(c_int) :: t2    ! Fortran MPI communicator
 !   end type rpncomm_communicator
@@ -50,21 +50,22 @@
 !   end type rpncomm_array
 !====================================================================================
   type :: rpncomm_windef
-    integer, dimension(:), pointer :: remote   ! base translated as fortran pointer to 1D array
-    type(C_PTR) :: base    ! base address of array
+    integer, dimension(:), pointer :: remote   ! base translated as Fortran pointer to 1D array
+    type(C_PTR) :: base    ! base address of array (C type pointer)
     integer :: indx        ! index of this entry in window table
     integer :: typ         ! MPI datatype
     integer :: ext         ! size of MPI datatype  (extent)
     integer :: win         ! MPI window
     integer :: com         ! MPI communicator
+    integer :: grp         ! MPI group associated with communicator
     integer :: s_group     ! MPI send (put) group
     integer :: r_group     ! MPI receive (get) group
     integer :: siz         ! deliberately limiting window size to less than 2GB
     logical :: is_open     ! .true. if window is "exposed"
-    logical :: is_user     ! .true. if array associated with window was user supplied rather thatn internal
+    logical :: is_user     ! .true. if array associated with window was user supplied rather than internal
     logical :: active_mode ! use active mode for this window's communications
   end type rpncomm_windef
-  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),C_NULL_PTR,0,0,0,0,0,0,0,0,.false.,.false.,.true.)
+  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),C_NULL_PTR,0,0,0,0,0,0,0,0,0,.false.,.false.,.true.)
 !====================================================================================
   type, bind(C)    :: rpncomm_bnds
     integer(c_int) :: lo, hi, lnp, gnp  ! low bound, high bound, local dimension, global dimension
@@ -124,7 +125,7 @@
   end type
 !====================================================================================
 !
-! Decomposition tables (definitions should be moved to RPN_COMM_types_int.inc)
+! Decomposition tables
 !
   type :: DEC         ! decomposisition description
     integer :: id       ! "magic" pseudo unique identifier
