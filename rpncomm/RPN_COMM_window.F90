@@ -1037,7 +1037,9 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ACC active fence mode test end'
 !  endif
 ! ================================== set windows properties ======================================
-!  call RPN_COMM_i_oper(RPN_COMM_LXOR,oper)
+  print *,'=============================================================================='
+  call RPN_COMM_i_oper(RPN_COMM_BXOR,oper)
+  print *,'TEST INFO: operator=',oper%t2
   call RPN_COMM_i_win_oper(window,oper,ierr)
   if(ierr == RPN_COMM_OK) then
     print *,'TEST INFO: associated operator to window, PE=',me
@@ -1055,7 +1057,6 @@ subroutine RPN_COMM_i_win_test(nparams,params)
   offset = 10                      ! displacement into remote window
 ! ==================================
 !  if(me == 0) then
-    print *,'=============================================================================='
     print *,'TEST INFO: ACC passive mode test start'
 !  endif
 
@@ -1069,7 +1070,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
 
   local(1:5) = [2,4,6,8,10] + 100*me
   call RPN_COMM_i_win_acc_r(window,c_loc(local(1)),target_pe,offset,nint(nval/2.0),oper,ierr)  ! (window,larray,target,offset,nelem,ierr)
-  do i = nint(nval/2.0),nval
+  do i = nint(nval/2.0)+1,nval
     call RPN_COMM_i_win_acc_r(window,c_loc(local(i)),target_pe,offset+i-1,1,oper,ierr)
   enddo
 
@@ -1086,18 +1087,24 @@ subroutine RPN_COMM_i_win_test(nparams,params)
   do i = 1 , size(my_data)
     got = my_data(i)
     if(i>offset .and. i<=offset+nval) then
-      expected = 0
+!      expected = local(i-offset)
+      expected = -i
       expected = ieor(local(i-offset),expected)
-      print *,'i=',i,' got',got,' expected',expected
-      if( got .ne. expected)  nerrors = nerrors + 1
+      if( got .ne. expected)  then
+        nerrors = nerrors + 1
+        print *,'i=',i,' got',got,' expected',expected,'  ERROR',nerrors
+      else
+        print *,'i=',i,' got',got,' expected',expected,'  OK'
+      endif
     else
       expected = -i
       if(got .ne. -i) then
         nerrors = nerrors + 1
-        print *,'i=',i,' got',got,' expected',expected,' error'
+        print *,'i=',i,' got',got,' expected',expected,' ERROR',nerrors
       endif
     endif
   enddo
+  if(nerrors .ne. 0) print *,'TEST INFO:',nerrors,' unexpected local values found from ACC'
   errors = 0
   call RPN_COMM_allgather(nerrors,1,RPN_COMM_INTEGER,errors,1,RPN_COMM_INTEGER,RPN_COMM_GRID,ierr)
   print *,'TEST INFO:',sum(errors),' unexpected values found from ACC',errors
@@ -1769,11 +1776,11 @@ subroutine RPN_COMM_i_win_acc_r(window,larray,targetpe,offset,nelem,oper,ierr) !
     endif
   endif
   offset_8 = offset
-  if(debug_mode) print *,'DEBUG: ACC to',targetpe,' at',offset_8+1,' :',local(1:nelem)
+  if(debug_mode) print *,'DEBUG: ACC to',targetpe,' at',offset_8+1,oper%t2,' :',local(1:nelem)
   if(win_entry%opr == MPI_REPLACE) then                  ! replace operation, use put instead of accumulate
-    call MPI_put       (local,       nelem,        win_entry%typ,   targetpe,   offset_8,    nelem,        win_entry%typ,   win_entry%win,         ierr2)
+    call MPI_put       (local,       nelem,        win_entry%typ,   targetpe,   offset_8,    nelem,        win_entry%typ,           win_entry%win, ierr2)
   else
-    call MPI_accumulate(local,       nelem,        win_entry%typ,   targetpe,   offset_8,    nelem,        win_entry%typ,   win_entry%win,oper%t2, ierr2)
+    call MPI_accumulate(local,       nelem,        win_entry%typ,   targetpe,   offset_8,    nelem,        win_entry%typ, oper%t2,  win_entry%win, ierr2)
 !              ORIGIN_ADDR, ORIGIN_COUNT, ORIGIN_DATATYPE, TARGET_RANK,TARGET_DISP, TARGET_COUNT, TARGET_DATATYPE, WIN,          IERROR)
   endif
   if(ierr2 .ne. MPI_SUCCESS) then
