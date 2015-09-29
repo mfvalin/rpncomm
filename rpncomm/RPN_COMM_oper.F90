@@ -39,7 +39,7 @@
             return
           endif
         enddo
-
+#if defined(OBSOLETE)
         goto 777
 
         if (operation(1:11).eq.'MPI_OP_NULL') then
@@ -96,8 +96,47 @@
         endif
 
 
-777     write(rpn_u,*) 'Unknown operation ',op,' aborting'
+777     continue
+#endif
+        write(rpn_u,*) 'Unknown operation ',op,' aborting'
         stop
           
         return
         end function RPN_COMM_oper                  !InTf!
+subroutine RPN_COMM_i_oper(op,r_oper)             !InTf!
+  use rpn_comm
+  implicit none
+!! import :: rpncomm_operator                     !InTf!
+  character(len=*), intent(IN) :: op              !InTf!
+  type(rpncomm_operator), intent(OUT) :: r_oper   !InTf!
+
+  integer, external :: RPN_COMM_oper
+
+  r_oper%t2 = RPN_COMM_oper(op)
+  r_oper%t1 = ieor(r_oper%t2,RPN_COMM_MAGIC)
+  r_oper%p  = C_LOC(WORLD_COMM_MPI)            ! signature
+
+  return
+end subroutine RPN_COMM_i_oper                    !InTf!
+function RPN_COMM_i_valid_oper(r_oper) result (is_valid)  !InTf!
+  use rpn_comm
+!! import :: rpncomm_operator                     !InTf!
+  implicit none
+  type(rpncomm_operator), intent(IN) :: r_oper    !InTf!
+  logical :: is_valid                             !InTf!
+
+  type(C_PTR) :: temp
+
+  temp = C_LOC(WORLD_COMM_MPI)
+  is_valid = c_associated(temp,r_oper%p)
+  if(.not. is_valid ) then
+    write(rpn_u,*) 'ERROR: bad signature for rpncomm_operator'
+    return
+  endif
+  is_valid = ieor(r_oper%t1,RPN_COMM_MAGIC) == r_oper%t2
+  if(.not. is_valid ) then
+    write(rpn_u,*) 'ERROR: bad checksum for rpncomm_operator'
+  endif
+  
+  return
+end function RPN_COMM_i_valid_oper                !InTf!

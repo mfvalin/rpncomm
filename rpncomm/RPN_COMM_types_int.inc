@@ -49,10 +49,23 @@
 !     integer(c_int) :: t2    ! tag2 (reserved for rpn_comm usage)
 !   end type rpncomm_array
 !====================================================================================
+!  type, bind(C)    :: rpncomm_window
+!    type(c_ptr)    :: p     ! pointer to table entry  = C_LOC( win_tab(t2) )
+!    integer(c_int) :: t1    ! t2 .xor. RPN_COMM_MAGIC
+!    integer(c_int) :: t2    ! index into internal window table
+!  end type rpncomm_window
+!====================================================================================
+!  type, bind(C)    :: rpncomm_operator
+!    type(c_ptr)    :: p     ! signature ( to be changed to C MPI communicator)
+!    integer(c_int) :: t1    ! t2 .xor. RPN_COMM_MAGIC
+!    integer(c_int) :: t2    ! Fortran MPI operator
+!  end type rpncomm_operator
+!====================================================================================
   type :: rpncomm_windef
     integer, dimension(:), pointer :: remote   ! base translated as Fortran pointer to 1D array
     type(C_PTR) :: base    ! base address of array (C type pointer)
     integer :: indx        ! index of this entry in window table
+    integer :: opr         ! MPI operator
     integer :: typ         ! MPI datatype
     integer :: ext         ! size of MPI datatype  (extent)
     integer :: win         ! MPI window
@@ -65,7 +78,7 @@
     logical :: is_user     ! .true. if array associated with window was user supplied rather than internal
     logical :: active_mode ! use active mode for this window's communications
   end type rpncomm_windef
-  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),C_NULL_PTR,0,0,0,0,0,0,0,0,0,.false.,.false.,.true.)
+  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),C_NULL_PTR,0,0,0,0,0,0,0,0,0,0,.false.,.false.,.true.)
 !====================================================================================
   type, bind(C)    :: rpncomm_bnds
     integer(c_int) :: lo, hi, lnp, gnp  ! low bound, high bound, local dimension, global dimension
