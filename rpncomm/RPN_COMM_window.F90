@@ -85,10 +85,7 @@ module RPN_COMM_windows
   integer, parameter :: RPN_COMM_MAX_WINDOWS = 64
   integer, save :: integer_size = 0
   type(rpncomm_windef), dimension(:), pointer, save :: win_tab => NULL()  ! rpn comm window table
-!  logical, save :: active_mode = .true.
-!  integer , save :: receive_group = MPI_GROUP_NULL
-!  integer , save :: send_group = MPI_GROUP_NULL
-contains
+ contains
 !****if* RPN_COMM_windows/init_win_tab
 ! SYNOPSIS
   subroutine init_win_tab
@@ -126,18 +123,27 @@ contains
 
     is_valid = .false.
     if(.not. c_associated(win_ptr)) return           ! pointer to table entry is not valid
+!print *,'DEBUG: c_associated(win_ptr)'
     if(.not. associated(win_tab)) return             ! win_tab does not exist yet
+!print *,'DEBUG: associated(win_tab)'
 
     call c_f_pointer(win_ptr,win_entry)                  ! make pointer to win_entry from win_ptr
 
     if(win_entry%indx <=0 .or. win_entry%indx>RPN_COMM_MAX_WINDOWS) return  ! impossible index into window table
+!print *,'DEBUG: win_entry%indx'
     temp = c_loc(win_tab(win_entry%indx))            ! address pointed to by entry index
     if(.not. c_associated(temp,win_ptr)) return      ! entry index should point to itself
+!print *,'DEBUG: c_associated(temp,win_ptr)'
     if(.not. c_associated(win_entry%base)) return    ! no array associated with entry
+!print *,'DEBUG: c_associated(win_entry%base)'
     if(win_entry%com == MPI_COMM_NULL) return        ! no communicator
+!print *,'DEBUG: MPI_COMM_NULL'
     if(win_entry%typ == MPI_DATATYPE_NULL) return    ! no datatype
+!print *,'DEBUG: MPI_DATATYPE_NULL'
     if(win_entry%win == MPI_WIN_NULL) return         ! no window
+!print *,'DEBUG: MPI_WIN_NULL'
     if(win_entry%siz <= 0) return                    ! invalid size
+!print *,'DEBUG: win_entry%siz =',win_entry%siz
 
     is_valid = .true.                                ! no more reason to think entry is not valid
 
@@ -160,7 +166,9 @@ contains
     integer, intent(IN) :: comm            ! MPI communicator for this one sided window
     integer, intent(OUT) :: indx           ! index into wintab of created window (used for consistency test)
     integer, intent(OUT) :: ierr           ! return status (RPN_COMM_ERROR or RPN_COMM_OK)
+
     integer :: i, extent, ierror, group
+    integer(kind=MPI_ADDRESS_KIND) win_size  ! INTEGER(KIND=MPI_ADDRESS_KIND) SIZE, BASEPTR
 
     if(.not. associated(win_tab)) call init_win_tab  ! create and initialize window table if necessary
     ierr = RPN_COMM_ERROR                  ! preset for failure
@@ -172,26 +180,38 @@ contains
     call MPI_TYPE_EXTENT(typ, extent, ierror)  ! determine size associated with MPI datatype
     if(ierror .ne. MPI_SUCCESS) return         !  invalid type ? other error ?
     if( mod(extent,integer_size) .ne. 0 ) return    ! extent of data type is not a multiple of integer
+    win_size = extent
+    win_size = win_size * siz
 
     do i = 1 , RPN_COMM_MAX_WINDOWS        ! loop over window table entries (we are looking for a free entry)
       if(.not. c_associated(win_tab(i)%base) ) then  ! this entry is free
         if(c_associated(base)) then    ! if user has already allocated space
+print *,'DEBUG: user supplied space, size=',win_size
           win_tab(i)%base = base
+          win_tab(i)%is_user = .true.  ! user supplied space
         else                           ! otherwise allocate needed space with MPI_alloc_mem
-          call MPI_alloc_mem(extent*siz, MPI_INFO_NULL, win_tab(i)%base,ierr)
+print *,'DEBUG: allocating with MPI_alloc_mem, size=',win_size
+          call MPI_alloc_mem(win_size, MPI_INFO_NULL, win_tab(i)%base,ierr)
           if(ierr .ne. MPI_SUCCESS) return       ! could not allocate memory, OUCH !!
+          win_tab(i)%is_user = .false.  ! internally supplied space
+        endif
+        call c_f_pointer(win_tab(i)%base,win_tab(i)%remote,[extent*siz])
+
+        call MPI_win_create(win_tab(i)%remote, win_size, extent, MPI_INFO_NULL, comm, win_tab(i)%win, ierror)
+        if(ierror .ne. MPI_SUCCESS) then
+          print *,'ERROR: window creation unsuccessful'
+          return
         endif
         indx = i
-        call c_f_pointer(win_tab(i)%base,win_tab(i)%remote,[extent*siz])
         win_tab(i)%is_open = .false.             ! window is not "exposed"
-        win_tab(i)%is_user = c_associated(base)  ! user supplied space ?
         win_tab(i)%typ = typ                     ! MPI data type associated to window
         win_tab(i)%ext = extent/integer_size     ! size (extent) of MPI data type in MPI_INTEGER units
         win_tab(i)%indx = indx                   ! entry index points to itself
         win_tab(i)%siz = siz                     ! number of elements in window
         win_tab(i)%com = comm                    ! communicator associated with window
         win_tab(i)%grp = group                   ! group associated with said communicator
-        win_tab(i)%active_mode = .true.          ! use active mode by default
+!        win_tab(i)%active_mode = .true.          ! use active mode by default
+        win_tab(i)%active_mode = .false.          ! use passive mode by default
         win_tab(i)%s_group = MPI_GROUP_NULL      ! no send (put) group by default
         win_tab(i)%r_group = MPI_GROUP_NULL      ! no receive (get) group by default
         ierr = RPN_COMM_OK                       ! all is well
@@ -217,10 +237,13 @@ contains
   if(.not. associated(win_tab)) call init_win_tab  ! create and initialize window table if necessary
 
   if( ieor(window%t1,RPN_COMM_MAGIC) .ne. window%t2 )   return  ! inconsistent tags
+!print *,'DEBUG: tags consistent'
   if(window%t2 < 0 .or. window%t2>RPN_COMM_MAX_WINDOWS) return  ! invalid index
+!print *,'DEBUG: index is valid = ',window%t2
 
   temp = c_loc(win_tab(window%t2))                 ! address of relevant win_tab entry
-  if( .not.c_associated(window%p,temp)) return     ! window%p must point to win_tab(window%t2)
+  if( .not. c_associated(window%p,temp)) return    ! window%p must point to win_tab(window%t2)
+!print *,'DEBUG: window array associated and equal to proper address'
 
   is_valid = valid_win_entry(window%p)             ! check that window description in table is good
   return
@@ -233,11 +256,189 @@ end module RPN_COMM_windows
 ! test code for one sided communication window package
 !===============================================================================
 subroutine RPN_COMM_i_win_test(nparams,params)
-  use RPN_COMM_windows
+  use ISO_C_BINDING
   implicit none
+  include 'RPN_COMM.inc'
+  include 'mpif.h'
   integer, intent(IN) :: nparams
   integer, intent(IN), dimension(nparams) :: params
 
+  integer, parameter :: DATA_SIZE = 1024
+  type(rpncomm_window) :: window, window2
+  type(rpncomm_datatype) :: dtype
+  type(rpncomm_communicator) :: com
+  integer :: siz
+  type(C_PTR) :: array, array2, cptr, cptr2
+  integer, dimension(:), pointer :: fptr, fptr2
+  integer, dimension(DATA_SIZE), target :: my_data
+  integer :: ierr, i, nerrors
+  integer :: me, me_x, me_y, status, wsiz, npes, target_pe, from_pe
+  integer, dimension(100), target :: local
+
+  siz = DATA_SIZE
+  status = RPN_COMM_mype(Me,Me_x,Me_y)
+  call RPN_COMM_size( RPN_COMM_GRID, npes ,ierr )
+  print *,'TEST INFO: this is PE',me+1,' of',npes
+  call RPN_COMM_i_comm(RPN_COMM_GRID,com)
+  call RPN_COMM_i_datyp(RPN_COMM_INTEGER,dtype)
+
+  array = c_loc(my_data(1))
+  do i = 1 , siz
+    my_data(i) = -i
+  enddo
+  call RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: created window, PE=',me
+  else
+    print *,'TEST ERROR: cannot create window, PE=',me
+    return
+  endif
+  wsiz = RPN_COMM_i_win_get_size(window,ierr)
+  if(me == 0) then
+    print *,'TEST INFO: size associated to window =',wsiz
+  endif
+  cptr = RPN_COMM_i_win_get_ptr(window,ierr)   ! get C pointer to local window data
+  call c_f_pointer(cptr,fptr,[wsiz])           ! convert to Fortran pointer
+  nerrors = 0
+  do i = 1 , wsiz
+    if(fptr(i) .ne. my_data(i)) nerrors = nerrors + 1
+  enddo
+  print *,'TEST INFO: nerrors for window =',nerrors
+
+  array2 = C_NULL_PTR
+  call RPN_COMM_i_win_create(window2,dtype,siz*2,com,array2,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: created window2, PE=',me
+  else
+    print *,'TEST ERROR: cannot create window2, PE=',me
+    return
+  endif
+  wsiz = RPN_COMM_i_win_get_size(window2,ierr)
+  if(me == 0) then
+    print *,'TEST INFO: size associated to window2 =',wsiz
+  endif
+  cptr2 = RPN_COMM_i_win_get_ptr(window2,ierr)   ! get C pointer to local window data
+  call c_f_pointer(cptr2,fptr2,[wsiz])           ! convert to Fortran pointer
+  fptr2 = -1
+
+  target_pe = mod(me+1,npes)
+  from_pe = mod(me+npes-1,npes)
+! ========================================================================
+  if(me == 0) then
+    print *,'TEST INFO: active mode test start'
+  endif
+
+  call RPN_COMM_i_win_open(window,.true.,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: accessing window, PE=',me
+  else
+    print *,'TEST ERROR: cannot access window, PE=',me
+    return
+  endif
+
+  local(1:5) = [2,4,6,8,10]
+  call RPN_COMM_i_win_put_r(window,c_loc(local(1)),target_pe,100*me,3,ierr)  ! (window,larray,target,offset,nelem,ierr)
+
+  call RPN_COMM_i_win_close(window,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: ending access to window, PE=',me
+  else
+    print *,'TEST ERROR: cannot end access to window, PE=',me
+    return
+  endif
+
+  do i = 1 , size(my_data)
+    if(my_data(i) > 0) print *,'i=',i,' data=',my_data(i)
+  enddo
+
+  if(me == 0) then
+    print *,'TEST INFO: active mode test end'
+  endif
+! ========================================================================
+  if(me == 0) then
+    print *,'TEST INFO: active group mode test start'
+  endif
+
+  call RPN_COMM_i_win_group(window,[target_pe],1,[from_pe],1,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: group creation OK'
+  else
+    print *,'TEST ERROR: group creation failure'
+  endif
+  call RPN_COMM_i_win_open(window,.true.,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: accessing window, PE=',me
+  else
+    print *,'TEST ERROR: cannot access window, PE=',me
+    return
+  endif
+
+  local(1:5) = [12,14,16,18,20]
+  call RPN_COMM_i_win_put_r(window,c_loc(local(1)),target_pe,100*me+15,2,ierr)  ! (window,larray,target,offset,nelem,ierr)
+
+  call RPN_COMM_i_win_close(window,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: ending access to window, PE=',me
+  else
+    print *,'TEST ERROR: cannot end access to window, PE=',me
+    return
+  endif
+
+  do i = 1 , size(my_data)
+    if(my_data(i) > 0) print *,'i=',i,' data=',my_data(i)
+  enddo
+
+  if(me == 0) then
+    print *,'TEST INFO: active group mode test end'
+  endif
+! ========================================================================
+  if(me == 0) then
+    print *,'TEST INFO: passive mode test start'
+  endif
+
+  call RPN_COMM_i_win_open(window,.false.,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: accessing window, PE=',me
+  else
+    print *,'TEST ERROR: cannot access window, PE=',me
+    return
+  endif
+
+  target_pe = mod(me+1,npes)
+  local(1:5) = [1,3,5,7,9]
+  call RPN_COMM_i_win_put_r(window,c_loc(local(1)),target_pe,100*me+5,3,ierr)  ! (window,larray,target,offset,nelem,ierr)
+
+  call RPN_COMM_i_win_close(window,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: ending access to window, PE=',me
+  else
+    print *,'TEST ERROR: cannot end access to window, PE=',me
+    return
+  endif
+
+  do i = 1 , size(my_data)
+    if(my_data(i) > 0) print *,'i=',i,' data=',my_data(i)
+  enddo
+
+  if(me == 0) then
+    print *,'TEST INFO: active mode test end'
+  endif
+
+  call RPN_COMM_i_win_free(window,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: freed window, PE=',me
+  else
+    print *,'TEST ERROR: cannot free window, PE=',me
+    return
+  endif
+
+  call RPN_COMM_i_win_free(window2,ierr)
+  if(ierr == RPN_COMM_OK) then
+    print *,'TEST INFO: freed window2, PE=',me
+  else
+    print *,'TEST ERROR: cannot free window2, PE=',me
+    return
+  endif
   return
 end subroutine RPN_COMM_i_win_test
 !===============================================================================
@@ -344,7 +545,8 @@ subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
 
   call create_win_entry(array,dtype%t2,siz,com%t2,indx,ierr)
   if(ierr .ne. RPN_COMM_OK) return
-
+!print *,'DEBUG: window created indx =',indx
+!print *,'DEBUG: window created win =',win_tab(indx)%win
   window%p = c_loc(win_tab(indx))        ! point to entry in window table
   window%t1 = ieor(indx,RPN_COMM_MAGIC)  ! xor with magic token
   window%t2 = indx                       ! index into table
@@ -375,35 +577,51 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
   type(rpncomm_window), intent(INOUT) :: window                       !InTf!
 !******
 
-  integer :: indx
+  integer :: indx, ierr1, ierr2
 
   ierr = RPN_COMM_ERROR
   if(.not. win_valid(window) ) return
-
   indx = window%t2
-  window = NULL_rpncomm_window
+
+!print *,'DEBUG: window is valid, index =',indx
+!print *,'DEBUG: window is valid, win   =',win_tab(indx)%win
+  call MPI_win_free(win_tab(indx)%win,ierr2)       ! free window
+  if(ierr2 .ne. MPI_SUCCESS) then
+    print *,'ERROR: error freeing window'
+  endif
+  win_tab(indx)%win = MPI_WIN_NULL                 ! MPI null window
 
   if(.not. win_tab(indx)%is_user) then   ! internal storage allocation, release it
-    call MPI_free_mem(win_tab(indx)%base,ierr)
+    print *,'INFO: attempting to free internal window storage'
+    call MPI_free_mem(win_tab(indx)%remote,ierr1)
+    if(ierr1 .ne. MPI_SUCCESS) then
+      print *,'ERROR: error freeing window storage'
+    endif
+  else
+    ierr1 = MPI_SUCCESS
   endif
   win_tab(indx) = NULL_rpncomm_windef              ! blank entry
   win_tab(indx)%com = MPI_COMM_NULL                ! MPI null communicator
   win_tab(indx)%typ = MPI_DATATYPE_NULL            ! MPI null datatype
-  win_tab(indx)%win = MPI_WIN_NULL                 ! MPI null window
 
-  ierr = RPN_COMM_OK
+  window = NULL_rpncomm_window
+  if(ierr1 == MPI_SUCCESS .and. ierr2 == MPI_SUCCESS) then
+    ierr = RPN_COMM_OK
+!    print *,'DEBUG: successfully freed window'
+  endif
+
   return
-
 end subroutine RPN_COMM_i_win_free                                    !InTf!
 
 !InTf!
 !****f* rpn_comm/RPN_COMM_i_win_open open a one sided communication window
 ! SYNOPSIS
-subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
+subroutine RPN_COMM_i_win_open(window,active,ierr)                           !InTf!
 !===============================================================================
 ! "expose" a one sided communication window (see RPN_COMM_i_win_create)
 !
 ! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! active(IN)      .true. : use active mode, .false.: use passive mode
 ! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !===============================================================================
 ! AUTHOR
@@ -416,6 +634,7 @@ subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
 ! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
+  logical, intent(IN) :: active                                       !InTf!
 !******
 
   integer :: ierr1, ierr2, indx
@@ -427,13 +646,18 @@ subroutine RPN_COMM_i_win_open(window,ierr)                           !InTf!
   is_open = RPN_COMM_i_win_check(window,ierr2)
   if(is_open .or. ierr2 .ne. RPN_COMM_OK) return    ! ERROR: window is already open (exposed) or not valid
 
+  win_tab(indx)%active_mode = active
   if(win_tab(indx)%active_mode) then           ! active mode
-    if(win_tab(indx)%s_group == MPI_COMM_NULL .and. win_tab(indx)%r_group == MPI_COMM_NULL) then  ! fence mode
+    if(win_tab(indx)%s_group == MPI_GROUP_NULL .and. win_tab(indx)%r_group == MPI_GROUP_NULL) then  ! fence mode
       ierr1 = MPI_SUCCESS
       call MPI_win_fence(MPI_MODE_NOPRECEDE,win_tab(indx)%win,ierr2)
+print *,'DEBUG: opening window, fence mode',win_tab(indx)%win,win_tab(indx)%grp
+!      call MPI_win_start(win_tab(indx)%grp,0,win_tab(indx)%win,ierr1)    ! start RMA access epoch on win to members of s_group
+!      call MPI_win_post (win_tab(indx)%grp,0,win_tab(indx)%win,ierr2)    ! start RMA exposure epoch on win from members of r_group
     else                                                                                         ! start/complete/post/wait mode
       call MPI_win_start(win_tab(indx)%s_group,0,win_tab(indx)%win,ierr1)    ! start RMA access epoch on win to members of s_group
       call MPI_win_post (win_tab(indx)%r_group,0,win_tab(indx)%win,ierr2)    ! start RMA exposure epoch on win from members of r_group
+print *,'DEBUG: opening window, groups mode',win_tab(indx)%win,win_tab(indx)%s_group,win_tab(indx)%r_group
     endif
   else                                         ! nothing to do in passive mode
     ierr1 = MPI_SUCCESS
@@ -481,9 +705,12 @@ subroutine RPN_COMM_i_win_close(window,ierr)                          !InTf!
   if(is_not_open .or. ierr2 .ne. RPN_COMM_OK) return    ! ERROR: window is not open (exposed) or not valid
 
   if(win_tab(indx)%active_mode) then           ! active mode
-    if( win_tab(indx)%s_group == MPI_COMM_NULL .and. win_tab(indx)%r_group == MPI_COMM_NULL ) then  ! fence mode
+    if( win_tab(indx)%s_group == MPI_GROUP_NULL .and. win_tab(indx)%r_group == MPI_GROUP_NULL ) then  ! fence mode
       ierr1 = MPI_SUCCESS
       call MPI_win_fence(MPI_MODE_NOSUCCEED,win_tab(indx)%win,ierr2)
+print *,'DEBUG: closing window',win_tab(indx)%win
+!      call MPI_win_complete(win_tab(indx)%win, ierr1)    ! Complete RMA access epoch on win started MPI_WIN_START
+!      call MPI_win_wait    (win_tab(indx)%win, ierr2)    ! Complete RMA exposure epoch started by MPI_WIN_POST on win
     else                                                                                            ! start/complete/post/wait mode
       call MPI_win_complete(win_tab(indx)%win, ierr1)    ! Complete RMA access epoch on win started MPI_WIN_START
       call MPI_win_wait    (win_tab(indx)%win, ierr2)    ! Complete RMA exposure epoch started by MPI_WIN_POST on win
@@ -615,9 +842,48 @@ function RPN_COMM_i_win_get_ptr(window,ierr) result(ptr)                 !InTf!
 end function RPN_COMM_i_win_get_ptr                                      !InTf!
 
 !InTf!
+!****f* rpn_comm/RPN_COMM_i_win_get_ptr get data pointer associated to a one sided communication window
+! SYNOPSIS
+function RPN_COMM_i_win_get_size(window,ierr) result(siz)                 !InTf!
+!===============================================================================
+! get a one sided communication window (see RPN_COMM_i_win_create) data pointer
+!
+! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
+!
+! function value : C compatible (type(C_PTR)) pointer to the data array associated with window
+!                  in case of error, C_NULL_PTR is returned (null pointer)
+!===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
+  use RPN_COMM_windows
+  implicit none
+!!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
+  integer :: siz                                                  !InTf!
+!******
+
+  integer :: indx
+
+  ierr = RPN_COMM_ERROR
+  siz = -1
+  if(.not. win_valid(window) ) return
+
+  indx = window%t2            ! window table entry for this window
+  siz = win_tab(indx)%siz    ! get data pointer from window table entry
+
+  ierr = RPN_COMM_OK
+  return
+
+end function RPN_COMM_i_win_get_size                                      !InTf!
+
+!InTf!
 !****f* rpn_comm/RPN_COMM_i_win_put_r write into a remote one sided communication window
 ! SYNOPSIS
-subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
+subroutine RPN_COMM_i_win_put_r(window,larray,targetpe,offset,nelem,ierr) !InTf!
 !===============================================================================
 ! one sided communication remote put (write) into one sided communication window
 ! from a local array
@@ -641,7 +907,7 @@ subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   type(C_PTR), intent(IN), value :: larray                            !InTf!
-  integer, intent(IN) :: target                                       !InTf!
+  integer, intent(IN) :: targetpe                                     !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
 !******
@@ -651,6 +917,7 @@ subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
   logical, external :: RPN_COMM_i_win_check
   integer, dimension(:), pointer :: local
   type(rpncomm_windef), pointer :: win_entry
+  integer(kind=MPI_ADDRESS_KIND) :: offset_8
 
   ierr = RPN_COMM_ERROR
   is_open = RPN_COMM_i_win_check(window,ierr2)
@@ -661,11 +928,18 @@ subroutine RPN_COMM_i_win_put_r(window,larray,target,offset,nelem,ierr) !InTf!
   if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
   call c_f_pointer( larray , local, [nelem* win_entry%ext] )   ! pointer to local array
 
-  if(.not. win_entry%active_mode) call mpi_win_lock(MPI_LOCK_EXCLUSIVE, target, 0, win_entry%win, ierr2)
+  if(.not. win_entry%active_mode) call mpi_win_lock(MPI_LOCK_EXCLUSIVE, targetpe, 0, win_entry%win, ierr2)
   if(ierr2 .ne. MPI_SUCCESS) return
-  call MPI_put(local,nelem,win_entry%typ,target,offset,nelem,win_entry%typ,win_entry%win,ierr2)
+  offset_8 = offset
+!print *,'DEBUG: local=',local(1:nelem)
+!print *,'DEBUG: target=',targetpe
+!print *,'DEBUG: offset=',offset_8
+!print *,'DEBUG: type=',win_entry%typ,MPI_INTEGER
+!print *,'DEBUG: win=',win_entry%win,win_entry%active_mode
+  call MPI_put(local,       nelem,        win_entry%typ,   targetpe,   offset_8,    nelem,        win_entry%typ,   win_entry%win,ierr2)
+!              ORIGIN_ADDR, ORIGIN_COUNT, ORIGIN_DATATYPE, TARGET_RANK,TARGET_DISP, TARGET_COUNT, TARGET_DATATYPE, WIN,          IERROR)
   if(ierr2 .ne. MPI_SUCCESS) return
-  if(.not. win_entry%active_mode) call mpi_win_unlock(target, win_entry%win, ierr2)
+  if(.not. win_entry%active_mode) call mpi_win_unlock(targetpe, win_entry%win, ierr2)
   if(ierr2 .ne. MPI_SUCCESS) return
 
   ierr = RPN_COMM_OK
@@ -764,6 +1038,7 @@ subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
   logical, external :: RPN_COMM_i_win_check
   integer, dimension(:), pointer :: local
   type(rpncomm_windef), pointer :: win_entry
+  integer(kind=MPI_ADDRESS_KIND) offset_8
 
   ierr = RPN_COMM_ERROR
   is_open = RPN_COMM_i_win_check(window,ierr2)
@@ -776,7 +1051,10 @@ subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
 
   if(.not. win_entry%active_mode) call mpi_win_lock(MPI_LOCK_EXCLUSIVE, target, 0, win_entry%win, ierr2)
   if(ierr2 .ne. MPI_SUCCESS) return
-  call MPI_get(local,nelem,win_entry%typ,target,offset,nelem,win_entry%typ,win_entry%win,ierr2)
+  offset_8 = offset
+print *,'DEBUG: win=',win_entry%win
+  call MPI_get(local,nelem,win_entry%typ,target,offset_8,nelem,win_entry%typ,win_entry%win,ierr2)
+! 
   if(ierr2 .ne. MPI_SUCCESS) return
   if(.not. win_entry%active_mode) call mpi_win_unlock(target, win_entry%win, ierr2)
   if(ierr2 .ne. MPI_SUCCESS) return

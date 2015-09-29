@@ -54,6 +54,8 @@ contains
     do i = 15,MAX_COMM_TAB+1
       com_tab(i) = symtab(MPI_COMM_NULL,"")
     enddo
+!print *,'DEBUG: com_tab initialized'
+!print *,com_tab(1:15)
   end subroutine init_com_tab
 !
 ! add new communicator to table
@@ -88,6 +90,7 @@ contains
     do i = 1,max_com_index
       if( trim(com_tab(i)%string) == trim(com) ) then
         indx = i
+!print *,'DEBUG: index of "'//trim(com)//'" is',indx
         return
       endif
     enddo
@@ -107,11 +110,14 @@ end module rpncomm_com
 !        include rpn_comm.h
       character(len=*), intent(IN) :: com           !InTf!
       character(len=32) comm
-      integer :: i
+      integer :: i, indx
 
       call rpn_comm_low2up(com,comm)
-
+!print *,'DEBUG: avant indx_com_tab'
+      indx = indx_com_tab(comm)
+!print *,'DEBUG: indx_com_tab=',indx
       RPN_COMM_comm = com_tab(indx_com_tab(comm))%number
+!print *,'DEBUG: number=',RPN_COMM_comm
 
       return
 #if defined(DEPRECATED)
@@ -265,8 +271,10 @@ end module rpncomm_com
         integer :: temp, siz, ierr
 
         if( present(mcom) ) then
+!print *,'DEBUG: using optional mcom'
           temp = mcom
         else
+!print *,'DEBUG: using "'//trim(ctyp_c)//'"'
           temp = RPN_COMM_comm(ctyp_c)           ! converted communicator value
         endif
         call MPI_comm_size(temp,siz,ierr)        ! test communicator validity
