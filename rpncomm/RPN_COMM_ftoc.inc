@@ -29,12 +29,12 @@ interface RPN_COMM_c2f
     integer(C_INT) :: ftn
   end function type_c2f
 
-  function grop_c2f(c) result(ftn) bind(C,name='RPN_COMM_group_c2f')
+  function group_c2f(c) result(ftn) bind(C,name='RPN_COMM_group_c2f')
     import :: rpncomm_group, C_INT
     implicit none
     type(rpncomm_group), intent(IN) :: c
     integer(C_INT) :: ftn
-  end function grop_c2f
+  end function group_c2f
 
   function win_c2f(c) result(ftn) bind(C,name='RPN_COMM_window_c2f')
     import :: rpncomm_window, C_INT
@@ -112,7 +112,7 @@ interface RPN_COMM_f2c
     type(C_PTR) :: c
   end function op_f2c
 
-  function file_f2c(ftn,mpi_fval) result(c) bind(C,name='RPN_COMM_comm_f2c')
+  function file_f2c(ftn,mpi_fval) result(c) bind(C,name='RPN_COMM_file_f2c')
     import :: C_PTR, rpncomm_file, C_INT
     implicit none
     type(rpncomm_file), intent(INOUT) :: ftn

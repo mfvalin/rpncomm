@@ -446,6 +446,9 @@ end module RPN_COMM_io_pe_tables
 100 format(A,10I5)
   return
 end subroutine
+!
+!=========================   user callable routines   ===============================
+!
 !    status = callback(argv,setno,io_set(setno)%comm,io_set(setno)%me,   &
 !                      io_set(setno)%x,io_set(setno)%y,io_set(setno)%npe)
 function RPN_COMM_io_pe_test_callback(argv,setno,comm,me,x,y,npe) result(status)
@@ -534,6 +537,28 @@ function RPN_COMM_io_pe_groups(setno) result(ngroups)   !InTf!  ! get number of 
   ngroups = io_pe_groups(setno)
 end function RPN_COMM_io_pe_groups    !InTf!  
 !
+function RPN_COMM_io_pe_id(setno) result(idlist)   !InTf!  ! get list of PE ordinals in IO set setno
+  use RPN_COMM_io_pe_tables
+  implicit none                               !InTf!
+  integer, intent(IN) :: setno                !InTf!  ! set number as returned by RPN_COMM_create_io_set
+  integer, dimension(:), pointer :: idlist      !InTf!  ! list of IO PE set, null pointer if set is not valid
+
+  integer, dimension(:), pointer :: local
+  integer :: setsize, i
+  integer, external :: RPN_COMM_io_pe_size
+
+  setsize = RPN_COMM_io_pe_size(setno)
+  if(setsize > 0) then
+    allocate(local(setsize))
+    do i = 1, setsize
+      local(i) = pe_id(io_set(setno)%x(i),io_set(setno)%y(i))
+    enddo
+    idlist => local                   ! list(n) ordinal in grid of IO PE n
+  else
+    idlist => NULL()
+  endif
+end function RPN_COMM_io_pe_id                !InTf!  
+!
 function RPN_COMM_io_pe_list(setno) result(list)   !InTf!  ! get list of PEs in IO set setno
   use RPN_COMM_io_pe_tables
   implicit none                               !InTf!
@@ -586,6 +611,29 @@ subroutine RPN_COMM_io_pe_bcast(buffer,count,datatype,root,setno,ierr) ! cannot 
 !
   call MPI_bcast(buffer,count,RPN_COMM_datyp(datatype),root,io_pe_comm(setno),ierr)
 end subroutine RPN_COMM_io_pe_bcast
+!
+! is this IO PE configuration viable
+!
+function RPN_COMM_io_pe_valid_set(x,y,npes,penx,peny,diag,method) result(status)       !InTf!
+  use RPN_COMM_io_pe_tables
+  implicit none
+    integer, dimension(npes), intent(OUT) :: x !InTf!   ! x coordinates of PEs in set
+    integer, dimension(npes), intent(OUT) :: y !InTf!   ! y coordinates of PEs in set
+    integer, intent(IN) :: npes                !InTf!   ! number of PEs in set
+    integer, intent(IN) :: penx, peny          !InTf!   ! number of PEs along x and y in PE grid
+    integer, intent(IN) :: method              !InTf!   ! fill method
+    logical, intent(IN) :: diag                !InTf!   ! if .true. print IO PE map and diagnostics
+    integer :: status                          !InTf!   ! RPN_COMM_OK or RPN_COMM_ERROR
+
+    integer :: setno
+
+    setno = -1
+    status = RPN_COMM_ERROR
+    call make_io_pe_list(x,y,npes,penx,peny,setno,method)
+    if(x(1) == -1) return   ! miserable failure at creation
+    if( check_ioset(0, x ,y, npes, penx, peny, 0, diag) .ne. 0 ) return
+    status = RPN_COMM_OK
+end function RPN_COMM_io_pe_valid_set !InTf!
 !
 !=========================    END of user callable functions    ===============================
 !
