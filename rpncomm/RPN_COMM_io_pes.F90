@@ -17,17 +17,115 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
+!****iP* RPN_COMM/io_pe  management routines for  IO PE sets (internal)
+! DESCRIPTION
+!   Create, free, manage sets of processes uses to perform IO (or other) operations
+!   in the RPN_COMM library (version 4.5.16 and above)
+! AUTHOR
+!   M.Valin Recherche en Prevision Numerique 2015
+! DESCRIPTION
+!
+!   internal module RPN_COMM_io_pe_tables (output arguments in UPPER CASE)
+!   (not directly callable by user, called by user callable routines)
+!   (contains the static ioset table and control variables)
+!   - call make_io_pe_list(X,Y,npes,pe_nx,pe_ny,setno,method)
+!   - .t /.f.   = is_valid_io_set(setno)
+!   - ordinal   = is_io_pe(setno)
+!   - comm      = io_pe_comm(setno)
+!   - list(:,2) = io_pe_coord(setno)
+!   - ivalue    = io_pe_call(setno,callback,argv)
+!   - npes      = io_pe_size(setno)
+!   - ngrps     = io_pe_groups(setno)
+!   - setno     = free_ioset(setno)
+!   - 0/-1      = check_ioset(setno, x ,y, npes, pe_nx, pe_ny, pe_me, diag)
+!   - setno     = create_ioset(npes,method)
+!******
+!****P* RPN_COMM/io_pe  management routines for  IO PE sets
+! DESCRIPTION
+!   Create, free, manage sets of processes uses to perform IO (or other) operations
+!   in the RPN_COMM library (version 4.5.16 and above)
+! AUTHOR
+!   M.Valin Recherche en Prevision Numerique 2015
+! DESCRIPTION
+!
+!  user callable routines / functions (output/inout arguments in UPPER CASE)
+!                 CREATE / FREE
+!   - setno      = RPN_COMM_create_io_set(npes,method)
+!   - setno      = RPN_COMM_free_io_set(setno)
+!                  INFORMATION
+!   - .t /.f.    = RPN_COMM_is_valid_io_set(setno)
+!   - ordinal_s  = RPN_COMM_is_io_pe(setno)
+!   - ordinal_g  = RPN_COMM_io_pe_gridid(setno,n)
+!   - comm       = RPN_COMM_io_pe_comm(setno)
+!   - npes       = RPN_COMM_io_pe_size(setno)
+!   - grps       = RPN_COMM_io_pe_groups(setno)
+!   - list(:)    = RPN_COMM_io_pe_idlist(setno)
+!   - coord(:,:) = RPN_COMM_io_pe_coord(setno)
+!                    OPERATE
+!   - ivalue     = RPN_COMM_io_pe_callback(setno,callback,argv)
+!   - call         RPN_COMM_io_pe_bcast(BUFFER,count,datatype,root,setno,IERR)
+!                   VALIDATION
+!   - logical    = RPN_COMM_io_pe_valid_set(X,Y,npes,penx,peny,diag,method)
+!
+!     setno      set number, assigned at IO PE set creation by RPN_COMM_create_io_set
+!     method     PE spread method, integer, must be 0 for now
+!     npes       number of PEs in IO set
+!     grps       number of "groups" ni thi IO PE set
+!     comm       MPI communicator for this IO PE set (integer)
+!     ordinal_s  ordinal in IO PE set communicator  (origin 0)
+!     ordinal_g  ordinal in "GRID"  (origin 0)
+!     list       one dimensional integer array, list(I) is the ordinal in the "GRID"
+!                communicator of the Ith IO PE in set. (size of list is npes)  (origin 0)
+!     coord      two dimensional integer array (npes,2) containing the X and Y coordinates
+!                in the "GRID" of the IO PEs in the set.   (origin 0)
+!                X coordinates in coord(:,1), Y coordinates in coord(:,2)
+!     argv       "blind" argument of type(C_PTR) that will be passed to callback
+!     ivalue     integer return value of callback function
+!     callback   the name of a user supplied function, passed to RPN_COMM_io_pe_callback.
+!                RPN_COMM_io_pe_callback MUST be called on ALL members of the IO PE set
+!                but may also be called by non members of the IO set. the callback function
+!                will only be called on the members of the IO set. the return value of 
+!                RPN_COMM_io_pe_callback will be 0 on non members and the return value of 
+!                callback on the members of the IO set. the call to callback is done as
+!                ivalue = callback(argv,setno,comm,pe_me,x,y,npes)
+!                pe_me is the ordinal of the PE in the IO PE set communicator (NOT "GRID")
+! Notes
+!     include 'RPN_COMM.inc'
+!     is necessary to get the correct interface description
+!
+!     the normal sequence of operations is 
+!     1 - RPN_COMM_create_io_set
+!     2 - get info, do operations on set "setno"
+!     3 - RPN_COMM_free_io_set
+!
+!     for now a maximum of 16 IO PE sets may be defined at any point in time
+!
+!     FOR MODEL DEVELOPERS:
+!
+!     The IO PEs distribution is done in a hopefully optimal way to maximize IO performance
+!     when using a large number of nodes.
+!     For output purposes, between 1 and 2 IO PEs per node is usually considered optimal.
+!     For input purposes one might use more PEs per node if the input operation involves
+!     heavvy computations (like horizontal interpolation).
+!     If the number of PEs in the X direction is pex and the number of PEs in the Y direction
+!     is pey, min(pex,pey)*min(pex,pey) is likely to be the maximum number of PEs in a set.
+!     The RPN_COMM_io_pe_valid_set subroutine (totally standalone) can be used to see if
+!     the requested IO PE set is possible given pex and pey.
+!******
 #if defined(SELF_TEST)
 #define STAND_ALONE
 #endif
 !
-! STAND_ALONE mode is mostly used for debugging
+! STAND_ALONE mode is really used for debugging
 ! in normal mode, these routines rely on internal module rpn_comm
 !
 module RPN_COMM_io_pe_tables   ! this module may also be used by data distribution routines
   use ISO_C_BINDING
 #if ! defined(STAND_ALONE)
   use rpn_comm
+#else
+#define RPN_COMM_OK 0
+#define RPN_COMM_ERROR -1
 #endif
   type :: RPN_COMM_io_set
     integer, dimension(:), pointer :: x    ! x coordinate in grid of IO PEs in this set
@@ -109,6 +207,16 @@ contains
     enddo
   end subroutine make_io_pe_list
 !
+  function is_valid_io_set(setno) result(valid)  ! is this a valid IO set ?
+    implicit none
+    integer, intent(IN) :: setno             ! set number as returned by create_ioset
+    logical :: valid
+
+    valid = .false.
+    if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
+    valid = (io_set(setno)%ioset == setno)      ! set still valid ?
+  end function is_valid_io_set
+!
   function is_io_pe(setno) result(ordinal)  ! is this pe part of IO PE set setno. if yes return rank in set, else return -1
     implicit none
     integer, intent(IN) :: setno             ! set number as returned by create_ioset
@@ -120,13 +228,12 @@ contains
     ierr = RPN_COMM_mype(pe_me,pe_mex,pe_mey)  ! who am I, where am I ?
 #endif
 !
-    ordinal = -1
-    if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
-    if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
+    ordinal = -1                                ! preset for failure
+    if( .not. is_valid_io_set(setno) ) return   ! not a valid IO set
 !
-    do i = 1 , io_set(setno)%npe
+    do i = 1 , io_set(setno)%npe                ! loop over IO PE set population
       if(pe_mex == io_set(setno)%x(i) .and. pe_mey == io_set(setno)%y(i)) then  ! I am an IO pe
-        ordinal =  io_set(setno)%me
+        ordinal =  io_set(setno)%me             ! return my ordinal in IO PE communicator
         return
       endif
     enddo
@@ -146,8 +253,7 @@ contains
 #endif
 
     communicator = MPI_COMM_NULL
-    if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
-    if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
+    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
 !
     do i = 1 , io_set(setno)%npe
       if(pe_mex == io_set(setno)%x(i) .and. pe_mey == io_set(setno)%y(i)) then  ! I am an IO pe
@@ -158,21 +264,22 @@ contains
     
   end function io_pe_comm
 !
-  function io_pe_list(setno) result(list)  ! return pointer to list of PEs if set is valid, else return a null pointer
+! the caller of this function will be responsible for freeing the returned array memory
+!
+  function io_pe_coord(setno) result(list)  ! return pointer to x y coordinates in grid of PEs if set is valid, else return a null pointer
     implicit none
     integer, intent(IN) :: setno             ! set number as returned by create_ioset
     integer, dimension(:,:), pointer :: list
     integer :: npes
 
     nullify(list)
-    if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
-    if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
+    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
 !
     npes = io_set(setno)%npe
     allocate(list(npes,2))
     list(1:npes,1) = io_set(setno)%x            ! list(:,1) x coordinates of IO PEs
     list(1:npes,2) = io_set(setno)%y            ! list(:,2) y coordinates of IO PEs
-  end function io_pe_list
+  end function io_pe_coord
 !
   function io_pe_call(setno,callback,argv) result(status)
     implicit none
@@ -183,11 +290,10 @@ contains
     integer, dimension(:), pointer :: argvf
 
     status = -1
-    if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
-    if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
+    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
 !
     status = 0
-    if(io_set(setno)%me < 0) return
+    if(io_set(setno)%me < 0) return   ! not a member, nothing to do
 !
     status = callback(argv,setno,io_set(setno)%comm,io_set(setno)%me,   &
                       io_set(setno)%x,io_set(setno)%y,io_set(setno)%npe)
@@ -199,8 +305,7 @@ contains
     integer :: population
 
     population = -1
-    if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
-    if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
+    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
 !
     population = io_set(setno)%npe
   end function io_pe_size
@@ -211,8 +316,7 @@ contains
     integer :: ngroups
 
     ngroups = -1
-    if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
-    if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
+    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
 !
     ngroups = io_set(setno)%ngroups
   end function io_pe_groups
@@ -225,8 +329,7 @@ contains
     integer :: ierr
 !
     freed = -1
-    if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
-    if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
+    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
 !
     deallocate(io_set(setno)%x)
     nullify(io_set(setno)%x)
@@ -250,7 +353,7 @@ contains
     implicit none
     integer, intent(IN) :: newset, npes         ! set number, number of PEs in set
     integer, intent(IN) :: pe_nx, pe_ny         ! number of PEs along x and y
-    integer :: pe_me                            ! ordinal in grid of this PE
+    integer, intent(IN) :: pe_me                ! ordinal in grid of this PE
     logical, intent(IN) :: diag                 ! if .true., PE 0 prints the IO PE map for this set
     integer, intent(IN), dimension(npes) :: x   ! x coordinates of IO PEs
     integer, intent(IN), dimension(npes) :: y   ! y coordinates of IO PEs
@@ -388,21 +491,22 @@ end module RPN_COMM_io_pe_tables
   subroutine RPN_COMM_io_pe_test(pe_nx,pe_ny,pe_me,pe_mex,pe_mey)
   use ISO_C_BINDING
   implicit none
-  integer, external :: RPN_COMM_create_io_set, RPN_COMM_free_io_set, RPN_COMM_io_pe_call
-  integer, external :: RPN_COMM_is_io_pe, RPN_COMM_io_pe_size
-  interface
-    function RPN_COMM_io_pe_list(setno) result(list)
-      implicit none
-      integer, intent(IN) :: setno
-      integer, dimension(:,:), pointer :: list
-    end function RPN_COMM_io_pe_list
-  end interface
+  include 'RPN_COMM.inc'
+!  integer, external :: RPN_COMM_create_io_set, RPN_COMM_free_io_set, RPN_COMM_io_pe_callback
+!  integer, external :: RPN_COMM_is_io_pe, RPN_COMM_io_pe_size
+!  interface
+!    function RPN_COMM_io_pe_coord(setno) result(list)
+!      implicit none
+!      integer, intent(IN) :: setno
+!      integer, dimension(:,:), pointer :: list
+!    end function RPN_COMM_io_pe_coord
+!  end interface
   integer, intent(IN) :: pe_nx,pe_ny,pe_me,pe_mex,pe_mey
 #else
   subroutine RPN_COMM_io_pe_test()
   use rpn_comm
   implicit none
-#include <RPN_COMM_interfaces_int.inc>
+#include <RPN_COMM_interfaces.inc>
 #endif
   integer, external :: RPN_COMM_io_pe_test_callback
   integer setno,nio,me_io,setno2,setno3,status
@@ -432,9 +536,9 @@ end module RPN_COMM_io_pe_tables
   print *,"set number, size of set='",setno3,RPN_COMM_io_pe_size(setno3)
   print *,"set number, size of set='",4,RPN_COMM_io_pe_size(setno3)
   argv(1) = pe_me
-  status = RPN_COMM_io_pe_call(setno3,RPN_COMM_io_pe_test_callback,C_LOC(argv(1)))
+  status = RPN_COMM_io_pe_callback(setno3,RPN_COMM_io_pe_test_callback,C_LOC(argv(1)))
   print *,"after callback, status,argv=",status,argv(1)
-  iopelist => RPN_COMM_io_pe_list(setno3)
+  iopelist => RPN_COMM_io_pe_coord(setno3)
   print *,"PE list x=",iopelist(:,1)
   print *,"PE list y=",iopelist(:,2)
   tbcst = pe_me
@@ -446,8 +550,9 @@ end module RPN_COMM_io_pe_tables
 100 format(A,10I5)
   return
 end subroutine
-!
-!=========================   user callable routines   ===============================
+!===============================================================================
+! beginning of USER CALLABLE routines/functions
+!===============================================================================
 !
 !    status = callback(argv,setno,io_set(setno)%comm,io_set(setno)%me,   &
 !                      io_set(setno)%x,io_set(setno)%y,io_set(setno)%npe)
@@ -469,104 +574,191 @@ function RPN_COMM_io_pe_test_callback(argv,setno,comm,me,x,y,npe) result(status)
   return
 end
 !
-!=========================   START of user callable functions   ===============================
-!
+!****f* rpn_comm/RPN_COMM_create_io_set
+! SYNOPSIS
 function RPN_COMM_create_io_set(npes,method) result(setno)  !InTf!  ! create a set of IO PEs
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none                                             !InTf!
+! ARGUMENTS
   integer, intent(IN)  :: npes      !InTf!  ! number of IO PEs desired in set ( set size will be min(npes,pe_nx,pe_ny) )
   integer, intent(IN)  :: method    !InTf!  ! method 0 is the only one supported for the time being
   integer :: setno                  !InTf!  ! set number created ( -1 if creation failed )
+!******
 
   setno = create_ioset(npes,method)
   return
 end function RPN_COMM_create_io_set  !InTf!  
 !
+!****f* rpn_comm/RPN_COMM_free_io_set
+! SYNOPSIS
 function RPN_COMM_free_io_set(setno) result(freed)  !InTf!  ! delete a set of IO PEs created by RPN_COMM_create_io_set
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none                       !InTf!
+! ARGUMENTS
   integer, intent(IN) :: setno        !InTf!  ! set number as returned by RPN_COMM_create_io_set
   integer :: freed                    !InTf!  ! setno if operation succeeded, -1 if it failed
+!******
 !
   freed = free_ioset(setno)
 end function RPN_COMM_free_io_set     !InTf!  
 !
-function RPN_COMM_is_io_pe(setno) result(ordinal)   !InTf!  ! is this PE part of IO set setno ? 
+!****f* rpn_comm/RPN_COMM_is_valid_io_set
+! SYNOPSIS
+function RPN_COMM_is_valid_io_set(setno) result(valid)   !InTf!  ! is this IO set valid ?
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none                      !InTf!
+! ARGUMENTS
+  integer, intent(IN) :: setno       !InTf!  ! set number as returned by RPN_COMM_create_io_set
+  logical :: valid                   !InTf!  ! .true. if set is valid, .false. otherwise
+!******
+  valid = is_valid_io_set(setno)
+end function RPN_COMM_is_valid_io_set   !InTf!
+!
+!****f* rpn_comm/RPN_COMM_is_io_pe
+! SYNOPSIS
+function RPN_COMM_is_io_pe(setno) result(ordinal)   !InTf!  ! is this PE part of IO set setno ? 
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
+  use RPN_COMM_io_pe_tables
+  implicit none                      !InTf!
+! ARGUMENTS
   integer, intent(IN) :: setno       !InTf!  ! set number as returned by RPN_COMM_create_io_set
   integer :: ordinal                 !InTf!  ! ordinal in IO PE set if a member, -1 if not
+!******
   ordinal = is_io_pe(setno)
 end function RPN_COMM_is_io_pe        !InTf!  
 !
+!****f* rpn_comm/RPN_COMM_io_pe_gridid
+! SYNOPSIS
 function RPN_COMM_io_pe_gridid(setno,n) result(ordinal)   !InTf!  ! ordinal in "grid" of PE n of IO set setno
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none                      !InTf!
+! ARGUMENTS
   integer, intent(IN) :: setno       !InTf!  ! set number as returned by RPN_COMM_create_io_set
-  integer, intent(IN) :: n           !InTf!  ! ordinal of PE for which ordinal in grid is sought (origin 0)
+  integer, intent(IN) :: n           !InTf!  ! ordinal of PE for which ordinal in grid is sought (ORIGIN 0)
   integer :: ordinal                 !InTf!  ! ordinal in "grid" if n not larger than IO set size, -1 otherwise
+!******
 !
   ordinal = -1
-  if(setno < 1 .or. setno > iosets)   return  ! setno out of bounds
-  if(io_set(setno)%ioset .ne. setno)  return  ! IO set is no longer valid
-  if(n<0 .or. n >= io_set(setno)%npe) return  ! n <= population of IO set setno or negative
+  if( .not. is_valid_io_set(setno) )  return  ! invalid IO set
+  if(n<0 .or. n >= io_set(setno)%npe) return  ! n >= population of IO set setno or negative
+#if ! defined(SELF_TEST)
   ordinal = pe_id(io_set(setno)%x(n+1) , io_set(setno)%y(n+1))
+#endif
 end function RPN_COMM_io_pe_gridid        !InTf!  
 !
+!****f* rpn_comm/RPN_COMM_io_pe_comm
+! SYNOPSIS
 function RPN_COMM_io_pe_comm(setno) result(communicator)  !InTf!   ! get communicator of IO set setno
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none                       !InTf!
+! ARGUMENTS
   integer, intent(IN) :: setno        !InTf!  ! set number as returned by RPN_COMM_create_io_set
   integer :: communicator             !InTf!  ! communicator for IO PE set if a member, null communicator otherwise
+!******
   communicator = io_pe_comm(setno)
 end function RPN_COMM_io_pe_comm  !InTf!  
 !
+!****f* rpn_comm/RPN_COMM_io_pe_size
+! SYNOPSIS
 function RPN_COMM_io_pe_size(setno) result(population)   !InTf!  ! get size of IO set setno
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none                       !InTf!
+! ARGUMENTS
   integer, intent(IN) :: setno        !InTf!  ! set number as returned by RPN_COMM_create_io_set
   integer :: population               !InTf!  ! population of IO PE set, -1 if set is not valid
+!******
   population = io_pe_size(setno)
 end function RPN_COMM_io_pe_size      !InTf!  
 !
+!****f* rpn_comm/RPN_COMM_io_pe_groups
+! SYNOPSIS
 function RPN_COMM_io_pe_groups(setno) result(ngroups)   !InTf!  ! get number of groups in IO set setno
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none                       !InTf!
+! ARGUMENTS
   integer, intent(IN) :: setno        !InTf!  ! set number as returned by RPN_COMM_create_io_set
   integer :: ngroups                  !InTf!  ! ngroups of IO PE set, -1 if set is not valid
+!******
   ngroups = io_pe_groups(setno)
 end function RPN_COMM_io_pe_groups    !InTf!  
 !
-function RPN_COMM_io_pe_id(setno) result(idlist)   !InTf!  ! get list of PE ordinals in IO set setno
+! the caller of this function will be responsible for freeing the returned array memory
+!
+!****f* rpn_comm/RPN_COMM_io_pe_idlist
+! SYNOPSIS
+function RPN_COMM_io_pe_idlist(setno) result(idlist)   !InTf!  ! get list of PE ordinals in IO set setno
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none                               !InTf!
+! ARGUMENTS
   integer, intent(IN) :: setno                !InTf!  ! set number as returned by RPN_COMM_create_io_set
   integer, dimension(:), pointer :: idlist      !InTf!  ! list of IO PE set, null pointer if set is not valid
+!******
 
-  integer, dimension(:), pointer :: local
   integer :: setsize, i
   integer, external :: RPN_COMM_io_pe_size
 
   setsize = RPN_COMM_io_pe_size(setno)
   if(setsize > 0) then
-    allocate(local(setsize))
+    allocate(idlist(setsize))
     do i = 1, setsize
-      local(i) = pe_id(io_set(setno)%x(i),io_set(setno)%y(i))
+#if defined(SELF_TEST)
+      idlist(i) = 0
+#else
+      idlist(i) = pe_id(io_set(setno)%x(i),io_set(setno)%y(i))    ! list(n) is ordinal in grid of IO PE n
+#endif
     enddo
-    idlist => local                   ! list(n) ordinal in grid of IO PE n
   else
     idlist => NULL()
   endif
-end function RPN_COMM_io_pe_id                !InTf!  
+end function RPN_COMM_io_pe_idlist                !InTf!  
 !
-function RPN_COMM_io_pe_list(setno) result(list)   !InTf!  ! get list of PEs in IO set setno
+! the caller of this function will be responsible for freeing the returned array memory
+!
+!****f* rpn_comm/RPN_COMM_io_pe_coord
+! SYNOPSIS
+function RPN_COMM_io_pe_coord(setno) result(list)   !InTf!  ! get x and y coordinates in grid of PEs in IO set setno
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none                               !InTf!
+! ARGUMENTS
   integer, intent(IN) :: setno                !InTf!  ! set number as returned by RPN_COMM_create_io_set
   integer, dimension(:,:), pointer :: list    !InTf!  ! list of IO PE set, null pointer if set is not valid
-  list => io_pe_list(setno)                    ! list(:,1) x coordinates, list(:,2) y coordinates of IO PEs
-end function RPN_COMM_io_pe_list              !InTf!  
+!******
+  list => io_pe_coord(setno)                    ! list(:,1) x coordinates, list(:,2) y coordinates of IO PEs
+end function RPN_COMM_io_pe_coord              !InTf!  
 !
+!****f* rpn_comm/RPN_COMM_io_pe_callback
+! SYNOPSIS
+function RPN_COMM_io_pe_callback(setno,callback,argv) result(status) !InTf!
+! Notes
 ! callback to be executed only on members of an IO PE set (usually called by all PEs on grid)
 ! if this PE is not a member of the IO set, nothing happens, status = 0
 ! if the IO set is invalid, nothing happens, status = -1
@@ -582,41 +774,62 @@ end function RPN_COMM_io_pe_list              !InTf!
 ! integer, dimension(npe) :: y  ! y grid coordinates for IO PEs in this set
 ! integer :: npe           ! number of PEs in this set
 !
-function RPN_COMM_io_pe_call(setno,callback,argv) result(status) !InTf!
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
 !!  import :: C_PTR      !InTf!
   implicit none                       !InTf!
+! ARGUMENTS
   integer, intent(IN) :: setno        !InTf!  ! set number as returned by create_ioset
   type(C_PTR) :: argv                 !InTf!  ! "pickled" arguments to callback
   integer, external :: callback       !InTf!  ! user routine to be called
   integer :: status                   !InTf!
+!******
 !
   status = io_pe_call(setno,callback,argv)
 !
-end function RPN_COMM_io_pe_call  !InTf!  
+end function RPN_COMM_io_pe_callback  !InTf!  
 !
 ! broadcast within an IO PE set
+! this routine MUST be called by ALL PEs in the IO PE set
+! but MAY be called by other PEs (the call will be ignored by non members of the set
 !
-subroutine RPN_COMM_io_pe_bcast(buffer,count,datatype,root,setno,ierr) ! cannot publish interface because of buffer
+!****f* rpn_comm/RPN_COMM_io_pe_bcast
+! SYNOPSIS
+subroutine RPN_COMM_io_pe_bcast(buffer,count,datatype,root,setno,ierr) ! cannot easily publish interface because of buffer
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none
+! ARGUMENTS
   integer, intent(IN) :: setno                ! set number as returned by RPN_COMM_create_io_set
   integer, intent(IN) :: count                ! number of elements of type datatype
   integer, intent(INOUT), dimension(*) :: buffer   ! data to be broadcast
   character (len=*), intent(IN) :: datatype   ! datatype RPN_COMM style
   integer, intent(IN) :: root                 ! root PE in set for broadcast (typically 0)
   integer, intent(OUT) :: ierr                ! status upon completion
+!******
   integer :: dtype
   integer, external :: RPN_COMM_datyp
 !
+  ierr = RPN_COMM_ERROR
+  if( is_io_pe(setno) < 0) return             ! bad set or not a member of the set
   call MPI_bcast(buffer,count,RPN_COMM_datyp(datatype),root,io_pe_comm(setno),ierr)
 end subroutine RPN_COMM_io_pe_bcast
 !
 ! is this IO PE configuration viable
 !
+!****f* rpn_comm/RPN_COMM_io_pe_valid_set
+! SYNOPSIS
 function RPN_COMM_io_pe_valid_set(x,y,npes,penx,peny,diag,method) result(status)       !InTf!
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
   use RPN_COMM_io_pe_tables
   implicit none
+! ARGUMENTS
     integer, dimension(npes), intent(OUT) :: x !InTf!   ! x coordinates of PEs in set
     integer, dimension(npes), intent(OUT) :: y !InTf!   ! y coordinates of PEs in set
     integer, intent(IN) :: npes                !InTf!   ! number of PEs in set
@@ -624,6 +837,7 @@ function RPN_COMM_io_pe_valid_set(x,y,npes,penx,peny,diag,method) result(status)
     integer, intent(IN) :: method              !InTf!   ! fill method
     logical, intent(IN) :: diag                !InTf!   ! if .true. print IO PE map and diagnostics
     integer :: status                          !InTf!   ! RPN_COMM_OK or RPN_COMM_ERROR
+!******
 
     integer :: setno
 
