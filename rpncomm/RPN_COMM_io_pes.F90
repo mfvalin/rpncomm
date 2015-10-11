@@ -28,8 +28,7 @@
 !   internal module RPN_COMM_io_pe_tables (output arguments in UPPER CASE)
 !   (not directly callable by user, called by user callable routines)
 !   (contains the static ioset table and control variables)
-!   - call make_io_pe_list(X,Y,npes,pe_nx,pe_ny,setno,method)
-!   - .t /.f.   = is_valid_io_set(setno)
+!   - .t /.f.   = is_valid_io_setno(setno)
 !   - ordinal   = is_io_pe(setno)
 !   - comm      = io_pe_comm(setno)
 !   - list(:,2) = io_pe_coord(setno)
@@ -37,7 +36,6 @@
 !   - npes      = io_pe_size(setno)
 !   - ngrps     = io_pe_groups(setno)
 !   - setno     = free_ioset(setno)
-!   - 0/-1      = check_ioset(setno, x ,y, npes, pe_nx, pe_ny, pe_me, diag)
 !   - setno     = create_ioset(npes,method)
 !******
 !****P* RPN_COMM/io_pe  management routines for  IO PE sets
@@ -51,9 +49,10 @@
 !  user callable routines / functions (output/inout arguments in UPPER CASE)
 !                 CREATE / FREE
 !   - setno      = RPN_COMM_create_io_set(npes,method)
+!   - call         RPN_COMM_make_io_pe_list(X,Y,npes,penx,peny,setno,method)
 !   - setno      = RPN_COMM_free_io_set(setno)
 !                  INFORMATION
-!   - .t /.f.    = RPN_COMM_is_valid_io_set(setno)
+!   - .t /.f.    = RPN_COMM_is_valid_io_setno(setno)
 !   - ordinal_s  = RPN_COMM_is_io_pe(setno)
 !   - ordinal_g  = RPN_COMM_io_pe_gridid(setno,n)
 !   - comm       = RPN_COMM_io_pe_comm(setno)
@@ -65,10 +64,13 @@
 !   - ivalue     = RPN_COMM_io_pe_callback(setno,callback,argv)
 !   - call         RPN_COMM_io_pe_bcast(BUFFER,count,datatype,root,setno,IERR)
 !                   VALIDATION
+!   - 0/-1       = RPN_COMM_check_ioset(setno, x ,y, npes, penx, peny, peme, diag)
 !   - logical    = RPN_COMM_io_pe_valid_set(X,Y,npes,penx,peny,diag,method)
 !
 !     setno      set number, assigned at IO PE set creation by RPN_COMM_create_io_set
 !     method     PE spread method, integer, must be 0 for now
+!     peme       ordinal in "GRID" of this PE
+!     diag       if .true. and peme == 0, print diagnostic messages
 !     npes       number of PEs in IO set
 !     grps       number of "groups" ni thi IO PE set
 !     comm       MPI communicator for this IO PE set (integer)
@@ -99,6 +101,7 @@
 !     3 - RPN_COMM_free_io_set
 !
 !     for now a maximum of 16 IO PE sets may be defined at any point in time
+!     (when an IO set has been freed, it does not count anymore)
 !
 !     FOR MODEL DEVELOPERS:
 !
@@ -112,6 +115,7 @@
 !     The RPN_COMM_io_pe_valid_set subroutine (totally standalone) can be used to see if
 !     the requested IO PE set is possible given pex and pey.
 !******
+#define IN_RPN_COMM_io_pes
 #if defined(SELF_TEST)
 #define STAND_ALONE
 #endif
@@ -127,6 +131,7 @@ module RPN_COMM_io_pe_tables   ! this module may also be used by data distributi
 #define RPN_COMM_OK 0
 #define RPN_COMM_ERROR -1
 #endif
+#include "RPN_COMM_interfaces_int.inc"
   type :: RPN_COMM_io_set
     integer, dimension(:), pointer :: x    ! x coordinate in grid of IO PEs in this set
     integer, dimension(:), pointer :: y    ! y coordinate in grid of IO PEs in this set
@@ -144,70 +149,8 @@ module RPN_COMM_io_pe_tables   ! this module may also be used by data distributi
   integer, save :: scrambley = 0
   integer, PARAMETER :: MAXIOSETS=16
   type(RPN_COMM_io_set), dimension(MAXIOSETS), save :: io_set
-  integer, dimension(16) :: primes = [ &
-         5,      7,      11,     13,   &
-        17,     19,      23,     29,   &
-        31,     37,      41,     43,   &
-        47,     53,      59,     61  ]
 contains
-!
-! helper routine used by create_ioset
-! for now only method 0 is supported for IO PE dispersion
-!
-  subroutine make_io_pe_list(x,y,npes,pe_nx,pe_ny,setno,method)
-    integer, dimension(npes), intent(OUT) :: x   ! x coordinates of PEs in set
-    integer, dimension(npes), intent(OUT) :: y   ! y coordinates of PEs in set
-    integer, intent(IN) :: npes                  ! number of PEs in set
-    integer, intent(IN) :: pe_nx, pe_ny          ! number of PEs along x and y in PE grid
-    integer, intent(IN) :: setno, method         ! set number, fill method
-    integer :: i
-    integer :: deltax, deltay, pe_nxy
-!
-    if(scramblex == 0) then    ! initialize
-      scramblex = 1
-      scrambley = 1
-      if(pe_nx > pe_ny) then   ! scramblex = lowest number that is prime with respect to pe_nx
-        do i = 1 , size(primes)
-          scramblex = primes(i)
-          if(mod(pe_nx,primes(i)) .ne. 0) exit
-        enddo
-      else                     ! scrambley = lowest number that is prime with respect to pe_ny
-        do i = 1 , size(primes)
-          scrambley = primes(i)
-          if(mod(pe_ny,primes(i)) .ne. 0) exit
-        enddo
-      endif
-!      print *,"DEBUG: scramblex, scrambley =",scramblex, scrambley
-    endif
-    x = -1
-    y = -1
-    if(method .ne. 0) return      ! method 0 is the only one supported for the time being
-    deltax = 1
-    deltay = 1
-    pe_nxy = min(pe_nx,pe_ny)
-    if(method == 0) then
-      deltax = scramblex
-      deltay = scrambley
-    endif
-    if( npes > pe_nxy * pe_nxy ) return
-    safe = 0
-    do i = 0 , npes-1
-      if(npes > pe_nxy) then
-        if(pe_nx > pe_ny) then
-          x(i+1) = mod( i * deltax , pe_nx )
-          y(i+1) = mod( mod( i , pe_ny) + i / pe_nx , pe_ny)
-        else
-          x(i+1) = mod( mod( i , pe_nx ) + i / pe_ny , pe_nx)
-          y(i+1) = mod( i * deltay , pe_ny)
-        endif
-      else
-        x(i+1) = mod( i * deltax , pe_nx )
-        y(i+1) = mod( i * deltay , pe_ny )
-      endif
-    enddo
-  end subroutine make_io_pe_list
-!
-  function is_valid_io_set(setno) result(valid)  ! is this a valid IO set ?
+  function is_valid_io_setno(setno) result(valid)  ! is this a valid IO set ?
     implicit none
     integer, intent(IN) :: setno             ! set number as returned by create_ioset
     logical :: valid
@@ -215,7 +158,7 @@ contains
     valid = .false.
     if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
     valid = (io_set(setno)%ioset == setno)      ! set still valid ?
-  end function is_valid_io_set
+  end function is_valid_io_setno
 !
   function is_io_pe(setno) result(ordinal)  ! is this pe part of IO PE set setno. if yes return rank in set, else return -1
     implicit none
@@ -229,7 +172,7 @@ contains
 #endif
 !
     ordinal = -1                                ! preset for failure
-    if( .not. is_valid_io_set(setno) ) return   ! not a valid IO set
+    if( .not. is_valid_io_setno(setno) ) return   ! not a valid IO set
 !
     do i = 1 , io_set(setno)%npe                ! loop over IO PE set population
       if(pe_mex == io_set(setno)%x(i) .and. pe_mey == io_set(setno)%y(i)) then  ! I am an IO pe
@@ -253,7 +196,7 @@ contains
 #endif
 
     communicator = MPI_COMM_NULL
-    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
+    if( .not. is_valid_io_setno(setno) ) return   ! invalid IO set
 !
     do i = 1 , io_set(setno)%npe
       if(pe_mex == io_set(setno)%x(i) .and. pe_mey == io_set(setno)%y(i)) then  ! I am an IO pe
@@ -273,7 +216,7 @@ contains
     integer :: npes
 
     nullify(list)
-    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
+    if( .not. is_valid_io_setno(setno) ) return   ! invalid IO set
 !
     npes = io_set(setno)%npe
     allocate(list(npes,2))
@@ -290,7 +233,7 @@ contains
     integer, dimension(:), pointer :: argvf
 
     status = -1
-    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
+    if( .not. is_valid_io_setno(setno) ) return   ! invalid IO set
 !
     status = 0
     if(io_set(setno)%me < 0) return   ! not a member, nothing to do
@@ -305,7 +248,7 @@ contains
     integer :: population
 
     population = -1
-    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
+    if( .not. is_valid_io_setno(setno) ) return   ! invalid IO set
 !
     population = io_set(setno)%npe
   end function io_pe_size
@@ -316,7 +259,7 @@ contains
     integer :: ngroups
 
     ngroups = -1
-    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
+    if( .not. is_valid_io_setno(setno) ) return   ! invalid IO set
 !
     ngroups = io_set(setno)%ngroups
   end function io_pe_groups
@@ -329,7 +272,7 @@ contains
     integer :: ierr
 !
     freed = -1
-    if( .not. is_valid_io_set(setno) ) return   ! invalid IO set
+    if( .not. is_valid_io_setno(setno) ) return   ! invalid IO set
 !
     deallocate(io_set(setno)%x)
     nullify(io_set(setno)%x)
@@ -344,70 +287,6 @@ contains
     io_set(setno)%groupsize = 0
     freed = setno
   end function free_ioset
-!
-! check that this PE set is valid (no duplicates) and print IO PE map
-! also check that no column has 2 IO PEs in a group and neither has any row
-! used to validate what create_ioset has produced
-!
-  function check_ioset(newset, x ,y, npes, pe_nx, pe_ny, pe_me, diag) result(status)
-    implicit none
-    integer, intent(IN) :: newset, npes         ! set number, number of PEs in set
-    integer, intent(IN) :: pe_nx, pe_ny         ! number of PEs along x and y
-    integer, intent(IN) :: pe_me                ! ordinal in grid of this PE
-    logical, intent(IN) :: diag                 ! if .true., PE 0 prints the IO PE map for this set
-    integer, intent(IN), dimension(npes) :: x   ! x coordinates of IO PEs
-    integer, intent(IN), dimension(npes) :: y   ! y coordinates of IO PEs
-    integer :: status                           ! 0 if set is OK, -1 otherwise
-!
-    integer*1, dimension(0:pe_nx-1,0:pe_ny-1) :: safe
-    integer*1, dimension(0:pe_ny-1) :: row      ! there are pe_ny rows
-    integer*1, dimension(0:pe_nx-1) :: col      ! there are pe_nx columns
-    integer :: i, j, groupsize, low, high
-!
-    status = -1
-    safe = 0
-    groupsize = min(pe_nx, pe_ny)
-    do i = 1, npes, groupsize  ! loop over groups
-      row = 0
-      col = 0
-      do j = i , min(i+groupsize-1,npes)      ! for PE at coordinates ( x(j), y(j) )
-        row(y(j)) = row(y(j)) + 1             ! add one to count for this row
-        col(x(j)) = col(x(j)) + 1             ! add one to count for this column
-      enddo
-      if(any(row > 1) .or. any(col > 1) ) then
-        print *,"ERROR: problem creating IO set, there are 2 or more PEs on row or column"
-        print *,"ERROR: x = ",x
-        print *,"ERROR: row = ",row
-        print *,"ERROR: y = ",y
-        print *,"ERROR: col = ",col
-        print *,"ERROR: group, group limits = ",(i-1)/groupsize+1,i,min(i+groupsize-1,npes)
-        status = -1
-        return
-      endif
-    enddo
-    do i = 1 , npes
-      if(safe(x(i),y(i)) .ne. 0) then  ! OOPS, 2 PEs in this set are the same
-        print *,"ERROR: problem creating IO set, there are duplicates"
-        status = -1
-        return
-      else
-        safe(x(i),y(i)) = 1 + mod(  ( (i-1) / min(pe_nx, pe_ny) ) , 9)  ! group number, 9 if group number > 9
-      endif
-    enddo
-    if(pe_me == 0 .and. diag)then
-      print 101,"===== IO PE map for set",newset," (",(npes+min(pe_nx, pe_ny)-1)/min(pe_nx, pe_ny)," groups) ====="
-      print 102,"INFO: x =",x
-      print 102,"INFO: y =",y
-      do j = pe_ny-1 , 0 , -1
-        print 100,j,safe(:,j)
-      enddo
-    endif
-100   format(1X,I4,1x,128I1)
-101   format(A,I3,A,I3,A)
-102   format(A,15I4)
-    status = 0
-    return
-  end function check_ioset
 !
   function create_ioset(npes,method) result(setno)  ! pe_indomm AKA "GRID" is assumed as a communicator
     implicit none
@@ -445,9 +324,9 @@ contains
     io_set(newset)%megrid = -1
     io_set(newset)%ngroups = 0
     io_set(newset)%groupsize = 0
-    call make_io_pe_list(io_set(newset)%x, io_set(newset)%y, npes, pe_nx, pe_ny, newset, method)
+    call RPN_COMM_make_io_pe_list(io_set(newset)%x, io_set(newset)%y, npes, pe_nx, pe_ny, newset, method)
     if(io_set(newset)%x(1) .ne. -1) then
-      if( check_ioset(newset,io_set(newset)%x ,io_set(newset)%y, npes, pe_nx, pe_ny, pe_me, .true.) == -1 ) io_set(newset)%x(1) = -1
+      if( RPN_COMM_check_ioset(newset,io_set(newset)%x ,io_set(newset)%y, npes, pe_nx, pe_ny, pe_me, .true.) == -1 ) io_set(newset)%x(1) = -1
     endif
     if(io_set(newset)%x(1) == -1) then        ! miserable failure, list of IO pes could not be created
       deallocate(io_set(newset)%x,io_set(newset)%y)
@@ -608,9 +487,9 @@ function RPN_COMM_free_io_set(setno) result(freed)  !InTf!  ! delete a set of IO
   freed = free_ioset(setno)
 end function RPN_COMM_free_io_set     !InTf!  
 !
-!****f* rpn_comm/RPN_COMM_is_valid_io_set
+!****f* rpn_comm/RPN_COMM_is_valid_io_setno
 ! SYNOPSIS
-function RPN_COMM_is_valid_io_set(setno) result(valid)   !InTf!  ! is this IO set valid ?
+function RPN_COMM_is_valid_io_setno(setno) result(valid)   !InTf!  ! is this IO set valid ?
 ! AUTHOR
 !  M.Valin Recherche en Prevision Numerique 2015
 ! IGNORE
@@ -620,8 +499,8 @@ function RPN_COMM_is_valid_io_set(setno) result(valid)   !InTf!  ! is this IO se
   integer, intent(IN) :: setno       !InTf!  ! set number as returned by RPN_COMM_create_io_set
   logical :: valid                   !InTf!  ! .true. if set is valid, .false. otherwise
 !******
-  valid = is_valid_io_set(setno)
-end function RPN_COMM_is_valid_io_set   !InTf!
+  valid = is_valid_io_setno(setno)
+end function RPN_COMM_is_valid_io_setno   !InTf!
 !
 !****f* rpn_comm/RPN_COMM_is_io_pe
 ! SYNOPSIS
@@ -653,7 +532,7 @@ function RPN_COMM_io_pe_gridid(setno,n) result(ordinal)   !InTf!  ! ordinal in "
 !******
 !
   ordinal = -1
-  if( .not. is_valid_io_set(setno) )  return  ! invalid IO set
+  if( .not. is_valid_io_setno(setno) )  return  ! invalid IO set
   if(n<0 .or. n >= io_set(setno)%npe) return  ! n >= population of IO set setno or negative
 #if ! defined(SELF_TEST)
   ordinal = pe_id(io_set(setno)%x(n+1) , io_set(setno)%y(n+1))
@@ -721,9 +600,8 @@ function RPN_COMM_io_pe_idlist(setno) result(idlist)   !InTf!  ! get list of PE 
 !******
 
   integer :: setsize, i
-  integer, external :: RPN_COMM_io_pe_size
 
-  setsize = RPN_COMM_io_pe_size(setno)
+  setsize = io_pe_size(setno)
   if(setsize > 0) then
     allocate(idlist(setsize))
     do i = 1, setsize
@@ -812,7 +690,6 @@ subroutine RPN_COMM_io_pe_bcast(buffer,count,datatype,root,setno,ierr) ! cannot 
   integer, intent(OUT) :: ierr                ! status upon completion
 !******
   integer :: dtype
-  integer, external :: RPN_COMM_datyp
 !
   ierr = RPN_COMM_ERROR
   if( is_io_pe(setno) < 0) return             ! bad set or not a member of the set
@@ -843,9 +720,9 @@ function RPN_COMM_io_pe_valid_set(x,y,npes,penx,peny,diag,method) result(status)
 
     setno = -1
     status = RPN_COMM_ERROR
-    call make_io_pe_list(x,y,npes,penx,peny,setno,method)
+    call RPN_COMM_make_io_pe_list(x,y,npes,penx,peny,setno,method)
     if(x(1) == -1) return   ! miserable failure at creation
-    if( check_ioset(0, x ,y, npes, penx, peny, 0, diag) .ne. 0 ) return
+    if( RPN_COMM_check_ioset(0, x ,y, npes, penx, peny, 0, diag) .ne. 0 ) return
     status = RPN_COMM_OK
 end function RPN_COMM_io_pe_valid_set !InTf!
 !
