@@ -49,7 +49,7 @@
 !  user callable routines / functions (output/inout arguments in UPPER CASE)
 !                 CREATE / FREE
 !   - setno      = RPN_COMM_create_io_set(npes,method)
-!   - call         RPN_COMM_make_io_pe_list(X,Y,npes,penx,peny,setno,method)
+!   - call         RPN_COMM_make_io_pe_list(X,Y,npes,penx,peny,method)
 !   - setno      = RPN_COMM_free_io_set(setno)
 !                  INFORMATION
 !   - .t /.f.    = RPN_COMM_is_valid_io_setno(setno)
@@ -324,7 +324,7 @@ contains
     io_set(newset)%megrid = -1
     io_set(newset)%ngroups = 0
     io_set(newset)%groupsize = 0
-    call RPN_COMM_make_io_pe_list(io_set(newset)%x, io_set(newset)%y, npes, pe_nx, pe_ny, newset, method)
+    call RPN_COMM_make_io_pe_list(io_set(newset)%x, io_set(newset)%y, npes, pe_nx, pe_ny, method)
     if(io_set(newset)%x(1) .ne. -1) then
       if( RPN_COMM_check_ioset(newset,io_set(newset)%x ,io_set(newset)%y, npes, pe_nx, pe_ny, pe_me, .true.) == -1 ) io_set(newset)%x(1) = -1
     endif
@@ -720,7 +720,7 @@ function RPN_COMM_io_pe_valid_set(x,y,npes,penx,peny,diag,method) result(status)
 
     setno = -1
     status = RPN_COMM_ERROR
-    call RPN_COMM_make_io_pe_list(x,y,npes,penx,peny,setno,method)
+    call RPN_COMM_make_io_pe_list(x,y,npes,penx,peny,method)
     if(x(1) == -1) return   ! miserable failure at creation
     if( RPN_COMM_check_ioset(0, x ,y, npes, penx, peny, 0, diag) .ne. 0 ) return
     status = RPN_COMM_OK

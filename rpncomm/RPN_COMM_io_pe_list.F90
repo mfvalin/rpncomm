@@ -2,12 +2,12 @@
 ! helper routine used by create_ioset
 ! for now only method 0 is supported for IO PE dispersion
 !
-  subroutine RPN_COMM_make_io_pe_list(x,y,npes,pe_nx,pe_ny,setno,method)  !InTf!
+  subroutine RPN_COMM_make_io_pe_list(x,y,npes,pe_nx,pe_ny,method)  !InTf!
     integer, dimension(npes), intent(OUT) :: x  !InTf!   ! x coordinates of PEs in set
     integer, dimension(npes), intent(OUT) :: y  !InTf!   ! y coordinates of PEs in set
     integer, intent(IN) :: npes                 !InTf!   ! number of PEs in set
     integer, intent(IN) :: pe_nx, pe_ny         !InTf!   ! number of PEs along x and y in PE grid
-    integer, intent(IN) :: setno, method        !InTf!   ! set number, fill method
+    integer, intent(IN) :: method               !InTf!   ! fill method
     integer :: i
     integer :: deltax, deltay, pe_nxy
     integer, dimension(16), save :: primes = [ &
