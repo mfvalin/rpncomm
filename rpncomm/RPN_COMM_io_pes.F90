@@ -489,7 +489,7 @@ end function RPN_COMM_free_io_set     !InTf!
 !
 !****f* rpn_comm/RPN_COMM_is_valid_io_setno
 ! SYNOPSIS
-function RPN_COMM_is_valid_io_setno(setno) result(valid)   !InTf!  ! is this IO set valid ?
+function RPN_COMM_is_valid_io_setno(setno) result(valid)   !InTf!  ! is this IO set number valid ?
 ! AUTHOR
 !  M.Valin Recherche en Prevision Numerique 2015
 ! IGNORE
