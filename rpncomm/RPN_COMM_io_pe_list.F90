@@ -13,15 +13,19 @@
     integer :: deltax, deltay, pe_nxy
     integer, save :: scramblex = 0
     integer, save :: scrambley = 0
+    integer, save :: pe_nx_old = 0
+    integer, save :: pe_ny_old = 0
     integer, dimension(16), save :: primes = [ &
          5,      7,      11,     13,   &
         17,     19,      23,     29,   &
         31,     37,      41,     43,   &
         47,     53,      59,     61  ]
 !
-    if(scramblex == 0) then    ! initialize
+    if(scramblex == 0 .or. pe_nx_old .ne. pe_nx .or. pe_ny_old .ne. pe_ny) then    ! (re)initialize
       scramblex = 1
       scrambley = 1
+      pe_nx_old = pe_nx
+      pe_ny_old = pe_ny
       if(pe_nx > pe_ny) then   ! scramblex = lowest number that is prime with respect to pe_nx
         do i = 1 , size(primes)
           scramblex = primes(i)
@@ -33,7 +37,9 @@
           if(mod(pe_ny,primes(i)) .ne. 0) exit
         enddo
       endif
-!      print *,"DEBUG: scramblex, scrambley =",scramblex, scrambley
+#if defined(SELF_TEST)
+      print *,"DEBUG: scramblex, scrambley =",scramblex, scrambley
+#endif
     endif
     x = -1
     y = -1
@@ -48,23 +54,24 @@
       deltax = scramblex
       deltay = scrambley
     endif
-    if( npes > pe_nxy * pe_nxy ) then
-      print *,"ERROR: too many PEs requested in set (",npes," ),max permitted:",pe_nxy * pe_nxy
-      return
-    endif
+!     if( npes > pe_nxy * pe_nxy ) then
+!       print *,"ERROR: too many PEs requested in set (",npes," ),max permitted:",pe_nxy * pe_nxy
+!       return
+!     endif
     do i = 0 , npes-1
-      if(npes > pe_nxy) then
-        if(pe_nx > pe_ny) then
-          x(i+1) = mod( i * deltax , pe_nx )
-          y(i+1) = mod( mod( i , pe_ny) + i / pe_nx , pe_ny)
-        else
-          x(i+1) = mod( mod( i , pe_nx ) + i / pe_ny , pe_nx)
-          y(i+1) = mod( i * deltay , pe_ny)
-        endif
-      else
+!       if(npes > pe_nxy) then
+!         if(pe_nx > pe_ny) then
+!           x(i+1) = mod( i * deltax , pe_nx )
+!           y(i+1) = mod( mod( i , pe_ny) + i / pe_nx , pe_ny)
+!         else
+!           x(i+1) = mod( mod( i , pe_nx ) + i / pe_ny , pe_nx)
+!           y(i+1) = mod( i * deltay , pe_ny)
+!         endif
+!       else
         x(i+1) = mod( i * deltax , pe_nx )
         y(i+1) = mod( i * deltay , pe_ny )
-      endif
+        if(pe_nx==pe_ny) y(i+1) = mod(y(i+1)+i/pe_ny,pe_ny)
+!       endif
     enddo
   end subroutine RPN_COMM_make_io_pe_list  !InTf!
 !
@@ -100,11 +107,11 @@
       enddo
       if(any(row > 1) .or. any(col > 1) ) then
         print *,"ERROR: problem creating IO set, there are 2 or more PEs on row or column"
-        print *,"ERROR: x = ",x
+        print *,"ERROR: x = ",x(i:min(i+groupsize-1,npes))
         print *,"ERROR: row = ",row
-        print *,"ERROR: y = ",y
+        print *,"ERROR: y = ",y(i:min(i+groupsize-1,npes))
         print *,"ERROR: col = ",col
-        print *,"ERROR: group, group limits = ",(i-1)/groupsize+1,i,min(i+groupsize-1,npes)
+        print *,"ERROR: group, group limits = ",(i-1)/groupsize+1,(j,j=i,min(i+groupsize-1,npes))
         status = -1
         return
       endif
@@ -112,6 +119,8 @@
     do i = 1 , npes
       if(safe(x(i),y(i)) .ne. 0) then  ! OOPS, 2 PEs in this set are the same
         print *,"ERROR: problem creating IO set, there are duplicates"
+        print *,"ERROR: x = ",x(i:min(i+groupsize-1,npes))
+        print *,"ERROR: y = ",y(i:min(i+groupsize-1,npes))
         status = -1
         return
       else
@@ -120,15 +129,46 @@
     enddo
     if(pe_me == 0 .and. diag)then
       print 101,"===== IO PE map for set",newset," (",(npes+min(pe_nx, pe_ny)-1)/min(pe_nx, pe_ny)," groups) ====="
-      print 102,"INFO: x =",x
-      print 102,"INFO: y =",y
+      print 102,"INFO: x =",x(1:npes)
+      print 102,"INFO: y =",y(1:npes)
       do j = pe_ny-1 , 0 , -1
         print 100,j,safe(:,j)
       enddo
     endif
 100   format(1X,I4,1x,128I1)
 101   format(A,I3,A,I3,A)
-102   format(A,15I4)
+102   format(A10,20I4(/10X,20I4))
     status = 0
     return
   end function RPN_COMM_check_ioset  !InTf!
+#if defined(SELF_TEST)
+program test_valid_set
+  implicit none
+  integer, parameter :: MAXPES=1024
+  integer, dimension(MAXPES) :: x    ! x coordinates of PEs in set
+  integer, dimension(MAXPES) :: y    ! y coordinates of PEs in set
+  integer :: npes                   ! number of PEs in set
+  integer :: penx, peny             ! number of PEs along x and y in PE grid
+  integer :: method                 ! fill method
+  logical :: diag                   ! if .true. print IO PE map and diagnostics
+! Notes
+!   some error messages are printed in case of error
+!   diagnostics include a map of IO PEs
+!******
+
+  integer, external :: RPN_COMM_check_ioset
+
+  diag = .true.
+  method = 0
+  npes = 1
+  do while(npes >0)
+    print *,'npes,penx,peny ?'
+    read(5,*)npes,penx,peny
+    if(npes <=0) stop
+    call RPN_COMM_make_io_pe_list(x,y,npes,penx,peny,method)
+    if(x(1) == -1) stop   ! miserable failure at creation
+    if( RPN_COMM_check_ioset(0, x ,y, npes, penx, peny, 0, diag) .ne. 0 ) stop
+  enddo
+  stop
+end program test_valid_set 
+#endif

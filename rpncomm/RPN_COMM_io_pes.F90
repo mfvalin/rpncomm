@@ -18,7 +18,7 @@
 ! ! Boston, MA 02111-1307, USA.
 ! !/
 !****iP* RPN_COMM/io_pe  management routines for  IO PE sets (internal)
-! DESCRIPTION
+! FUNCTION
 !   Create, free, manage sets of processes uses to perform IO (or other) operations
 !   in the RPN_COMM library (version 4.5.16 and above)
 ! AUTHOR
@@ -39,8 +39,8 @@
 !   - setno     = create_ioset(npes,method)
 !******
 !****P* RPN_COMM/io_pe  management routines for  IO PE sets
-! DESCRIPTION
-!   Create, free, manage sets of processes uses to perform IO (or other) operations
+! FUNCTION
+!   Create, free, manage sets of processes used to perform IO (or other) operations
 !   in the RPN_COMM library (version 4.5.16 and above)
 ! AUTHOR
 !   M.Valin Recherche en Prevision Numerique 2015
@@ -67,7 +67,7 @@
 !   - 0/-1       = RPN_COMM_check_ioset(setno, x ,y, npes, penx, peny, peme, diag)
 !   - logical    = RPN_COMM_io_pe_valid_set(X,Y,npes,penx,peny,diag,method)
 !
-!     setno      set number, assigned at IO PE set creation by RPN_COMM_create_io_set
+!     setno      set number, assigned at IO PE set creation time by RPN_COMM_create_io_set
 !     method     PE spread method, integer, must be 0 for now
 !     peme       ordinal in "GRID" of this PE
 !     diag       if .true. and peme == 0, print diagnostic messages
