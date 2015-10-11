@@ -698,11 +698,12 @@ subroutine RPN_COMM_io_pe_bcast(buffer,count,datatype,root,setno,ierr) ! cannot 
   call MPI_bcast(buffer,count,RPN_COMM_datyp(datatype),root,io_pe_comm(setno),ierr)
 end subroutine RPN_COMM_io_pe_bcast
 !
-! is this IO PE configuration viable
+! is this IO PE configuration possible ?
 !
 !****f* rpn_comm/RPN_COMM_io_pe_valid_set
 ! SYNOPSIS
 function RPN_COMM_io_pe_valid_set(x,y,npes,penx,peny,diag,method) result(status)       !InTf!
+!  check if this IO PE configuration is possible
 ! AUTHOR
 !  M.Valin Recherche en Prevision Numerique 2015
 ! IGNORE
