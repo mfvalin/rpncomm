@@ -3,6 +3,7 @@
 ! for now only method 0 is supported for IO PE dispersion
 !
   subroutine RPN_COMM_make_io_pe_list(x,y,npes,pe_nx,pe_ny,method)  !InTf!
+    implicit none
     integer, dimension(npes), intent(OUT) :: x  !InTf!   ! x coordinates of PEs in set
     integer, dimension(npes), intent(OUT) :: y  !InTf!   ! y coordinates of PEs in set
     integer, intent(IN) :: npes                 !InTf!   ! number of PEs in set
@@ -10,6 +11,8 @@
     integer, intent(IN) :: method               !InTf!   ! fill method
     integer :: i
     integer :: deltax, deltay, pe_nxy
+    integer, save :: scramblex = 0
+    integer, save :: scrambley = 0
     integer, dimension(16), save :: primes = [ &
          5,      7,      11,     13,   &
         17,     19,      23,     29,   &
@@ -43,7 +46,6 @@
       deltay = scrambley
     endif
     if( npes > pe_nxy * pe_nxy ) return
-    safe = 0
     do i = 0 , npes-1
       if(npes > pe_nxy) then
         if(pe_nx > pe_ny) then

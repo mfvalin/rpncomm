@@ -145,8 +145,6 @@ module RPN_COMM_io_pe_tables   ! this module may also be used by data distributi
     integer :: reserved                    ! unused for now
   end type
   integer, save :: iosets=0
-  integer, save :: scramblex = 0
-  integer, save :: scrambley = 0
   integer, PARAMETER :: MAXIOSETS=16
   type(RPN_COMM_io_set), dimension(MAXIOSETS), save :: io_set
 contains
