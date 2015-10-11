@@ -37,7 +37,10 @@
     endif
     x = -1
     y = -1
-    if(method .ne. 0) return      ! method 0 is the only one supported for the time being
+    if(method .ne. 0) then
+      print *,"ERROR: method MUST be zero for the time being"
+      return      ! method 0 is the only one supported for the time being
+    endif
     deltax = 1
     deltay = 1
     pe_nxy = min(pe_nx,pe_ny)
@@ -45,7 +48,10 @@
       deltax = scramblex
       deltay = scrambley
     endif
-    if( npes > pe_nxy * pe_nxy ) return
+    if( npes > pe_nxy * pe_nxy ) then
+      print *,"ERROR: too many PEs requested in set (",npes," ),max permitted:",pe_nxy * pe_nxy
+      return
+    endif
     do i = 0 , npes-1
       if(npes > pe_nxy) then
         if(pe_nx > pe_ny) then

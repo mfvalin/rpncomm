@@ -103,6 +103,10 @@
 !     for now a maximum of 16 IO PE sets may be defined at any point in time
 !     (when an IO set has been freed, it does not count anymore)
 !
+!     RPN_COMM_make_io_pe_list and RPN_COMM_check_ioset are really internal routines,
+!     users should rather call RPN_COMM_io_pe_valid_set that is intended for public use
+!     and better documented
+!
 !     FOR MODEL DEVELOPERS:
 !
 !     The IO PEs distribution is done in a hopefully optimal way to maximize IO performance
@@ -712,6 +716,9 @@ function RPN_COMM_io_pe_valid_set(x,y,npes,penx,peny,diag,method) result(status)
     integer, intent(IN) :: method              !InTf!   ! fill method
     logical, intent(IN) :: diag                !InTf!   ! if .true. print IO PE map and diagnostics
     integer :: status                          !InTf!   ! RPN_COMM_OK or RPN_COMM_ERROR
+! Notes
+!   some error messages are printed in case of error
+!   diagnostics include a map of IO PEs
 !******
 
     integer :: setno
