@@ -1207,7 +1207,7 @@ subroutine RPN_COMM_i_win_group(window,pes_to,pes_from,ierr)  !InTf!
   return
 end subroutine RPN_COMM_i_win_group                                   !InTf!
 !InTf!
-!****f* rpn_comm/RPN_COMM_i_win_group control membership of get and put groups for this PE and this window
+!****f* rpn_comm/RPN_COMM_i_win_oper
 ! SYNOPSIS
 subroutine RPN_COMM_i_win_oper(window,oper,ierr)  !InTf!
 !===============================================================================
@@ -1597,7 +1597,7 @@ function RPN_COMM_i_win_get_ptr(window,ierr) result(ptr)                 !InTf!
 end function RPN_COMM_i_win_get_ptr                                      !InTf!
 
 !InTf!
-!****f* rpn_comm/RPN_COMM_i_win_get_ptr get data pointer associated to a one sided communication window
+!****f* rpn_comm/RPN_COMM_i_win_get_size get data pointer associated to a one sided communication window
 ! SYNOPSIS
 function RPN_COMM_i_win_get_size(window,ierr) result(siz)                 !InTf!
 !===============================================================================

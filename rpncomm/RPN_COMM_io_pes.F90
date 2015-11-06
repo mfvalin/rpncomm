@@ -389,45 +389,50 @@ end module RPN_COMM_io_pe_tables
   implicit none
 #include <RPN_COMM_interfaces.inc>
 #endif
-  integer, external :: RPN_COMM_io_pe_test_callback
+!****f* rpn_comm/example example code
+! EXAMPLE
+  integer, external :: RPN_COMM_io_pe_test_callback   ! the callback function returns an integer value
   integer setno,nio,me_io,setno2,setno3,status
-  integer, dimension(1), target :: argv
-  integer, dimension(:,:), pointer :: iopelist
-  integer, dimension(1) :: tbcst
+  integer, dimension(1), target :: argv               ! the argument list for the callback function
+  integer, dimension(:,:), pointer :: iopelist        ! will receive a coordinate list
+  integer, dimension(1) :: tbcst                      ! this will be broadcast in the test
 !
+! IGNORE
   if(pe_me == 0)  print *,'DEBUG: pe_nx,pe_ny',pe_nx,pe_ny
   nio = min(pe_nx,pe_ny)
   print 100,'RPN_COMM_io_pe test program, pe_nx,pe_ny,pe_me,pe_mex,pe_mey,nio=',pe_nx,pe_ny,pe_me,pe_mex,pe_mey,nio
-  setno = RPN_COMM_create_io_set(nio+2,0)
-  me_io = RPN_COMM_is_io_pe(setno)
+! EXAMPLE
+  setno = RPN_COMM_create_io_set(nio+2,0)                   ! create a set of IO PEs containing nio+2 members
+  me_io = RPN_COMM_is_io_pe(setno)                          ! is this PE a member of this IO PE set ?
   if(me_io .ne. -1) then
-    print *,"I am a proud IO pe !"
+    print *,"I am a proud IO pe !"                          ! YES it is
   else
-    print *,"I am a lazy  NON-IO pe !"
+    print *,"I am a lazy  NON-IO pe !"                      ! NO it is not
   endif
-  print *,"set number, size of set='",setno,RPN_COMM_io_pe_size(setno)
-  setno2 = RPN_COMM_create_io_set(nio,0)
-  print *,"set number, size of set='",setno2,RPN_COMM_io_pe_size(setno2)
-  setno = RPN_COMM_free_io_set(setno)
+  print *,"set number, size of set='",setno,RPN_COMM_io_pe_size(setno)         ! get size of this IO PE set
+  setno2 = RPN_COMM_create_io_set(nio,0)                                       ! crete another set containing nio PEs
+  print *,"set number, size of set='",setno2,RPN_COMM_io_pe_size(setno2)       ! get size of this other IO PE set (should be nio+2)
+  setno = RPN_COMM_free_io_set(setno)                                          ! delete IO set
   print *,'DEBUG: freed IO set ',setno
-  print *,"set number, size of set='",setno,RPN_COMM_io_pe_size(setno)
-  setno = RPN_COMM_create_io_set(nio,0)
-  print *,"set number, size of set='",setno,RPN_COMM_io_pe_size(setno)
-  setno3 = RPN_COMM_create_io_set(nio-1,0)
-  print *,"set number, size of set='",setno3,RPN_COMM_io_pe_size(setno3)
-  print *,"set number, size of set='",4,RPN_COMM_io_pe_size(setno3)
-  argv(1) = pe_me
-  status = RPN_COMM_io_pe_callback(setno3,RPN_COMM_io_pe_test_callback,C_LOC(argv(1)))
-  print *,"after callback, status,argv=",status,argv(1)
-  iopelist => RPN_COMM_io_pe_coord(setno3)
-  print *,"PE list x=",iopelist(:,1)
-  print *,"PE list y=",iopelist(:,2)
+  print *,"set number, size of set='",setno,RPN_COMM_io_pe_size(setno)         ! this should return -1
+  setno = RPN_COMM_create_io_set(nio,0)                                        ! re create IO PE set, this time with nio PEs
+  print *,"set number, size of set='",setno,RPN_COMM_io_pe_size(setno)         ! this should return nio now
+  setno3 = RPN_COMM_create_io_set(nio-1,0)                                     ! crete another set containing nio-1 PEs
+  print *,"set number, size of set='",setno3,RPN_COMM_io_pe_size(setno3)       ! this should return nio-1
+  argv(1) = pe_me                                                              ! argument array for callback function
+  status = RPN_COMM_io_pe_callback(setno3,RPN_COMM_io_pe_test_callback,C_LOC(argv(1)))    ! call to callback function(see example below)
+  print *,"after callback, status,argv=",status,argv(1)                        ! status 0 from non members of IO set, return of callback function on members
+  iopelist => RPN_COMM_io_pe_coord(setno3)                                     ! get grid coordinates of PEs in IO set setno3
+  print *,"PE list x=",iopelist(:,1)                                           ! row 1, X coordinates in "GRID"
+  print *,"PE list y=",iopelist(:,2)                                           ! row 2, Y coordinates in "GRID"
   tbcst = pe_me
   if(RPN_COMM_is_io_pe(setno3) .ne. -1)then  ! part of the set only, bcst pe_me of highest rank in set
     call RPN_COMM_io_pe_bcast(tbcst,1,'MPI_INTEGER',RPN_COMM_io_pe_size(setno3)-1,setno3,status) 
-    print *,'tbcst after broadcast',tbcst
+!   root for broadcast is RPN_COMM_io_pe_size(setno3)-1, get "GRID" ordinal of PE with highest rank (last PE) in IO set
+!   root for broadcast 0 would have returned the "GRID" ordinal of first (lowest rank) PE in set
+    print *,'tbcst after broadcast',tbcst                                      ! and the answer is ...
   endif
-
+!******
 100 format(A,10I5)
   return
 end subroutine
@@ -437,23 +442,28 @@ end subroutine
 !
 !    status = callback(argv,setno,io_set(setno)%comm,io_set(setno)%me,   &
 !                      io_set(setno)%x,io_set(setno)%y,io_set(setno)%npe)
-function RPN_COMM_io_pe_test_callback(argv,setno,comm,me,x,y,npe) result(status)
+!****f* rpn_comm/example_callback example of callback function
+! EXAMPLE
+function RPN_COMM_io_pe_test_callback(argv,setno,comm,me,x,y,npe) result(status)  ! demo callback function
+! this function will only be called on members of the IO PE set (setno)
   use ISO_C_BINDING
   implicit none
-  integer, intent(IN) :: setno,comm,me,npe
+  integer, intent(IN) :: setno,comm,me,npe      ! set number, MPI communicator of this IO PE set, this PE's ordinal in set
   integer, dimension(npe), intent(IN) :: x,y
-  type(C_PTR), intent(IN) :: argv
-  integer :: status
-  integer, dimension(:), pointer :: argvf
+  type(C_PTR), intent(IN) :: argv               ! "blind pointer" to argument list
 !
-  call C_F_POINTER(argv,argvf,[1])
-  print *,"IO PE CALLBACK set, me, argument = ",setno,me,argvf(1)
-  print *,"CALLBACK x=",x
-  print *,"CALLBACK y=",y
-  argvf(1) = -(100 +argvf(1))
-  status = -123
+  integer :: status
+  integer, dimension(:), pointer :: argvf        ! what the "blind pointer" will be mapped into
+!
+  call C_F_POINTER(argv,argvf,[1])                                ! transform C pointer into Fortran pointer
+  print *,"IO PE CALLBACK set, me, argument = ",setno,me,argvf(1) ! an integer array of dimension 1 was expected
+  print *,"CALLBACK x=",x                                         ! list of X "GRID" coordinates
+  print *,"CALLBACK y=",y                                         ! list of Y "GRID" coordinates
+  argvf(1) = -(100 +argvf(1))                                     ! we modify the argument list (optional)
+  status = -123                                                   ! status to be returned to caller on this PE
   return
 end
+!******
 !
 !****f* rpn_comm/RPN_COMM_create_io_set
 ! SYNOPSIS
