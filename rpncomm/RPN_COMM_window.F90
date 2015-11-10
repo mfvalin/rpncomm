@@ -272,18 +272,29 @@ subroutine RPN_COMM_i_win_test(nparams,params)
   integer :: siz
   type(C_PTR) :: array, array2, cptr, cptr2
   integer, dimension(:), pointer :: fptr, fptr2
-  integer, dimension(DATA_SIZE), target :: my_data
+!   integer, dimension(DATA_SIZE), target :: my_data
+  integer, dimension(:), pointer :: my_data
+  integer(kind=MPI_ADDRESS_KIND) my_win_size  ! may be wider than a default integer
+  type(C_PTR) :: my_win_base
   integer :: ierr, i, nerrors, nval, offset, offset_r, expected, got
   integer :: me, me_x, me_y, status, wsiz, npes, target_pe, from_pe
   integer, dimension(100), target :: local, local2
   integer, dimension(:), pointer :: errors
 
-!  debug_mode = .true.
+!   debug_mode = .true.
+!
+  my_win_size = DATA_SIZE * 4   ! size in bytes of window
+  call MPI_Alloc_mem(my_win_size, MPI_INFO_NULL, my_win_base,ierr)
+  if(ierr .ne. MPI_SUCCESS) goto 888
+  call c_f_pointer(my_win_base,my_data,[DATA_SIZE])
+!   allocate(my_data(DATA_SIZE))
+!
   siz = DATA_SIZE
   status = RPN_COMM_mype(Me,Me_x,Me_y)
   call RPN_COMM_size( RPN_COMM_GRID, npes ,ierr )
   print *,'TEST INFO: this is PE',me+1,' of',npes
   allocate(errors(npes))
+  errors = 0
   call RPN_COMM_i_comm(RPN_COMM_GRID,com)
   call RPN_COMM_i_datyp(RPN_COMM_INTEGER,dtype)
 
@@ -297,7 +308,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: created window, PE=',me
   else
     print *,'TEST ERROR: cannot create window, PE=',me
-    return
+    goto 888
   endif
 
   array2 = C_NULL_PTR
@@ -306,7 +317,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: created window2, PE=',me
   else
     print *,'TEST ERROR: cannot create window2, PE=',me
-    return
+    goto 888
   endif
 ! ================================== get windows properties ======================================
   wsiz = RPN_COMM_i_win_get_size(window,ierr)  ! get size of data array associated to window
@@ -320,7 +331,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     if(fptr(i) .ne. my_data(i)) nerrors = nerrors + 1
   enddo
   print *,'TEST INFO: nerrors for window =',nerrors
-  if(nerrors > 0) return
+  if(nerrors > 0) goto 888
 
   wsiz = RPN_COMM_i_win_get_size(window2,ierr)  ! get size of data array associated to window
   if(me == 0) then
@@ -340,6 +351,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
   nval = 5                         ! number of values for remote put
   offset = 10                      ! displacement into remote window
 ! ==================================
+goto 600
 !  if(me == 0) then
     print *,'=============================================================================='
     print *,'TEST INFO: PUT active fence mode test start'
@@ -350,7 +362,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
   local(1:5) = [2,4,6,8,10] + 100*me
@@ -364,15 +376,17 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
   nerrors = 0
   local(1:5) = local(1:5) + 100*from_pe - 100*me
   do i = 1 , size(my_data)
     if(i>offset .and. i<=offset+nval) then
-      print *,'i=',i,' got',my_data(i),' expected',local(i-offset)
-      if( my_data(i) .ne. local(i-offset))  nerrors = nerrors + 1
+      if( my_data(i) .ne. local(i-offset)) then
+        nerrors = nerrors + 1
+        print *,'i=',i,' got',my_data(i),' expected',local(i-offset),' error'
+      endif
     else
       if(my_data(i) .ne. -i) then
         nerrors = nerrors + 1
@@ -408,13 +422,14 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: group creation OK'
   else
     print *,'TEST ERROR: group creation failure'
+    goto 888
   endif
   call RPN_COMM_i_win_open(window,.true.,ierr)
   if(ierr == RPN_COMM_OK) then
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
   local(1:5) = [12,14,16,18,20] + 100*me
@@ -429,19 +444,21 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
   nerrors = 0
   local(1:5) = local(1:5) + 100*from_pe - 100*me
   do i = 1 , size(my_data)
     if(i>offset .and. i<=offset+nval) then
-      print *,'i=',i,' got',my_data(i),' expected',local(i-offset)
-      if( my_data(i) .ne. local(i-offset))  nerrors = nerrors + 1
+      if( my_data(i) .ne. local(i-offset)) then
+        nerrors = nerrors + 1
+        print *,'at i=',i,' got',my_data(i),' expected',local(i-offset),' error'
+      endif
     else
       if(my_data(i) .ne. -i) then
         nerrors = nerrors + 1
-        print *,'i=',i,' got',my_data(i),' expected',-i,' error'
+        print *,'at i=',i,' got',my_data(i),' expected',-i,' error'
       endif
     endif
   enddo
@@ -458,12 +475,14 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: window group deletion OK'
   else
     print *,'TEST ERROR: window group deletion failure'
+    goto 888
   endif
 
 !  if(me == 0) then
     print *,'TEST INFO: PUT active group mode test end'
 !  endif
 ! ================================== passive mode ======================================
+600 continue
   do i = 1 , siz
     my_data(i) = -i
   enddo
@@ -482,13 +501,19 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
   local(1:5) = [1,3,5,7,9] + 100*me
+  nerrors = 0
   call RPN_COMM_i_win_put_r(window,c_loc(local(1)),target_pe,offset,nint(nval/2.0),ierr)  ! (window,larray,target,offset,nelem,ierr)
+  if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
+  call RPN_COMM_i_win_put_r(window,c_loc(local(1)),target_pe,offset,nint(nval/2.0),ierr)  ! (window,larray,target,offset,nelem,ierr)
+  if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   do i = nint(nval/2.0),nval
-    call RPN_COMM_i_win_put_r(window,c_loc(local(i)),target_pe,offset+i-1,1,ierr)
+!     call RPN_COMM_i_win_put_r(window,c_loc(local(i)),target_pe,offset+i-1,1,ierr)
+    call RPN_COMM_i_win_put_r(window,c_loc(local(i)),target_pe,offset+i-1,nval-i+1,ierr)
+  if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   enddo
 
   call RPN_COMM_i_win_close(window,ierr)
@@ -496,10 +521,9 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
-  nerrors = 0
   local(1:5) = local(1:5) + 100*from_pe - 100*me
   do i = 1 , size(my_data)
     if(i>offset .and. i<=offset+nval) then
@@ -532,6 +556,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
 ! ===================================== remote GET test ===================================
   target_pe = mod(me+1,npes)       ! remote target
   from_pe = mod(me+npes-1,npes)    ! remote accessor
+goto 601
 ! ===================================== active mode ===================================
   do i = 1 , siz
     my_data(i) = -i
@@ -557,7 +582,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
   call RPN_COMM_i_win_get_r(window,c_loc(local2(1)),target_pe,offset,nint(nval/2.0),ierr)  ! (window,larray,target,offset,nelem,ierr)
@@ -570,7 +595,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
   nerrors = 0
@@ -620,13 +645,14 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: group creation OK'
   else
     print *,'TEST ERROR: group creation failure'
+    goto 888
   endif
   call RPN_COMM_i_win_open(window,.true.,ierr)
   if(ierr == RPN_COMM_OK) then
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
   call RPN_COMM_i_win_get_r(window,c_loc(local2(1)),target_pe,offset,nint(nval/2.0),ierr)  ! (window,larray,target,offset,nelem,ierr)
@@ -639,7 +665,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
   nerrors = 0
@@ -666,12 +692,14 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: window group deletion OK'
   else
     print *,'TEST ERROR: window group deletion failure'
+    goto 888
   endif
 
 !   if(me == 0) then
     print *,'TEST INFO: GET active group mode test end'
 !   endif
 ! ===================================== passive mode ===================================
+601 continue
   do i = 1 , siz
     my_data(i) = -i
   enddo
@@ -696,12 +724,15 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
+  nerrors = 0
   call RPN_COMM_i_win_get_r(window,c_loc(local2(1)),target_pe,offset,nint(nval/2.0),ierr)  ! (window,larray,target,offset,nelem,ierr)
+  if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   do i = nint(nval/2.0)+1,nval
     call RPN_COMM_i_win_get_r(window,c_loc(local2(i)),target_pe,offset+i-1,1,ierr)
+    if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   enddo
 
   call RPN_COMM_i_win_close(window,ierr)
@@ -709,10 +740,9 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
-  nerrors = 0
   do i = 1 , nval
       expected = my_data(i+offset)-100*me+100*target_pe
       got = local2(i)
@@ -745,6 +775,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
   nval = 5                         ! number of values for remote put
   offset = 10                      ! displacement into remote window
   offset_r = 20
+goto 602
 ! ==================================
 !  if(me == 0) then
     print *,'=============================================================================='
@@ -756,7 +787,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
   local(1:5) = [2,4,6,8,10] + 100*me
@@ -772,15 +803,17 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
   nerrors = 0
   local(1:5) = local(1:5) + 100*from_pe - 100*me
   do i = 1 , size(my_data)
     if(i>offset .and. i<=offset+nval) then
-      print *,'i=',i,' got',my_data(i),' expected',local(i-offset)
-      if( my_data(i) .ne. local(i-offset))  nerrors = nerrors + 1
+      if( my_data(i) .ne. local(i-offset)) then
+        nerrors = nerrors + 1
+        print *,'i=',i,' got',my_data(i),' expected',local(i-offset),' error'
+      endif
     else
       if(my_data(i) .ne. -i - 100*me) then
         nerrors = nerrors + 1
@@ -821,19 +854,23 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'=============================================================================='
     print *,'TEST INFO: GET/PUT active group mode test start'
 !  endif
-
-  call RPN_COMM_i_win_group(window,[target_pe,from_pe],[target_pe,from_pe],ierr)
+  if(target_pe == from_pe) then
+    call RPN_COMM_i_win_group(window,[target_pe],[target_pe],ierr)
+  else
+    call RPN_COMM_i_win_group(window,[target_pe,from_pe],[target_pe,from_pe],ierr)
+  endif
   if(ierr == RPN_COMM_OK) then
     print *,'TEST INFO: group creation OK'
   else
     print *,'TEST ERROR: group creation failure'
+    goto 888
   endif
   call RPN_COMM_i_win_open(window,.true.,ierr)
   if(ierr == RPN_COMM_OK) then
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
   local(1:5) = [2,4,6,8,10] + 100*me
@@ -849,15 +886,17 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
   nerrors = 0
   local(1:5) = local(1:5) + 100*from_pe - 100*me
   do i = 1 , size(my_data)
     if(i>offset .and. i<=offset+nval) then
-      print *,'i=',i,' got',my_data(i),' expected',local(i-offset)
-      if( my_data(i) .ne. local(i-offset))  nerrors = nerrors + 1
+      if( my_data(i) .ne. local(i-offset)) then
+        nerrors = nerrors + 1
+        print *,'i=',i,' got',my_data(i),' expected',local(i-offset),' error'
+      endif
     else
       if(my_data(i) .ne. -i - 100*me) then
         nerrors = nerrors + 1
@@ -888,11 +927,13 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: window group deletion OK'
   else
     print *,'TEST ERROR: window group deletion failure'
+    goto 888
   endif
 !  if(me == 0) then
     print *,'TEST INFO: GET/PUT active group mode test end'
 !  endif
 ! ===================================== passive mode ===================================
+602 continue
   do i = 1 , siz
     my_data(i) = -i - 100*me
   enddo
@@ -910,15 +951,20 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
   local(1:5) = [2,4,6,8,10] + 100*me
+  nerrors = 0
   call RPN_COMM_i_win_put_r(window,c_loc(local(1)),target_pe,offset,nint(nval/2.0),ierr)  ! (window,larray,target,offset,nelem,ierr)
+  if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   call RPN_COMM_i_win_get_r(window,c_loc(local2(1)),from_pe,offset_r,nint(nval/2.0),ierr)  ! (window,larray,target,offset,nelem,ierr)
+  if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   do i = nint(nval/2.0)+1,nval
     call RPN_COMM_i_win_put_r(window,c_loc(local(i)),target_pe,offset+i-1,1,ierr)
+    if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
     call RPN_COMM_i_win_get_r(window,c_loc(local2(i)),from_pe,offset_r+i-1,1,ierr)
+    if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   enddo
 
   call RPN_COMM_i_win_close(window,ierr)
@@ -926,15 +972,16 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
-  nerrors = 0
   local(1:5) = local(1:5) + 100*from_pe - 100*me
   do i = 1 , size(my_data)
     if(i>offset .and. i<=offset+nval) then
-      print *,'i=',i,' got',my_data(i),' expected',local(i-offset)
-      if( my_data(i) .ne. local(i-offset))  nerrors = nerrors + 1
+      if( my_data(i) .ne. local(i-offset)) then
+        nerrors = nerrors + 1
+        print *,'i=',i,' got',my_data(i),' expected',local(i-offset),' error'
+      endif
     else
       if(my_data(i) .ne. -i - 100*me) then
         nerrors = nerrors + 1
@@ -976,6 +1023,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST ERROR: cannot associate operator to window, PE=',me
     goto 777
   endif
+goto 603
 ! ===================================== active mode ===================================
 ! initial values for local window are negative, the accumulate operator used is MPI_MAX
 ! this is then equivalent to a straight PUT
@@ -995,7 +1043,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
   local(1:5) = [2,4,6,8,10] + 100*me
@@ -1009,15 +1057,17 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
   nerrors = 0
   local(1:5) = local(1:5) + 100*from_pe - 100*me
   do i = 1 , size(my_data)
     if(i>offset .and. i<=offset+nval) then
-      print *,'i=',i,' got',my_data(i),' expected',local(i-offset)
-      if( my_data(i) .ne. local(i-offset))  nerrors = nerrors + 1
+      if( my_data(i) .ne. local(i-offset)) then
+        nerrors = nerrors + 1
+        print *,'i=',i,' got',my_data(i),' expected',local(i-offset),' error'
+      endif
     else
       if(my_data(i) .ne. -i) then
         nerrors = nerrors + 1
@@ -1037,8 +1087,10 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ACC active fence mode test end'
 !  endif
 ! ================================== set windows properties ======================================
+603 continue
   print *,'=============================================================================='
-  call RPN_COMM_i_oper(RPN_COMM_BXOR,oper)
+!  call RPN_COMM_i_oper(RPN_COMM_BXOR,oper)
+  call RPN_COMM_i_oper(RPN_COMM_MAX,oper)
   print *,'TEST INFO: operator=',oper%t2
   call RPN_COMM_i_win_oper(window,oper,ierr)
   if(ierr == RPN_COMM_OK) then
@@ -1065,13 +1117,16 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: accessing/exposing window, PE=',me
   else
     print *,'TEST ERROR: cannot access/expose window, PE=',me
-    return
+    goto 888
   endif
 
   local(1:5) = [2,4,6,8,10] + 100*me
+  nerrors = 0
   call RPN_COMM_i_win_acc_r(window,c_loc(local(1)),target_pe,offset,nint(nval/2.0),oper,ierr)  ! (window,larray,target,offset,nelem,ierr)
+  if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   do i = nint(nval/2.0)+1,nval
     call RPN_COMM_i_win_acc_r(window,c_loc(local(i)),target_pe,offset+i-1,1,oper,ierr)
+    if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   enddo
 
   call RPN_COMM_i_win_close(window,ierr)
@@ -1079,17 +1134,16 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: ending access/exposure to window, PE=',me
   else
     print *,'TEST ERROR: cannot end access/exposure to window, PE=',me
-    return
+    goto 888
   endif
 
-  nerrors = 0
   local(1:5) = local(1:5) + 100*from_pe - 100*me
   do i = 1 , size(my_data)
     got = my_data(i)
     if(i>offset .and. i<=offset+nval) then
-!      expected = local(i-offset)
-      expected = -i
-      expected = ieor(local(i-offset),expected)
+      expected = local(i-offset)
+!       expected = -i
+!      expected = ieor(local(i-offset),expected)
       if( got .ne. expected)  then
         nerrors = nerrors + 1
         print *,'i=',i,' got',got,' expected',expected,'  ERROR',nerrors
@@ -1123,7 +1177,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: freed window, PE=',me
   else
     print *,'TEST ERROR: cannot free window, PE=',me
-    return
+    goto 888
   endif
 
   call RPN_COMM_i_win_free(window2,ierr)
@@ -1131,7 +1185,15 @@ subroutine RPN_COMM_i_win_test(nparams,params)
     print *,'TEST INFO: freed window2, PE=',me
   else
     print *,'TEST ERROR: cannot free window2, PE=',me
-    return
+    goto 888
+  endif
+888 continue
+  if(ierr .ne. RPN_COMM_OK .or. sum(errors) > 0) then
+    print *,'TEST INFO: ==================== ERRORS IN TEST  ===================='
+    if(sum(errors) > 0)print *,'TEST INFO: nerrors=',sum(errors)
+    if(ierr .ne. RPN_COMM_OK) print *,'TEST INFO: ierr .ne. RPN_COMM_OK'
+  else
+    print *,'TEST INFO: ==================== TEST SUCCESSFUL ===================='
   endif
   return
 end subroutine RPN_COMM_i_win_test
@@ -1170,13 +1232,36 @@ subroutine RPN_COMM_i_win_group(window,pes_to,pes_from,ierr)  !InTf!
 
   integer :: ierr2, index
   type(rpncomm_windef), pointer :: win_entry
-  integer :: n_to, n_from
+  integer :: n_to, n_from, i, j, ref
+  logical :: duplicates
 
   ierr = RPN_COMM_ERROR
   if( .not. win_valid(window) )  return  ! bad window reference
   n_to = size(pes_to)
   n_from = size(pes_from)
   if(n_to <= 0 .or. n_from <= 0) return  ! bad list of PEs
+  duplicates = .false.
+  do i = 1,n_to-1
+    ref = pes_to(i)
+    do j = i+1 , n_to
+      if(pes_to(j) == ref) then
+        print *,"RPN_COMM_i_win_group: ERROR, duplicates detected in pes_to"
+        duplicates = .true.
+        exit
+      endif
+    enddo
+  enddo
+  do i = 1,n_from-1
+    ref = pes_from(i)
+    do j = i+1 , n_from
+      if(pes_from(j) == ref) then
+        print *,"RPN_COMM_i_win_group: ERROR, duplicates detected in pes_from"
+        duplicates = .true.
+        exit
+      endif
+    enddo
+  enddo
+  if(duplicates) return
 
 !  indx = window%t2                   ! window table entry for this window is win_tab(indx)
   call c_f_pointer( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
