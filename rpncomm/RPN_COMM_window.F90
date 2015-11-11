@@ -1496,7 +1496,7 @@ subroutine RPN_COMM_i_win_open(window,active,ierr)                           !In
     endif
   else                                         ! nothing to do in passive mode
     if(debug_mode) print *,'DEBUG: opening window, passive mode',win_tab(indx)%win
-    ierr1 = MPI_SUCCESS
+    call MPI_barrier(win_tab(indx)%com,ierr1)
     ierr2 = MPI_SUCCESS
   endif
 
