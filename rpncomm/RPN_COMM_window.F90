@@ -284,10 +284,10 @@ subroutine RPN_COMM_i_win_test(nparams,params)
 !   debug_mode = .true.
 !
   my_win_size = DATA_SIZE * 4   ! size in bytes of window
-  call MPI_Alloc_mem(my_win_size, MPI_INFO_NULL, my_win_base,ierr)
-  if(ierr .ne. MPI_SUCCESS) goto 888
-  call c_f_pointer(my_win_base,my_data,[DATA_SIZE])
-!   allocate(my_data(DATA_SIZE))
+!   call MPI_Alloc_mem(my_win_size, MPI_INFO_NULL, my_win_base,ierr)   ! use MPI library allocator
+!   if(ierr .ne. MPI_SUCCESS) goto 888
+!   call c_f_pointer(my_win_base,my_data,[DATA_SIZE])
+  allocate(my_data(DATA_SIZE))                                       ! use regular memory
 !
   siz = DATA_SIZE
   status = RPN_COMM_mype(Me,Me_x,Me_y)
