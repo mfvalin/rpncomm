@@ -508,11 +508,11 @@ goto 600
   nerrors = 0
   call RPN_COMM_i_win_put_r(window,c_loc(local(1)),target_pe,offset,nint(nval/2.0),ierr)  ! (window,larray,target,offset,nelem,ierr)
   if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
-  call RPN_COMM_i_win_put_r(window,c_loc(local(1)),target_pe,offset,nint(nval/2.0),ierr)  ! (window,larray,target,offset,nelem,ierr)
-  if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
+! !   call RPN_COMM_i_win_put_r(window,c_loc(local(1)),target_pe,offset,nint(nval/2.0),ierr)  ! (window,larray,target,offset,nelem,ierr)
+!   if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   do i = nint(nval/2.0),nval
-!     call RPN_COMM_i_win_put_r(window,c_loc(local(i)),target_pe,offset+i-1,1,ierr)
-    call RPN_COMM_i_win_put_r(window,c_loc(local(i)),target_pe,offset+i-1,nval-i+1,ierr)
+    call RPN_COMM_i_win_put_r(window,c_loc(local(i)),target_pe,offset+i-1,1,ierr)
+!     call RPN_COMM_i_win_put_r(window,c_loc(local(i)),target_pe,offset+i-1,nval-i+1,ierr)
   if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   enddo
 
