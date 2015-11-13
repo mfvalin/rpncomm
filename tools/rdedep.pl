@@ -72,6 +72,7 @@ my $defaultlibname = 'all';
 my $defaultlibext = '.a';
 my $override_dir='';
 my $files_from='';
+my $allow_circular_include=0; #TODO: add as option
 GetOptions('help'   => \$help,
 			  'verbose:+' => \$msg,
            'quiet'  => sub{$msg=0;},
@@ -285,11 +286,17 @@ $myname \\
    # OUT: true (1) if the module as been found, false (undef) otherwise
    sub find_dependencies {
       my $search_depedencies = "$_[1]";
+      #print STDERR "find_dependencies: $_[1]:$_[0]:",keys %{$_[0]->{DEPENDENCIES}},"\n";
+      #print STDERR "find_dependencies: $search_depedencies in dep of ",$_[0]->{NAMEyEXT},": ndep=",int(keys %{$_[0]->{DEPENDENCIES}}),"\n";
       for my $dep_filename (keys %{$_[0]->{DEPENDENCIES}}) {
+         #print STDERR "find_dependencies: $search_depedencies ?=? $dep_filename\n";
          my $dep_ptr = ${$_[0]->{DEPENDENCIES}}{$dep_filename};
-         return 1 if (($search_depedencies eq $dep_filename) and ($_[0]->{FULLPATH_SRC} ne $dep_ptr->{FULLPATH_SRC} ) );
-         return undef if (($search_depedencies eq $dep_filename) and ($_[0]->{FULLPATH_SRC} eq $dep_ptr->{FULLPATH_SRC} ) );
-         return 1 if ($dep_ptr->SRCFile::find_dependencies($search_depedencies) );
+         if ($flat_layout) {
+            return 1 if ($search_depedencies eq $dep_filename);
+         } else {
+            return 1 if ($search_depedencies eq $dep_filename and $_[0]->{FULLPATH_SRC} eq $dep_ptr->{FULLPATH_SRC});
+         }
+         return 1 if ($dep_ptr->SRCFile::find_dependencies($search_depedencies));
       }
       return undef;
    }
@@ -549,6 +556,7 @@ sub process_file {
 
    while (<INPUT>) {
       if ($_ =~ /^[@]*[\s]*#[\s]*include[\s]*[<'"\s]([\w.\/\.]+)[>"'\s][\s]*/) {
+         #print STDERR "sub_process_file0: $filename : include = $1\n";
          next if (process_file_for_include($file,$1));
       }
       next if ($file->{EXTENSION} =~ /^(c|cc|CC)$/);
@@ -561,6 +569,7 @@ sub process_file {
 
       # FORTRAN include statement : include "..."    include ',,,"
       if ($_ =~ /^[@]*[\s]*include[\s]*[<'"\s]([\w.\/\.]+)[>"'\s][\s]*/i) {
+         #print STDERR "sub_process_file1: $filename : include = $1\n";
          next if (process_file_for_include($file,$1));
       }
       # FORTRAN use statement : use yyy 
@@ -569,8 +578,11 @@ sub process_file {
 
          # If the module can be found, add the file to dependencies
          if (my $include_filename = search_module($modname)) {
-            ${$file->{DEPENDENCIES}}{$include_filename} = $LISTOBJECT{$include_filename} if (!exists ${$file->{DEPENDENCIES}}{$include_filename} );
-            #print STDERR "$filename +: $modname \n";
+            #print STDERR "module $modname in file $include_filename used in ",$file->{PATHyNAMEyEXT},"\n";
+            if ($include_filename ne $file->{PATHyNAMEyEXT}) {
+               ${$file->{DEPENDENCIES}}{$include_filename} = $LISTOBJECT{$include_filename} if (!exists ${$file->{DEPENDENCIES}}{$include_filename} );
+               #print STDERR "$filename +: $modname \n";
+            }
          } else {
             push @{$file->{UNSOLVED_MODULE}}, $modname if (!mysmart($modname,\@{$file->{UNSOLVED_MODULE}}));
             #print STDERR "$filename -: $modname \n";
@@ -690,6 +702,14 @@ sub process_file_for_include {
    }
    ##}
 
+   #Check if file is including itself
+   #print STDERR "process_file_for_include: ",$file->{FULLPATH_SRC}," : ",$file->{PATHyNAMEyEXT}," : inc=$path$filn.$exte\n";
+   if (!$allow_circular_include) {
+      if ($file->{PATHyNAMEyEXT} eq "$path$filn.$exte") {
+         die "\nERROR: File cannot include itself: $path$filn.$exte\n"
+      }
+   }
+
    # Add file in the database if it's not in yet and if the file really exists.
    if (!exists $LISTOBJECT{"$path$filn.$exte"}) {
       #print STDERR "NEW2: $filn.$exte ($path)\n";
@@ -732,13 +752,16 @@ sub has_legal_extension {
 # @check_circular_dep
 #------------------------------------------------------------------------
 sub check_circular_dep {
+   return if ($allow_circular_include);
    print STDERR "Checking for Circular dependencies\n" if ($msg >= 3);
+   #print STDERR "check_circular_dep: nfiles=",int(keys %LISTOBJECT),"\n";
    for (keys %LISTOBJECT) {
+      #print STDERR "check_circular_dep ",$LISTOBJECT{$_}->{FILENAME}," : $_ : dep=",keys %{$LISTOBJECT{$_}->{DEPENDENCIES}},"\n";
       if ($LISTOBJECT{$_}->find_dependencies($_)) { 
-         print STDERR "\nERROR: Circular dependencies in $_ FAILED\n";
-         exit 1; 
+         die "\nERROR: Circular dependencies in $_ FAILED\n";
       }
    }
+   print STDERR "Done Checking for Circular dependencies\n" if ($msg >= 3);
 }
 
 #------------------------------------------------------------------------
@@ -1146,7 +1169,7 @@ sub print_dep_rules_inv2 {
          %current_dependencies_list = ();
          rec_fill_dirdeplist2($filename, $filename);				
       } else {
-         print STDERR "\nERROR: Inv Dep for non flat layout is not yet implements\n";
+         print STDERR "\nWARNING: Inv Dep for non flat layout is not yet implements\n";
          return 0;
       }
    }
