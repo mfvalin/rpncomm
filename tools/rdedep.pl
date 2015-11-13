@@ -40,6 +40,7 @@ my %dirdeplist = ();
 my %invdeplist = ();
 my %topdirnames = ();
 my $myname  = "rdedep.pl";
+my $no_c_comment_warn = 0;
 
 #TODO: replace @arrays by %hash or $hash_ref ; %hash = map { $_ => 1 } @array;
 #TODO: replace %hash by $hash_ref
@@ -89,6 +90,7 @@ GetOptions('help'   => \$help,
            'soft-restriction' => \$soft_restriction,
            # 'dup_ok' => \$dup_ok,
            'flat_layout' => \$flat_layout,
+           'no_c_comment_warn' => \$no_c_comment_warn,
            'short_target_names' => \$short_target_names,
 			  'libext=s' => \$defaultlibext,
 			  'override_dir=s' => \$override_dir,
@@ -563,7 +565,7 @@ sub process_file {
 
       if ($file->{EXTENSION} =~ /^(F90)$/) {
          if ($_ =~ /^[\s\t]*![\s\t]*\/\*/) {
-            print STDERR "\nWARNING: File $filename has C style comments (/* ... */)\n"
+            print STDERR "\nWARNING: File $filename has C style comments (/* ... */)\n" if $no_c_comment_warn == 0
          }
       }
 
