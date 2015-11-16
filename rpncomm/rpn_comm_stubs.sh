@@ -345,7 +345,7 @@ int MPI_Comm_size(MPI_Comm comm, int *size){
    *size = 1;
    return(MPI_SUCCESS);
 }
-int MPI_Allgather(void *outx, int nout, MPI_Datatype outtype, void *inx, int nin, MPI_Datatype intype, MPI_Comm comm){
+int MPI_Allgather(const void *outx, int nout, MPI_Datatype outtype, void *inx, int nin, MPI_Datatype intype, MPI_Comm comm){
    int *out = outx;
    int *in = inx;
    if( nin != 1 || nout != 1 || outtype != MPI_INTEGER || intype != MPI_INTEGER ) {
