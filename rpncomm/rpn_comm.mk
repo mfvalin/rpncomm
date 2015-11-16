@@ -7,7 +7,7 @@ include $(VPATH)/Makefile.common
 include $(VPATH)/dependencies.mk
 
 LIB      = rpn_comm
-CLEAN    = rpn_comm_fortran_stubs.f rpn_comm_c_stubs.c \
+CLEAN    = rpn_comm_fortran_stubs.f rpn_comm_c_stubs.c $(VPATH)/dependencies.mk \
            $(STUB_LIBRARY) $(LIBRARY) $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi.ssm
 CLEANDIRS= $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi $(LIBDIR)
 TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs TEST_005.Abs TEST_006.Abs
