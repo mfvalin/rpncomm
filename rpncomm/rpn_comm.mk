@@ -24,7 +24,8 @@ STUB_LIBRARY = $(LIBDIR)/lib$(LIB)stubs_$(RPN_COMM_version).a
 SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
 
 DISTINCLUDES = $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc $(VPATH)/rpn_comm.inc \
-               $(VPATH)/RPN_COMM_types.inc $(VPATH)/RPN_COMM_constants.inc 
+               $(VPATH)/RPN_COMM_types.inc $(VPATH)/RPN_COMM_constants.inc \
+               $(VPATH)/RPN_COMM_ftoc.inc
 
 lib: $(LIBRARY)
 
