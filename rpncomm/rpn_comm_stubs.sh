@@ -305,6 +305,17 @@ rm -f make_mpif_include.f90 make_mpif_include
       return
       end
 !
+      subroutine MPI_type_extent(dtyp_m,extent,ierr)
+      integer,intent(IN) :: dtyp_m
+      !integer, intent(out) :: ierr
+      integer :: ierr
+      integer :: extent
+      write(6,*) 'MPI_type_extent not authorized in non-mpi mode, ABORT'
+      call ABORT
+      ierr = -1
+      return
+      end
+!
       integer function MPI_STUBS_length(itype)
       implicit none
       !include 'mpi_stub.h'
