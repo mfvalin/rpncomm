@@ -564,7 +564,6 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     status = RPN_COMM_ERROR ! precondition for failure in case a hasty exit is needed
     nullify(fullrow)
     nullify(local_1)
-    t = 0
 !
     root = -1 
     kcol = -1
@@ -588,6 +587,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
       endif
     enddo
     t(0) = RPN_COMM_wtime()
+    t(1:6) = t(0)
     if(on_column) call mpi_bcast(kcol,1,MPI_INTEGER,root,pe_mycol,ierr)    ! send gk to all PEs on the column
     t(1) = RPN_COMM_wtime()
 !
@@ -624,13 +624,21 @@ subroutine RPN_COMM_shuf_dist(setno,  &
 !
     cy = count_y + haloy
     cy(1:pe_ny-2) = cy(1:pe_ny-2) + haloy       ! count, adjusted for halo (periody assumed false)
-    cy = cy * gni                               ! and multiply by row length
 !
 !   all except first PE on column have their starting point bumped down by one haloy width
 !
-    dy = start_y - 1
+    dy = start_y - 1                            ! start of each tile
     dy(1:pe_ny-1) = dy(1:pe_ny-1) - haloy       ! displacement, adjusted for halo (periody assumed false)
-    dy = dy * gni                               ! and multiply by row length
+!
+    if(any(dy < 0) .or. any(cy+dy > gnj)) then
+      print 101,"ERROR(RPN_COMM_shuf_dist_1): problem with distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
+      return
+    else
+!      print 101,"INFO(RPN_COMM_shuf_dist_1): distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
+    endif
+!
+    cy = cy * gni                               ! multiply by row length
+    dy = dy * gni                               ! multiply by row length
     ybase = minj
     if(pe_mey == 0) ybase = 1                   ! south PE gets no south halo (periody assumed false)
 !
@@ -639,10 +647,6 @@ subroutine RPN_COMM_shuf_dist(setno,  &
       if(minj < 1)    fullrow(:,minj:0) = 0
       if(maxj > lnj)  fullrow(:,lnj+1:maxj) = 0
 !print *,'IN shuffle before scatter'
-      if(any(dy < 0) .or. any(cy+dy > gnj*gni)) then
-        print 101,"ERROR(RPN_COMM_shuf_dist_1): problem with distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)/gni
-        return
-      endif
       t(3) = RPN_COMM_wtime()
       call mpi_scatterv(global,cy,dy,MPI_INTEGER,   &          ! 
                         fullrow(1,ybase),cy(pe_mey),MPI_INTEGER, &
@@ -721,11 +725,11 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
                        local,   cxr, dxr, MPI_INTEGER,  &
                        pe_myrow, ierr)
     t(6) = RPN_COMM_wtime()
-    do i = 1,6
-      it(i) = (t(i) - t(i-1)) * 1000 ! convert to milliseconds
-    enddo
+!     do i = 1,6
+!       it(i) = max( 0.0 , (t(i) - t(i-1)) * 1000000 ) ! convert to microseconds
+!     enddo
     
-!!!!    print 101,"INFO: distribution timings(ms)",it(0:6)
+!     print 111,"INFO: distribution timings(ms)",it(1:6)
 !
 !do k=lnk,1,-1
 !  print *,'=== lv=',k
@@ -742,6 +746,7 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
     enddo
 100 format(I3,20I6.5)
 101 format(A,20I5)
+111 format(A,20I9)
   end subroutine RPN_COMM_shuf_dist_1
 end subroutine RPN_COMM_shuf_dist
 !====================================================================================
