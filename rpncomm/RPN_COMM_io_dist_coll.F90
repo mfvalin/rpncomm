@@ -639,8 +639,8 @@ subroutine RPN_COMM_shuf_dist(setno,  &
       if(minj < 1)    fullrow(:,minj:0) = 0
       if(maxj > lnj)  fullrow(:,lnj+1:maxj) = 0
 !print *,'IN shuffle before scatter'
-      if(any(dy < 0) .or. any(cy+dy > gnj)) then
-        print 101,"ERROR(RPN_COMM_shuf_dist_1): problem with distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
+      if(any(dy < 0) .or. any(cy+dy > gnj*gni)) then
+        print 101,"ERROR(RPN_COMM_shuf_dist_1): problem with distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)/gni
         return
       endif
       t(3) = RPN_COMM_wtime()
