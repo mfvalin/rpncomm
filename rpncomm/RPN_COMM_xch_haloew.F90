@@ -51,15 +51,7 @@
 
         include 'RPN_COMM_times.inc'
 
-        if(maxx == 0 .and. maxy == 0 .and. haloy == 0) then  ! special call to set pointer to EW timing array
-           times_ = loc(g)
-           ntimes = 1
-           ntimes_sz = maxx-minx  ! max number of timings that the array can contain
-           times(0) = ntimes      ! keep intex to next entry in times(0)
-           return
-        endif
-
-        T0 = RPN_COMM_Wtime()
+!print *,'EW halo entered',pe_me
       east=(bnd_east) .and. (.not.periodx)
       eastpe=pe_id(pe_mex+1,pe_mey)
       west=(bnd_west) .and. (.not.periodx)
@@ -82,9 +74,6 @@
           enddo
           enddo
         endif
-          T1 = RPN_COMM_Wtime() - T0
-          T2 = T1
-          T3 = T1
           goto 9999   ! return
       endif
 !
@@ -150,40 +139,7 @@
         enddo
         enddo
       endif
-        T1 = RPN_COMM_Wtime() - T0
-      if(async_exch) THEN !  asynchronous simultaneous west to east and east to west moves
-        nwds=halox*(jmax-jmin+1)*nk
-        sendtag=pe_medomm 
-        tag_2w=westpe
-        tag_2e=eastpe
-          messages = 0
-        if(.not. west) then
-          messages = messages + 1
-          ! get from west neighbor unless i am west PE
-           call MPI_IRECV(halo_from_west,nwds,MPI_INTEGER,westpe, &
-                 100000+westpe,PE_DEFCOMM,requests(messages),ierr)        ! sender was westpe therefore tag is westpe
-          endif
-        if(.not. east) then
-          messages = messages + 1
-          ! get from east neighbor unless i am east PE
-           call MPI_IRECV(halo_from_east,nwds,MPI_INTEGER,eastpe, &
-                 eastpe,PE_DEFCOMM,requests(messages),ierr)        ! sender was eastpe therefore tag is eastpe
-          endif
-        if(.not. east) then
-          messages = messages + 1
-          ! send to east neighbor unless i am east PE
-          call MPI_ISEND(halo_to_east,nwds,MPI_INTEGER,eastpe,   &
-                 100000+pe_medomm,PE_DEFCOMM,requests(messages),ierr)       ! tag is PE grid ordinal of sender
-          endif
-        if(.not. west) then
-          messages = messages + 1
-          ! send to west neighbor unless i am west PE
-          call MPI_ISEND(halo_to_west,nwds,MPI_INTEGER,westpe,  &
-                 pe_medomm,PE_DEFCOMM,requests(messages),ierr)      ! tag is PE grid ordinal of sender
-          endif
-        call MPI_waitall(messages,requests,statuses,ierr)  ! wait for all E-W and W-E messages to complete
-!
-      ELSE   ! THE FOLLOWING CODE WILL EVENTUALLY BE DEPRECATED WHEN async CODE IS FULLY DEBUGGED
+!print *,'EW halo peeled',pe_me
 !
 !  process west to east move
 !	
@@ -228,9 +184,8 @@
       	       halo_from_east,nwds,MPI_INTEGER,eastpe,gettag, &
       	       PE_DEFCOMM,status,ierr)
       endif
+! print *,'EW halo exchanged',pe_me
 !
-      ENDIF  ! END OF CODE TO BE DEPRECATED
-        T2 = RPN_COMM_Wtime() - T0
 !
 !  put halos back into array simultaneously (cache usage)
 !
@@ -322,9 +277,8 @@
         enddo
         enddo
       endif
-        T3 = RPN_COMM_Wtime() - T0
+! print *,'EW halo inserted',pe_me
 9999    continue
 !       T1, T2, T3 processing and storage
-        include 'RPN_COMM_times_post.inc'
         return
         end

@@ -50,18 +50,8 @@
         integer, dimension(4) :: requests            ! table of requests
         integer, dimension(MPI_STATUS_SIZE,4) :: statuses  ! table of statuses
         integer messages ! number of pending asynchronous messages
-      
-        include 'RPN_COMM_times.inc'
 
-        if(maxx == 0 .and. maxy == 0 .and. halox == 0) then  ! special call to set pointer to NS timing array
-           times_ = loc(g)
-           ntimes = 1
-           ntimes_sz = maxx-minx  ! max number of timings that the array can contain
-           times(0) = ntimes      ! keep intex to next entry in times(0)
-           return
-        endif
-
-        T0 = RPN_COMM_Wtime()
+! print *,'NS halo entered',pe_me
       east=(bnd_east) .and. (.not.periodx)
       eastpe=pe_id(pe_mex+1,pe_mey)
       west=(bnd_west) .and. (.not.periodx)
@@ -82,9 +72,6 @@
               enddo
             enddo
            endif
-           T1 = RPN_COMM_Wtime() - T0
-           T2 = T1
-           T3 = T1
            goto 9999   ! return
         endif
 
@@ -96,38 +83,7 @@
       enddo
       enddo
       enddo
-
-        T1 = RPN_COMM_Wtime() - T0
-      if(async_exch) THEN !  asynchronous simultaneous north to south  and south to north moves
-      nwds=nk*haloy*(2*halox+ni)
-      messages = 0
-      if(.not. north) then
-        messages = messages + 1
-        ! recv from north neighbor unless I am north PE
-        call MPI_IRECV(halo_from_north,nwds,MPI_INTEGER,northpe,  &
-               100000+northpe,PE_DEFCOMM,requests(messages),ierr)        ! sender was northpe therefore tag is northpe
-      endif
-      if(.not. south) then
-        messages = messages + 1
-        ! recv from south neighbor unless I am south PE
-        call MPI_IRECV(halo_from_south,nwds,MPI_INTEGER,southpe,  &
-               southpe,PE_DEFCOMM,requests(messages),ierr)        ! sender was southpe therefore tag is southpe
-      endif
-      if(.not. south) then
-        messages = messages + 1
-        ! send to south neighbor unless I am south PE
-        call MPI_ISEND(halo_to_south,nwds,MPI_INTEGER,southpe,  &
-               100000+pe_medomm,PE_DEFCOMM,requests(messages),ierr)       ! tag is PE grid ordinal of sender
-        endif
-      if(.not. north) then
-        messages = messages + 1
-        ! send to north neighbor unless I am north PE
-        call MPI_ISEND(halo_to_north,nwds,MPI_INTEGER,northpe,  &
-               pe_medomm,PE_DEFCOMM,requests(messages),ierr)       ! tag is PE grid ordinal of sender
-        endif
-      call MPI_waitall(messages,requests,statuses,ierr)  ! wait for all N-S and S-N messages to complete
-      ELSE   ! THE FOLLOWING CODE WILL EVENTUALLY BE DEPRECATED WHEN async CODE IS FULLY DEBUGGED
-
+! print *,'NS halo peeled',pe_me
       nwds=nk*haloy*(2*halox+ni)
       sendtag=pe_medomm
       gettag=northpe
@@ -163,9 +119,7 @@
       	       halo_from_south,nwds,MPI_INTEGER,southpe,gettag,  &
       	       PE_DEFCOMM,status,ierr)
       endif        
-!
-      ENDIF  ! END OF CODE TO BE DEPRECATED
-        T2 = RPN_COMM_Wtime() - T0
+! print *,'NS halo exchanged',pe_me
 !
  	if(.not.north)then
  	do k=1,nk
@@ -176,6 +130,7 @@
  	enddo
  	enddo
  	endif
+! print *,'NS north halo inserted',pe_me
       
 
       if(.not.south)then
@@ -187,9 +142,7 @@
       enddo
       enddo
       endif
-        T3 = RPN_COMM_Wtime() - T0
+! print *,'NS south halo inserted',pe_me
 9999    continue
-!       T1, T2, T3 further processing
-        include 'RPN_COMM_times_post.inc'
       return
         end
