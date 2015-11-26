@@ -536,6 +536,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     use rpn_comm
     use RPN_COMM_io_pe_tables
     implicit none
+    real*8, external :: RPN_COMM_wtime
     integer, intent(IN) :: setno
     integer, intent(IN) :: gni,gnj,gk
     integer, intent(IN), dimension(gni,gnj) :: global
@@ -556,11 +557,14 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     integer, dimension(:,:,:), pointer :: local_1
     integer, dimension(0:pe_nx-1) :: cxs, dxs, cxr, dxr
     integer, dimension(0:pe_ny-1) :: cy, dy
+    real*8, dimension(0:6) :: t
+    integer, dimension(0:6) :: it
 
     on_column = .false.     ! precondition for failure in case a hasty exit is needed
     status = RPN_COMM_ERROR ! precondition for failure in case a hasty exit is needed
     nullify(fullrow)
     nullify(local_1)
+    t = 0
 !
     root = -1 
     kcol = -1
@@ -583,7 +587,9 @@ subroutine RPN_COMM_shuf_dist(setno,  &
         exit
       endif
     enddo
+    t(0) = RPN_COMM_wtime()
     if(on_column) call mpi_bcast(kcol,1,MPI_INTEGER,root,pe_mycol,ierr)    ! send gk to all PEs on the column
+    t(1) = RPN_COMM_wtime()
 !
 !   get list of which PE has which gk along row
 !   if column had no IO PE, -1 gets transmitted
@@ -591,6 +597,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
 !
     listofk = 0
     call mpi_allgather(kcol,1,MPI_INTEGER,listofk,1,MPI_INTEGER,pe_myrow,ierr)
+    t(2) = RPN_COMM_wtime()
     if(maxval(listofk) > lnk ) then    ! attempt to store a level > lnk, OOPS
       print 101,"ERROR: 1 or more level to distribute > local nk, max level, local nk ",maxval(listofk),lnk
       return
@@ -636,9 +643,11 @@ subroutine RPN_COMM_shuf_dist(setno,  &
         print 101,"ERROR(RPN_COMM_shuf_dist_1): problem with distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
         return
       endif
+      t(3) = RPN_COMM_wtime()
       call mpi_scatterv(global,cy,dy,MPI_INTEGER,   &          ! 
                         fullrow(1,ybase),cy(pe_mey),MPI_INTEGER, &
                         root,pe_mycol,ierr)
+      t(4) = RPN_COMM_wtime()
 !print *,'IN shuffle after scatter'
 !print *,"DEBUG: ======= fullrow for level",kcol
 !do j=maxj,minj,-1
@@ -707,9 +716,13 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
 !    print 100,j,local(:,j,k)
 !  enddo
 !enddo
+    t(5) = RPN_COMM_wtime()
     call mpi_alltoallv(local_1, cxs, dxs, MPI_INTEGER,  &
                        local,   cxr, dxr, MPI_INTEGER,  &
                        pe_myrow, ierr)
+    t(6) = RPN_COMM_wtime()
+    it = t * 1000 ! convert to milliseconds
+    print 101,"INFO: distribution timings(ms)",it(0:6)
 !
 !do k=lnk,1,-1
 !  print *,'=== lv=',k
