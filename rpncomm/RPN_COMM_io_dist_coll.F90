@@ -721,7 +721,10 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
                        local,   cxr, dxr, MPI_INTEGER,  &
                        pe_myrow, ierr)
     t(6) = RPN_COMM_wtime()
-    it = t * 1000 ! convert to milliseconds
+    do i = 1,6
+      it(i) = (t(i) - t(i-1)) * 1000 ! convert to milliseconds
+    enddo
+    
     print 101,"INFO: distribution timings(ms)",it(0:6)
 !
 !do k=lnk,1,-1
