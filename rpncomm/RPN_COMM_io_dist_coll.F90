@@ -634,7 +634,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
       print 101,"ERROR(RPN_COMM_shuf_dist_1): problem with distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
       return
     else
-!      print 101,"INFO(RPN_COMM_shuf_dist_1): distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
+     print 101,"INFO(RPN_COMM_shuf_dist_1): distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
     endif
 !
     cy = cy * gni                               ! multiply by row length
@@ -725,11 +725,12 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
                        local,   cxr, dxr, MPI_INTEGER,  &
                        pe_myrow, ierr)
     t(6) = RPN_COMM_wtime()
-!     do i = 1,6
-!       it(i) = max( 0.0 , (t(i) - t(i-1)) * 1000000 ) ! convert to microseconds
-!     enddo
+    it(0) = (t(6) - t(0)) * 1000000
+    do i = 1,6
+      it(i) = max( 0.0_8 , (t(i) - t(i-1)) * 1000000 ) ! convert to microseconds
+    enddo
     
-!     print 111,"INFO: distribution timings(ms)",it(1:6)
+    print 111,"INFO: distribution timings(microsec)",it(0:6)
 !
 !do k=lnk,1,-1
 !  print *,'=== lv=',k
@@ -888,7 +889,11 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     integer, dimension(:,:), allocatable :: local_2
     logical :: io_on_column
     integer :: blocki, blockj, k, nlev, klev, ierr, column_root, dimenj
+    real*8, dimension(0:6) :: t
+    integer, dimension(0:6) :: it
 !
+    t(0) = RPN_COMM_wtime()
+    t(1:6) = t(0)
     status = RPN_COMM_ERROR
     nlev = kn - k1 + 1             ! number of levels to distribute
     if(nlev > npes) then           ! nlev cannot be larger than npes
@@ -967,9 +972,11 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     print *,"DEBUG: cxr",cxr
     print *,"DEBUG: dxr",dxr
 #endif
+    t(1) = RPN_COMM_wtime()
     call mpi_alltoallv(local,   cxs, dxs, MPI_INTEGER,  &   ! send from local, size cxs, displacement dxs
                        local_1, cxr, dxr, MPI_INTEGER,  &   ! receive into local_1, 
                        pe_myrow, ierr)
+    t(2) = RPN_COMM_wtime()
 !
 !   REORG    move from (mini:maxi,lnj,pe_nx) to (gni,lnj)
     if(io_on_column) then
@@ -1009,15 +1016,26 @@ subroutine RPN_COMM_shuf_coll(setno,  &
        print *,"DEBUG: cy",cy
        print *,"DEBUG: dy",dy
 #endif
+    t(3) = RPN_COMM_wtime()
        call mpi_gatherv(local_2, gni*blockj, MPI_INTEGER, &
                         global , cy,  dy,  MPI_INTEGER, &
                         column_root, pe_mycol, ierr)
+    t(4) = RPN_COMM_wtime()
        if(kexpected .ne. 0) levnk = kexpected
     endif
+    t(5) = RPN_COMM_wtime()
+    it(0) = (t(5) - t(0)) * 1000000 
+    do i = 1,6
+      it(i) = max( 0.0_8 , (t(i) - t(i-1)) * 1000000 ) ! convert to microseconds
+    enddo
+    
+    print 111,"INFO: collect timings(microsec)",it(0:6)
+!
     deallocate( local_2 )
     status = RPN_COMM_OK
 100 format(I3,20I6.5)
 101 format(2I3,20I6.5)
+111 format(A,20I9)
   end subroutine RPN_COMM_shuf_coll_1
 end subroutine RPN_COMM_shuf_coll
 !
