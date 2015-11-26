@@ -725,7 +725,7 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
       it(i) = (t(i) - t(i-1)) * 1000 ! convert to milliseconds
     enddo
     
-    print 101,"INFO: distribution timings(ms)",it(0:6)
+!!!!    print 101,"INFO: distribution timings(ms)",it(0:6)
 !
 !do k=lnk,1,-1
 !  print *,'=== lv=',k
