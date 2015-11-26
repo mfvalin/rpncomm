@@ -536,7 +536,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     use rpn_comm
     use RPN_COMM_io_pe_tables
     implicit none
-    real*8, external :: RPN_COMM_wtime
+!    real*8, external :: RPN_COMM_wtime
     integer, intent(IN) :: setno
     integer, intent(IN) :: gni,gnj,gk
     integer, intent(IN), dimension(gni,gnj) :: global
