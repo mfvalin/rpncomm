@@ -13,8 +13,7 @@ end
 subroutine test_null
   use ISO_C_BINDING
   implicit none
-  include 'RPN_COMM_types.inc'
-  include 'RPN_COMM_is_null.inc'
+  include 'RPN_COMM.inc'
   type(rpncomm_context) :: a
   type(rpncomm_ptr) :: b
   type(rpncomm_window) :: c

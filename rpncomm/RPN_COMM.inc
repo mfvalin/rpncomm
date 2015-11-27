@@ -20,3 +20,4 @@
       include 'RPN_COMM_constants.inc'
       include 'RPN_COMM_types.inc'
       include 'RPN_COMM_interfaces.inc'
+      include 'RPN_COMM_is_null.inc'

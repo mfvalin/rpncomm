@@ -25,7 +25,7 @@ SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
 
 DISTINCLUDES = $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc $(VPATH)/rpn_comm.inc \
                $(VPATH)/RPN_COMM_types.inc $(VPATH)/RPN_COMM_constants.inc \
-               $(VPATH)/RPN_COMM_ftoc.inc
+               $(VPATH)/RPN_COMM_ftoc.inc $(VPATH)/RPN_COMM_is_null.inc
 
 lib: $(LIBRARY)
 
