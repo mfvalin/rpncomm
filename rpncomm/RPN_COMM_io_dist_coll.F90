@@ -1026,6 +1026,7 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     deallocate( local_1 )   ! local_1 no longer useful
 !
     call mpi_barrier(pe_indomm,ierr)              ! full sync, start / middle / end
+    t(3) = RPN_COMM_wtime()
 !
 !
 !   PASS 2 , on columns where there is an IO PE, gatherv on IO PE into (gni,gnj) array
@@ -1042,18 +1043,18 @@ subroutine RPN_COMM_shuf_coll(setno,  &
        print *,"DEBUG: cy",cy
        print *,"DEBUG: dy",dy
 #endif
-    t(3) = RPN_COMM_wtime()
+    t(4) = RPN_COMM_wtime()
        call mpi_gatherv(local_2, gni*blockj, MPI_INTEGER, &
                         global , cy,  dy,  MPI_INTEGER, &
                         column_root, pe_mycol, ierr)
-    t(4) = RPN_COMM_wtime()
+    t(5) = RPN_COMM_wtime()
        if(kexpected .ne. 0) levnk = kexpected
     endif
 !
     call mpi_barrier(pe_indomm,ierr)              ! full sync, start / middle / end
 !
-    t(5) = RPN_COMM_wtime()
-    it(0) = (t(5) - t(0)) * 1000000 
+    t(6) = RPN_COMM_wtime()
+    it(0) = (t(6) - t(0)) * 1000000 
     do i = 1,6
       it(i) = max( 0.0_8 , (t(i) - t(i-1)) * 1000000 ) ! convert to microseconds
     enddo
