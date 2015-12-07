@@ -1,0 +1,43 @@
+#!/bin/bash
+get_comp_extras() {
+  printf "%s" "set -- "
+  head -10 ${1} | grep -e "COMP_ARCH=[.][ ]" -e "COMP_ARCH=${COMP_ARCH}[ ]" | sed -e 's/^.*COMP_ARCH=[^ ]*//' | tr -d '\n'
+  shift;
+  echo " " "$@"
+}
+File=${1:-/dev/null}
+shift;
+eval $(get_comp_extras "${File}" "$@")
+#
+MyCoMmAnD=${TMPDIR}/FiLtEr_$$
+Arguments=""
+printf "sed -e 's/^//'" >${MyCoMmAnD}
+while [[ -n $1 ]]
+do
+  arg="$1"
+#  printf "arg=%s\n" "$arg"
+  case "$arg" in 
+  -suppress=*) 
+     Imm=${arg#*=}
+     Imm=${Imm#\'}
+     Imm=${Imm%\'}
+     printf " -e 's/ %s / /'"  "${Imm}" >>${MyCoMmAnD}
+     ;;
+  -add=*) 
+     printf " -e 's/$/ %s/'"  "${arg#*=}" >>${MyCoMmAnD}
+     ;;
+  COMP_ARCH=*)
+     ;;
+  *)
+     Arguments="${Arguments} ${arg}"
+     ;;
+  esac
+  shift;
+done
+     printf " -e 's/$/ %s/'"  "${File}" >>${MyCoMmAnD}
+printf "\n" >>${MyCoMmAnD}
+chmod 755 ${MyCoMmAnD}
+#cat ${MyCoMmAnD}
+#
+printf "%s" "${Arguments} " | ${MyCoMmAnD}
+rm -f ${MyCoMmAnD}
