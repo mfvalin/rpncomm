@@ -7,7 +7,8 @@
 .f90.o:
 	$(MPIF90C) -I$(VPATH) -c $(OPENMP) $(FCFLAGS) $<
 .F90.o:
-	$(MPIF90C) -I$(VPATH) -c $(OPENMP) $(FCFLAGS) -DMARKER=RPN_COMM_marker_$(RPN_COMM_version) $<
+#	$(VPATH)/../tools/mk.preprocess_options $< -I$(VPATH) -c $(OPENMP) $(FCFLAGS) -DMARKER=RPN_COMM_marker_$(RPN_COMM_version)
+	$(MPIF90C) $(shell $(VPATH)/../tools/mk.preprocess_options $< -I$(VPATH) -c $(OPENMP) $(FCFLAGS) -DMARKER=RPN_COMM_marker_$(RPN_COMM_version))
 .c.o:
 	$(MPICC) -I$(VPATH) -c $(CFLAGS) $<
 .o.Abs:

@@ -118,7 +118,7 @@
     enddo
     do i = 1 , npes
       if(safe(x(i),y(i)) .ne. 0) then  ! OOPS, 2 PEs in this set are the same
-        print *,"ERROR: problem creating IO set, there are duplicates"
+        print *,"ERROR: problem creating IO set, there are duplicates",x(i),y(i),safe(x(i),y(i))
         print *,"ERROR: x = ",x(i:min(i+groupsize-1,npes))
         print *,"ERROR: y = ",y(i:min(i+groupsize-1,npes))
         status = -1

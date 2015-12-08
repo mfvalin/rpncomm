@@ -5,6 +5,7 @@ get_comp_extras() {
   shift;
   echo " " "$@"
 }
+#echo "COMP_ARCH=${COMP_ARCH}" 1>&2
 File=${1:-/dev/null}
 shift;
 eval $(get_comp_extras "${File}" "$@")
@@ -15,13 +16,13 @@ printf "sed -e 's/^//'" >${MyCoMmAnD}
 while [[ -n $1 ]]
 do
   arg="$1"
-#  printf "arg=%s\n" "$arg"
+#  printf "arg=%s\n" "$arg" 1>&2
+#  Imm=${arg#*=}
+#  Imm=${Imm#\'}
+#  Imm=${Imm%\'}
   case "$arg" in 
   -suppress=*) 
-     Imm=${arg#*=}
-     Imm=${Imm#\'}
-     Imm=${Imm%\'}
-     printf " -e 's/ %s / /'"  "${Imm}" >>${MyCoMmAnD}
+     printf " -e 's/ %s / /'"  "${arg#*=}" >>${MyCoMmAnD}
      ;;
   -add=*) 
      printf " -e 's/$/ %s/'"  "${arg#*=}" >>${MyCoMmAnD}
@@ -34,10 +35,10 @@ do
   esac
   shift;
 done
-     printf " -e 's/$/ %s/'"  "${File}" >>${MyCoMmAnD}
+     printf " -e 's:$: %s:'"  "${File}" >>${MyCoMmAnD}
 printf "\n" >>${MyCoMmAnD}
 chmod 755 ${MyCoMmAnD}
-#cat ${MyCoMmAnD}
+#cat ${MyCoMmAnD} 1>&2
 #
 printf "%s" "${Arguments} " | ${MyCoMmAnD}
 rm -f ${MyCoMmAnD}

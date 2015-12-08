@@ -1,4 +1,4 @@
-!COMP_ARCH=xlf13 '-suppress=-O[ ]*2' -add='-O 0'
+!COMP_ARCH=xlf13 -suppress='-O[ ]*2' -add='-O 0'
 !/* RPN_COMM - Library of useful routines for C and FORTRAN programming
 ! * Copyright (C) 1975-2012  Division de Recherche en Prevision Numerique
 ! *                          Environnement Canada
