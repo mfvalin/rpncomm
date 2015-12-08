@@ -15,6 +15,7 @@
     integer, save :: scrambley = 0
     integer, save :: pe_nx_old = 0
     integer, save :: pe_ny_old = 0
+    logical :: modulo_x_y
     integer, dimension(16), save :: primes = [ &
          5,      7,      11,     13,   &
         17,     19,      23,     29,   &
@@ -58,6 +59,7 @@
 !       print *,"ERROR: too many PEs requested in set (",npes," ),max permitted:",pe_nxy * pe_nxy
 !       return
 !     endif
+    modulo_x_y = mod(pe_ny,pe_nx) == 0 .or. mod(pe_nx,pe_ny) == 0 ! one is a multiple of the other
     do i = 0 , npes-1
 !       if(npes > pe_nxy) then
 !         if(pe_nx > pe_ny) then
@@ -70,7 +72,7 @@
 !       else
         x(i+1) = mod( i * deltax , pe_nx )
         y(i+1) = mod( i * deltay , pe_ny )
-        if(pe_nx==pe_ny) y(i+1) = mod(y(i+1)+i/pe_ny,pe_ny)
+        if(modulo_x_y) y(i+1) = mod(y(i+1)+i/pe_ny,pe_ny)
 !       endif
     enddo
   end subroutine RPN_COMM_make_io_pe_list  !InTf!
