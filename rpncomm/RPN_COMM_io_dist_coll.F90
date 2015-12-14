@@ -53,7 +53,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer, intent(IN), dimension(nparams) :: params
   logical :: periodx, periody
   integer :: setno, me_io, n_io
-  integer :: i, j, k
+  integer :: i, j, k, irep
   integer :: gni=10
   integer :: gnj=7
   integer :: dnk=2
@@ -61,6 +61,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer :: iope_extra=3
   integer :: halo_x = 1
   integer :: halo_y = 1
+  integer :: nrep_test=1
   integer, parameter :: MAX_PRINT=80
   integer :: max_dist_k
   integer, dimension(:), allocatable :: liste_k, liste_k2
@@ -98,6 +99,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
     halo_y = params(7)
   endif
   if(nparams >= 8) max_dist_k = params(8)
+  if(nparams >= 9) nrep_test = params(9)
   if(pe_me == 0) then
     print 101,"CFG: gni,gnj,dnk,halo_x,halo_y",gni,gnj,dnk,halo_x,halo_y
     print 101,"CFG: lnk,max_dist_k,pe_nx,pe_ny",lnk,max_dist_k,iope_extra,pe_nx,pe_ny
@@ -182,51 +184,58 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   endif
   me_io = RPN_COMM_is_io_pe(setno)     ! me in IO_set
   n_io = RPN_COMM_io_pe_size(setno)    ! IO_set population
-  if(me_io .ne. -1) then
-    print *,"I am a busy IO pe!",me_io+1,' of',n_io
-    do k=1,dnk               ! global levels that this PE will distribute
-!      liste_k(k) = lnk - me_io - (k-1)*n_io   !  levels lnk -> (lnk - nio*dnk + 1)
-      liste_k(k) = 1 + me_io + (k-1)*n_io     !  levels 1 -> nio*dnk - 1
-      if(liste_k(k) > max_dist_k) liste_k(k) = 0
-      liste_k(k) = max( liste_k(k) , 0)
-      do j = 1,gnj
-      do i = 1,gni
-        global(i,j,k) = liste_k(k) + j*100 + i*10000
+!
+  do irep = 1,nrep_test ! start of test  repetition loop
+    liste_o = .false.
+    liste_o(max_dist_k) = .true.     ! test of warning for attempt to redistribute a level
+    if(max_dist_k<lnk) liste_o(max_dist_k+1:lnk) = .false.
+    if(me_io .ne. -1) then
+      print *,"I am a busy IO pe!",me_io+1,' of',n_io
+      do k=1,dnk               ! global levels that this PE will distribute
+  !      liste_k(k) = lnk - me_io - (k-1)*n_io   !  levels lnk -> (lnk - nio*dnk + 1)
+        liste_k(k) = 1 + me_io + (k-1)*n_io     !  levels 1 -> nio*dnk - 1
+        if(liste_k(k) > max_dist_k) liste_k(k) = 0
+        liste_k(k) = max( liste_k(k) , 0)
+        do j = 1,gnj
+        do i = 1,gni
+          global(i,j,k) = liste_k(k) + j*100 + i*10000
+        enddo
+        enddo
       enddo
+      print *,"level list =",liste_k
+      do k= dnk,1,-1
+        if(liste_k(k) <= 0) cycle
+        print *,"===== source level ==",liste_k(k),"  ====="
+        do j=gnj,1,-1
+          if(gni*gnj < MAX_PRINT) print 100,j,global(:,j,k)
+        enddo
       enddo
-    enddo
-    print *,"level list =",liste_k
-    do k= dnk,1,-1
-      if(liste_k(k) <= 0) cycle
-      print *,"===== source level ==",liste_k(k),"  ====="
-      do j=gnj,1,-1
-        if(gni*gnj < MAX_PRINT) print 100,j,global(:,j,k)
-      enddo
-    enddo
-  else
-    print *,"I am a relaxed  NON-IO pe !"
-  endif
+    else
+      print *,"I am a relaxed  NON-IO pe !"
+    endif
 ! print *,'lni,lnj,mini,maxi,minj,maxj',lni,lnj,mini,maxi,minj,maxj
 !return
 #define EZ_TEST
 #if defined(EZ_TEST)
 !====================================================================================
 ! use previously obtained grid id
-  status = RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_k, liste_o)
+    status = RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_k, liste_o)
 !====================================================================================
 #else
-  call RPN_COMM_shuf_dist(setno,  &
-                          global,gni,gnj,dnk,  &
-                          local,mini,maxi,minj,maxj,lnk,  &
-                          liste_k,liste_o,  &
-                          start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
-                          periodx,periody,status)
+    call RPN_COMM_shuf_dist(setno,  &
+                            global,gni,gnj,dnk,  &
+                            local,mini,maxi,minj,maxj,lnk,  &
+                            liste_k,liste_o,  &
+                            start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
+                            periodx,periody,status)
 #endif
-  print *,'liste_o apres=',liste_o
-  if(status .ne. RPN_COMM_OK) then
-    print 101,"ERROR: RPN_COMM_shuf_dist failure, lnk,dnk,n_io ",lnk,dnk,n_io
-    return
-  endif
+    print *,'liste_o apres=',liste_o
+    if(status .ne. RPN_COMM_OK) then
+      print 101,"ERROR: RPN_COMM_shuf_dist failure, lnk,dnk,n_io ",lnk,dnk,n_io
+      return
+    endif
+  enddo ! end of test repetition loop
+!
   nerrors = 0
   nvalid = 0
   do k = lnk,1,-1
@@ -269,42 +278,46 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
 !
 100 format(I3,20I7.6)
 101 format(A,20I5)
+!=======================================================================================
 777 continue
+!=======================================================================================
 !
 ! collect test follows distribute test
 !
-  global2 = 999999
-  liste_k2 = -999999
-  effective_lnk = 1
-  do k = 1 , lnk
-    if(liste_o(k)) effective_lnk = k  ! highest level available
-  enddo
-  local = 989898
-  do k = 1,effective_lnk
-  do j = 1,lnj
-  do i = 1,lni
-    local(i,j,k) = k + (j - 1 + start_y(pe_mey+1))*100 + (i -1 + start_x(pe_mex+1))*10000
-  enddo
-  enddo
-  enddo
-  print *,"====== before  shuf_coll, max lnk ======",effective_lnk
+  do irep = 1,nrep_test ! start of test repeat loop
+    global2 = 999999
+    liste_k2 = -999999
+    effective_lnk = 1
+    do k = 1 , lnk
+      if(liste_o(k)) effective_lnk = k  ! highest level available
+    enddo
+    local = 989898
+    do k = 1,effective_lnk
+    do j = 1,lnj
+    do i = 1,lni
+      local(i,j,k) = k + (j - 1 + start_y(pe_mey+1))*100 + (i -1 + start_x(pe_mex+1))*10000
+    enddo
+    enddo
+    enddo
+    print *,"====== before  shuf_coll, max lnk ======",effective_lnk
 #if defined(EZ_TEST)
 !====================================================================================
 ! use previously obtained grid id
-  status = RPN_COMM_shuf_ezcoll(setno, grid_id, global2, dnk, local, effective_lnk, liste_k2)
+    status = RPN_COMM_shuf_ezcoll(setno, grid_id, global2, dnk, local, effective_lnk, liste_k2)
 !====================================================================================
 #else
-  call RPN_COMM_shuf_coll(setno,  &
-                          global2,gni,gnj,dnk,  &
-                          local,mini,maxi,minj,maxj,effective_lnk,  &
-                          liste_k2,  &
-                          start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
-                          status)
+    call RPN_COMM_shuf_coll(setno,  &
+                            global2,gni,gnj,dnk,  &
+                            local,mini,maxi,minj,maxj,effective_lnk,  &
+                            liste_k2,  &
+                            start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
+                            status)
 #endif
-  if(status .ne. RPN_COMM_OK) then
-    print 101,"ERROR: RPN_COMM_shuf_coll failure, lnk,dnk,n_io ",effective_lnk,dnk,n_io
-    return
-  endif
+    if(status .ne. RPN_COMM_OK) then
+      print 101,"ERROR: RPN_COMM_shuf_coll failure, lnk,dnk,n_io ",effective_lnk,dnk,n_io
+      return
+    endif
+  enddo ! end of test repeat loop
 ! global2 should be identical to global once k has been adjusted
 ! expected k + global - mod(global,10)
   if(me_io .ne. -1) then ! I am an IO PE
@@ -567,7 +580,8 @@ subroutine RPN_COMM_shuf_dist(setno,  &
 !
     root = -1 
     kcol = -1
-    haloy = 1 - minj        ! halos are implicitly specified by lower bound of x and y dimensions
+    haloy = 1 - minj          ! halos are implicitly specified by lower bound of x and y dimensions
+    if(pe_ny == 1) haloy = 0  ! no halo along y in this case
     halox = 1 - mini
     size2d = (maxj-minj+1) * (maxi-mini+1)    ! size of a 2D local array
     eff_periodx = periodx .and. (halox > 0)   ! global along x perodioc adjustment needed
@@ -587,6 +601,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
       endif
     enddo
     t(0) = RPN_COMM_wtime()
+    call mpi_barrier(pe_indomm,ierr)              ! full sync, start / middle / end
     t(1:6) = t(0)
     if(on_column) call mpi_bcast(kcol,1,MPI_INTEGER,root,pe_mycol,ierr)    ! send gk to all PEs on the column
     t(1) = RPN_COMM_wtime()
@@ -633,8 +648,8 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     if(any(dy < 0) .or. any(cy+dy > gnj)) then
       print 101,"ERROR(RPN_COMM_shuf_dist_1): problem with distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
       return
-    else
-!      print 101,"INFO(RPN_COMM_shuf_dist_1): distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
+!    else
+!     print 101,"INFO(RPN_COMM_shuf_dist_1): distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
     endif
 !
     cy = cy * gni                               ! multiply by row length
@@ -710,6 +725,8 @@ subroutine RPN_COMM_shuf_dist(setno,  &
       endif
     enddo
 !
+    call mpi_barrier(pe_indomm,ierr)              ! full sync, start / middle / end
+!
 #if defined(FULL_DEBUG)
 if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
 #endif
@@ -724,12 +741,16 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
     call mpi_alltoallv(local_1, cxs, dxs, MPI_INTEGER,  &
                        local,   cxr, dxr, MPI_INTEGER,  &
                        pe_myrow, ierr)
+!
+    call mpi_barrier(pe_indomm,ierr)              ! full sync, start / middle / end
+!
     t(6) = RPN_COMM_wtime()
-!     do i = 1,6
-!       it(i) = max( 0.0 , (t(i) - t(i-1)) * 1000000 ) ! convert to microseconds
-!     enddo
+    it(0) = (t(6) - t(0)) * 1000000
+    do i = 1,6
+      it(i) = max( 0.0_8 , (t(i) - t(i-1)) * 1000000 ) ! convert to microseconds
+    enddo
     
-!     print 111,"INFO: distribution timings(ms)",it(1:6)
+!    print 111,"INFO: distribution timings(microsec)",it(0:6)
 !
 !do k=lnk,1,-1
 !  print *,'=== lv=',k
@@ -888,7 +909,14 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     integer, dimension(:,:), allocatable :: local_2
     logical :: io_on_column
     integer :: blocki, blockj, k, nlev, klev, ierr, column_root, dimenj
+    real*8, dimension(0:6) :: t
+    integer, dimension(0:6) :: it
 !
+    t(0) = RPN_COMM_wtime()
+!
+    call mpi_barrier(pe_indomm,ierr)              ! full sync, start / middle / end
+!
+    t(1:6) = t(0)
     status = RPN_COMM_ERROR
     nlev = kn - k1 + 1             ! number of levels to distribute
     if(nlev > npes) then           ! nlev cannot be larger than npes
@@ -967,9 +995,11 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     print *,"DEBUG: cxr",cxr
     print *,"DEBUG: dxr",dxr
 #endif
+    t(1) = RPN_COMM_wtime()
     call mpi_alltoallv(local,   cxs, dxs, MPI_INTEGER,  &   ! send from local, size cxs, displacement dxs
                        local_1, cxr, dxr, MPI_INTEGER,  &   ! receive into local_1, 
                        pe_myrow, ierr)
+    t(2) = RPN_COMM_wtime()
 !
 !   REORG    move from (mini:maxi,lnj,pe_nx) to (gni,lnj)
     if(io_on_column) then
@@ -995,6 +1025,10 @@ subroutine RPN_COMM_shuf_coll(setno,  &
     endif
     deallocate( local_1 )   ! local_1 no longer useful
 !
+    call mpi_barrier(pe_indomm,ierr)              ! full sync, start / middle / end
+    t(3) = RPN_COMM_wtime()
+!
+!
 !   PASS 2 , on columns where there is an IO PE, gatherv on IO PE into (gni,gnj) array
 !
     if(io_on_column) then   ! column root will collect level  klev from local_2 into global
@@ -1009,15 +1043,29 @@ subroutine RPN_COMM_shuf_coll(setno,  &
        print *,"DEBUG: cy",cy
        print *,"DEBUG: dy",dy
 #endif
+    t(4) = RPN_COMM_wtime()
        call mpi_gatherv(local_2, gni*blockj, MPI_INTEGER, &
                         global , cy,  dy,  MPI_INTEGER, &
                         column_root, pe_mycol, ierr)
+    t(5) = RPN_COMM_wtime()
        if(kexpected .ne. 0) levnk = kexpected
     endif
+!
+    call mpi_barrier(pe_indomm,ierr)              ! full sync, start / middle / end
+!
+    t(6) = RPN_COMM_wtime()
+    it(0) = (t(6) - t(0)) * 1000000 
+    do i = 1,6
+      it(i) = max( 0.0_8 , (t(i) - t(i-1)) * 1000000 ) ! convert to microseconds
+    enddo
+    
+!    print 111,"INFO: collect timings(microsec)",it(0:6)
+!
     deallocate( local_2 )
     status = RPN_COMM_OK
 100 format(I3,20I6.5)
 101 format(2I3,20I6.5)
+111 format(A,20I9)
   end subroutine RPN_COMM_shuf_coll_1
 end subroutine RPN_COMM_shuf_coll
 !
