@@ -25,15 +25,15 @@ SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
 
 DISTINCLUDES = $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc $(VPATH)/rpn_comm.inc \
                $(VPATH)/RPN_COMM_types.inc $(VPATH)/RPN_COMM_constants.inc \
-               $(VPATH)/RPN_COMM_ftoc.inc
+               $(VPATH)/RPN_COMM_ftoc.inc $(VPATH)/RPN_COMM_is_null.inc
 
 lib: $(LIBRARY)
 
 obj: $(OBJECTS)
 
-all:  lib tests inc itf
+all:  itf inc lib tests
 
-full:  dep all stublib
+full:  itf dep $(LIBRARY) $(TESTS) $(STUB_LIBRARY) $(LIBRARY).inc
 
 tests:	$(TESTS)
 
@@ -61,16 +61,20 @@ $(VPATH)/RPN_COMM_interfaces_int.inc: $(wildcard $(VPATH)/RPN_COMM*.?90) $(wildc
 
 #$(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.F90) $(wildcard $(VPATH)/*.c) \
 #                          $(wildcard $(VPATH)/*.h) $(wildcard $(VPATH)/*.inc) \
-#                          $(VPATH)/RPN_COMM_interfaces_int.inc $(VPATH)/RPN_COMM_interfaces.inc 
+#                          $(VPATH)/RPN_COMM_interfaces_int.inc $(VPATH)/RPN_COMM_interfaces.inc
 $(VPATH)/dependencies.mk:
-	echo === touch  $(VPATH)/dependencies.mk ===
-	touch  $(VPATH)/dependencies.mk
-
-dep: $(VPATH)/dependencies.mk
 	rm -f $(VPATH)/dependencies.mk $(TMPDIR)/dependencies+.mk
 	-which gnu_find 2>/dev/null 1>/dev/null || (cd $(VPATH) ; find . -maxdepth 1 -type f | grep RPN_COMM | grep -v TEST_0 | ../tools/mk.dependencies.pl >$(TMPDIR)/dependencies+.mk ) || true
 	-(which gnu_find 2>/dev/null 1>/dev/null && (cd $(VPATH) ; gnu_find . -maxdepth 1 -type f | grep RPN_COMM | grep -v TEST_0 ../tools/mk.dependencies.pl >$(TMPDIR)/dependencies+.mk )) || true
 	mv $(TMPDIR)/dependencies+.mk $(VPATH)/dependencies.mk
+	echo === touch  $(VPATH)/dependencies.mk ===
+	touch  $(VPATH)/dependencies.mk
+#
+dep: $(VPATH)/dependencies.mk 
+#	rm -f $(VPATH)/dependencies.mk $(TMPDIR)/dependencies+.mk
+#	-which gnu_find 2>/dev/null 1>/dev/null || (cd $(VPATH) ; find . -maxdepth 1 -type f | grep RPN_COMM | grep -v TEST_0 | ../tools/mk.dependencies.pl >$(TMPDIR)/dependencies+.mk ) || true
+#	-(which gnu_find 2>/dev/null 1>/dev/null && (cd $(VPATH) ; gnu_find . -maxdepth 1 -type f | grep RPN_COMM | grep -v TEST_0 ../tools/mk.dependencies.pl >$(TMPDIR)/dependencies+.mk )) || true
+#	mv $(TMPDIR)/dependencies+.mk $(VPATH)/dependencies.mk
 
 ssm-package:
 	rm -rf $(VPATH)/rpn-comm_${RPN_COMM_version_s}_multi
