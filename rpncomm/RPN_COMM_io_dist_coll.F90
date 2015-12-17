@@ -18,6 +18,43 @@
 ! ! Boston, MA 02111-1307, USA.
 ! !/
 #define IN_RPN_COMM_io_dist_coll
+!
+module RPN_COMM_io_dist_coll_mod
+  use ISO_C_BINDING
+  use rpn_comm
+  implicit none
+  logical, save :: collect_by_node = .false.
+  integer, save :: window_id = -1   ! window id
+  integer, save :: window_co = -1   ! window communicator
+  logical, save :: window_ok = .false.
+  integer, pointer, save, dimension(:) :: window_pt
+  integer(kind=MPI_ADDRESS_KIND), save :: window_sz = 0   ! window size
+  type(C_PTR), save :: window_lc = C_NULL_PTR   ! window base address
+
+  contains
+  subroutine window_alloc(siz)
+    implicit none
+    integer, intent(IN) :: siz
+
+    integer :: extent, ierror
+
+    if(siz <= window_sz) return
+
+    if(window_ok) then   ! already allocated
+      call MPI_free_mem(window_pt,ierror)       ! free storage
+      call MPI_win_free(window_id,ierror)       ! free window
+      window_ok = .false.
+    endif
+    call MPI_TYPE_EXTENT(MPI_INTEGER, extent, ierror)  ! determine size associated with MPI INTEGER
+    window_sz = siz*extent
+    call MPI_alloc_mem(window_sz, MPI_INFO_NULL, window_lc, ierror)  ! allocate storage
+    call c_f_pointer(window_lc, window_pt, [siz])                 ! Fortran pointer to storage
+    call MPI_win_create(window_pt, window_sz, extent, MPI_INFO_NULL, pe_grid, window_id, ierror) ! create window
+    window_sz = siz
+    window_ok = .true.
+  end subroutine window_alloc
+end module RPN_COMM_io_dist_coll_mod
+!
 function RPN_COMM_io_dist_coll_check(gni,gnj,halo_x,halo_y) result(status)
   use rpn_comm
   implicit none
@@ -811,6 +848,7 @@ subroutine RPN_COMM_shuf_coll(setno,  &
                               status)
   use rpn_comm
   use RPN_COMM_io_pe_tables
+  use RPN_COMM_io_dist_coll_mod
   implicit none
   integer, intent(IN) :: setno,gni,gnj,dnk,mini,maxi,minj,maxj,nk,nx,ny
   integer, intent(OUT), dimension(gni,gnj,dnk) :: global
@@ -844,36 +882,49 @@ subroutine RPN_COMM_shuf_coll(setno,  &
   do iset = 1 , npass   ! process up to setsize levels per iteration
     k1 = k0             ! base level for the first group of this pass
 !
-!   loop over the groups in the IO PE set
-!   the active routine needs the "no column has 2 IO PES, neither has any row" condition
-!   IO PEs low -> high in set will potentially receive a full 2D array
-!   from levels k1 -> kn   ( levels k1 -> min(nk , k1+groupsize-1) )
-!   if more IO PEs in group than levels to distribute some IO PEs will receive nothing
-!
-    do igroup = 1 , io_set(setno)%ngroups  ! loop over groups in IO PE set
-      low = 1 + (igroup-1) * io_set(setno)%groupsize      ! index of first IO PE in goup
-      high = min( io_set(setno)%npe , low+groupsize-1 )   ! index of last PE in group
-      kn = min( nk , k1+high-low)
-#if defined(FULL_DEBUG)
-      print *,"DEBUG: shuf_coll, iset, igroup =",iset, igroup
-      print *,"DEBUG: shuf_coll, low, high =",low, high
-      print *,"DEBUG: shuf_coll, nk, k1, kn =",nk, k1, kn
-#endif
-      call RPN_COMM_shuf_coll_1(setno,  &
+    if(collect_by_node) then   ! collect on local node, then collect on IO PEs
+      kn = min(nk,k1+setsize-1) ! process up to setsize levels
+      call RPN_COMM_shuf_coll_2(setno,  &
                                 global(1,1,iset),gni,gnj,  &
                                 local,mini,maxi,minj,maxj,nk,k1,kn,  &
-                                liste_o(iset), io_set(setno)%x(low:high), io_set(setno)%y(low:high), (high-low+1), &
+                                liste_o(iset), io_set(setno)%x, io_set(setno)%y, setsize, &
                                 start_x,count_x,start_y,count_y,  &
                                 status)
-      k1 = k1 + groupsize  ! base level for next group
-    enddo
+
+    else                       ! horizontal / vertical shuffle method
+!
+!     loop over the groups in the IO PE set
+!     the active routine needs the "no column has 2 IO PES, neither has any row" condition
+!     IO PEs low -> high in set will potentially receive a full 2D array
+!     from levels k1 -> kn   ( levels k1 -> min(nk , k1+groupsize-1) )
+!     if more IO PEs in group than levels to distribute some IO PEs will receive nothing
+!
+      do igroup = 1 , io_set(setno)%ngroups  ! loop over groups in IO PE set
+        low = 1 + (igroup-1) * io_set(setno)%groupsize      ! index of first IO PE in goup
+        high = min( io_set(setno)%npe , low+groupsize-1 )   ! index of last PE in group
+        kn = min( nk , k1+high-low)
+#if defined(FULL_DEBUG)
+        print *,"DEBUG: shuf_coll, iset, igroup =",iset, igroup
+        print *,"DEBUG: shuf_coll, low, high =",low, high
+        print *,"DEBUG: shuf_coll, nk, k1, kn =",nk, k1, kn
+#endif
+        call RPN_COMM_shuf_coll_1(setno,  &
+                                  global(1,1,iset),gni,gnj,  &
+                                  local,mini,maxi,minj,maxj,nk,k1,kn,  &
+                                  liste_o(iset), io_set(setno)%x(low:high), io_set(setno)%y(low:high), (high-low+1), &
+                                  start_x,count_x,start_y,count_y,  &
+                                  status)
+        k1 = k1 + groupsize  ! base level for next group
+      enddo
+    endif
     k0 = k0 + setsize      ! base level for the first group of next pass
   enddo
 !
 ! collect one 2D plane at a time
 ! no column has 2 IO PES, neither has any row
 !
-  contains
+!   contains
+end subroutine RPN_COMM_shuf_coll
 !
 !====================================================================================
 !
@@ -1067,5 +1118,66 @@ subroutine RPN_COMM_shuf_coll(setno,  &
 101 format(2I3,20I6.5)
 111 format(A,20I9)
   end subroutine RPN_COMM_shuf_coll_1
-end subroutine RPN_COMM_shuf_coll
+!
+  subroutine RPN_COMM_shuf_coll_2(setno,  &
+                                  global, gni, gnj, &
+                                  local, mini, maxi, minj, maxj, nk, k1, kn, &
+                                  levnk, pe_x, pe_y, npes, &
+                                  start_x, count_x, start_y, count_y, &
+                                  status)
+!
+    use rpn_comm
+    use RPN_COMM_io_pe_tables
+    use RPN_COMM_io_dist_coll_mod
+    implicit none
+    integer, intent(IN) :: setno,gni,gnj,mini,maxi,minj,maxj,nk,k1,kn
+    integer, intent(OUT), dimension(gni,gnj) :: global
+    integer, intent(IN), dimension(mini:maxi,minj:maxj,nk) :: local
+    integer, intent(IN) :: npes
+    integer, intent(IN), dimension(npes)  :: pe_x, pe_y
+    integer, intent(IN), dimension(0:pe_nx-1)    :: start_x,count_x
+    integer, intent(IN), dimension(0:pe_ny-1)    :: start_y,count_y
+    integer, intent(OUT)  :: levnk
+    integer, intent(OUT) :: status
+
+    integer, dimension(6) :: bounds
+    integer, dimension(6*pe_tot_grid_host) :: all_bounds
+    integer :: i, base, siz, ierror, k
+
+    siz = pe_tot_grid_host * ( size(local) + size(all_bounds) )
+    call window_alloc(siz)
+
+    bounds(1) = start_x(pe_mex)
+    bounds(2) = bounds(1) + count_x(pe_mex) - 1 
+    bounds(3) = start_y(pe_mey)
+    bounds(4) = bounds(3) + count_y(pe_mey) - 1 
+    bounds(5) = k1
+    bounds(6) = kn
+    call MPI_gather(bounds,size(bounds),MPI_INTEGER, &
+                    all_bounds,size(bounds),MPI_INTEGER, &
+                    0,pe_grid_host,ierror) ! gather all array bounds
+
+    base = 1
+    siz = size(local)/nk
+    do k = k1, kn ! gather by level 
+      do i = 1 , size(all_bounds)
+        window_pt(base+i-1) = all_bounds(i)    ! one copy per level
+      enddo
+      base = base + size(all_bounds)
+      call MPI_gather(local(mini,minj,k),siz,MPI_INTEGER, &
+                      window_pt(base),siz,MPI_INTEGER, &
+                      0,pe_grid_host,ierror)
+      base = base + siz*pe_tot_grid_host 
+    enddo
+!   all relevant data now gathered on PE 0 of all nodes
+
+    if(  io_set(setno)%me .ne. -1 ) then   ! I am an IO PE
+!      must find the coordinates of PE 0 of all nodes
+!      in order to get data and grid coordinates from them
+!   else
+!     nothing to do, i will be the target of one sided communications
+    endif
+    call mpi_barrier(pe_indomm,ierror)
+    return
+  end subroutine RPN_COMM_shuf_coll_2
 !
