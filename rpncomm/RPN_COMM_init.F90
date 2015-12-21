@@ -617,8 +617,8 @@
       function RPN_COMM_set_timeout_alarm(seconds) result(seconds_since)  !InTf!
       use ISO_C_BINDING
       implicit none
-      integer, intent(IN) :: seconds
-      integer :: seconds_since
+      integer, intent(IN) :: seconds                                 !InTf!
+      integer :: seconds_since                                       !InTf!
 
       interface
       function c_alarm(seconds) result(seconds_since) BIND(C,name='alarm')
