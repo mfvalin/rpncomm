@@ -720,9 +720,9 @@ function RPN_COMM_io_pe_valid_set(x,y,npes,penx,peny,diag,method) result(status)
   use RPN_COMM_io_pe_tables
   implicit none
 ! ARGUMENTS
+    integer, intent(IN) :: npes                !InTf!   ! number of PEs in set
     integer, dimension(npes), intent(OUT) :: x !InTf!   ! x coordinates of PEs in set
     integer, dimension(npes), intent(OUT) :: y !InTf!   ! y coordinates of PEs in set
-    integer, intent(IN) :: npes                !InTf!   ! number of PEs in set
     integer, intent(IN) :: penx, peny          !InTf!   ! number of PEs along x and y in PE grid
     integer, intent(IN) :: method              !InTf!   ! fill method
     logical, intent(IN) :: diag                !InTf!   ! if .true. print IO PE map and diagnostics
