@@ -111,6 +111,7 @@
       integer function RPN_COMM_bloc_create(nblocx,nblocy)                          !InTf!
       use rpn_comm
       use RPN_COMM_bloc_mgt
+      use rpncomm_com
       implicit none                                                                 !InTf!
       integer, intent(IN) :: nblocx, nblocy                                         !InTf!
 !arguments
@@ -207,8 +208,10 @@
       t%BLOC_comm_row    = BLOC_comm_row
       t%BLOC_comm_col    = BLOC_comm_col
       t%pe_bloc          = pe_bloc
+      com_tab(13)%number = pe_bloc
       t%pe_gr_bloc       = pe_gr_bloc
       t%pe_blocmaster    = pe_blocmaster
+      com_tab(12)%number = pe_blocmaster
       t%pe_gr_blocmaster = pe_gr_blocmaster
   write(rpn_u,*) 'INFO: created pe_bloc=',pe_bloc
       if(pe_me==0) write(rpn_u,*) 'INFO: (RPN_COMM_bloc_create) created block distribution for',nblocx,' by',nblocy
