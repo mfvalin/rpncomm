@@ -17,6 +17,7 @@
 ! * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! * Boston, MA 02111-1307, USA.
 ! */
+#define IN_RPN_COMM_bloc
       module RPN_COMM_bloc_mgt ! block distribution table
       type :: block_entry
         integer :: hash
@@ -56,10 +57,11 @@
       use rpn_comm
       use RPN_COMM_bloc_mgt
       implicit none                                                                !InTf!
+#include "RPN_COMM_interfaces_int.inc"
       integer, intent(IN) :: nblocx, nblocy                                        !InTf!
       logical, intent(IN) :: set   ! if block distribution found, apply it         !InTf!
       type(block_entry), pointer :: t
-      integer :: i, hash
+      integer :: i, hash, temp
 
       RPN_COMM_bloc_find = -1  !  precondition for failure
       if(valid_entries < 1) return  ! no entries in table
@@ -92,8 +94,10 @@
           BLOC_comm_row   = t%BLOC_comm_row
           BLOC_comm_col   = t%BLOC_comm_col
           pe_bloc         = t%pe_bloc
+          temp = RPN_COMM_custom_comm(pe_bloc,RPN_COMM_BLOCK,RPN_COMM_SET)
           pe_gr_bloc      = t%pe_gr_bloc
           pe_blocmaster   = t%pe_blocmaster
+          temp = RPN_COMM_custom_comm(pe_bloc,RPN_COMM_BLOCMASTER,RPN_COMM_SET)
           pe_gr_blocmaster = t%pe_gr_blocmaster
 !          write(rpn_u,*) 'INFO: using valid block distribution for',nblocx,' by',nblocy
 !        else
@@ -108,13 +112,14 @@
       use rpn_comm
       use RPN_COMM_bloc_mgt
       implicit none                                                                 !InTf!
+#include "RPN_COMM_interfaces_int.inc"
       integer, intent(IN) :: nblocx, nblocy                                         !InTf!
 !arguments
 !     I nblocx, nblocy: number of blocks on the subgrid in x-y direction
 !     O RPN_COMM_bloc_create : error status (-1 if error, else 0)
 !
       integer nblocs, ierr, indices(nblocx*nblocy)
-      integer longx, longy, i,j,n
+      integer longx, longy, i,j,n, temp
       integer mybloc
       type(block_entry), pointer :: t
 !     
@@ -203,8 +208,10 @@
       t%BLOC_comm_row    = BLOC_comm_row
       t%BLOC_comm_col    = BLOC_comm_col
       t%pe_bloc          = pe_bloc
+      temp = RPN_COMM_custom_comm(pe_bloc,RPN_COMM_BLOCK,RPN_COMM_SET)
       t%pe_gr_bloc       = pe_gr_bloc
       t%pe_blocmaster    = pe_blocmaster
+      temp = RPN_COMM_custom_comm(pe_bloc,RPN_COMM_BLOCMASTER,RPN_COMM_SET)
       t%pe_gr_blocmaster = pe_gr_blocmaster
 
       if(pe_me==0) write(rpn_u,*) 'INFO: (RPN_COMM_bloc_create) created block distribution for',nblocx,' by',nblocy

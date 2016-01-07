@@ -24,7 +24,8 @@ module rpncomm_com
   integer, parameter :: MAX_COMM_TAB=128
   type(symtab), dimension(:), pointer, save :: com_tab => NULL()  ! communicator translation table
   integer, save :: defcom_index=-1                                ! index for RPN_COMM_DEFAULT
-  integer, save :: max_com_index=0                    
+  integer, save :: max_com_index=0           
+  integer, save :: first_mutable = MAX_COMM_TAB+1
 contains
 !
 ! allocate and initialize com_tab, the communicator table
@@ -44,12 +45,13 @@ contains
     com_tab( 6) = symtab(pe_a_domain,RPN_COMM_ALLGRIDS)
     com_tab( 7) = symtab(pe_indomms,RPN_COMM_MULTIGRID)
     com_tab( 8) = symtab(pe_wcomm,RPN_COMM_ALL)
-    com_tab( 9) = symtab(pe_defcomm,RPN_COMM_DEFAULT)  ; defcom_index = 9  ! this item might get updated by rpn_comm_defo
+    com_tab( 9) = symtab(MPI_COMM_WORLD,RPN_COMM_UNIVERSE)
     com_tab(10) = symtab(pe_myrow,RPN_COMM_EW)
-    com_tab(11) = symtab(pe_mycol,RPN_COMM_NS)
-    com_tab(12) = symtab(pe_blocmaster,RPN_COMM_BLOCMASTER)
-    com_tab(13) = symtab(pe_bloc,RPN_COMM_BLOCK)
-    com_tab(14) = symtab(MPI_COMM_WORLD,RPN_COMM_UNIVERSE)
+    com_tab(11) = symtab(pe_mycol,RPN_COMM_NS)         ! last immutable communicator
+    first_mutable = 12
+    com_tab(12) = symtab(pe_blocmaster,RPN_COMM_BLOCMASTER)  ! might get updated by RPN_COMM_bloc
+    com_tab(13) = symtab(pe_bloc,RPN_COMM_BLOCK)             ! might get updated by RPN_COMM_bloc
+    com_tab(14) = symtab(pe_defcomm,RPN_COMM_DEFAULT)  ; defcom_index = 14  ! might get updated by rpn_comm_defo
     max_com_index = 14
     do i = 15,MAX_COMM_TAB+1
       com_tab(i) = symtab(MPI_COMM_NULL,"")
@@ -188,7 +190,7 @@ end module rpncomm_com
       integer function RPN_COMM_custom_comm(mpicom,name,mode)     !InTf!
       use rpncomm_com
       implicit none                                               !InTf!
-!     lookup, create, or delete a custom communicator with a rpn_comm style name
+!     lookup, create, modify or delete a communicator with a rpn_comm style name
       character(len=*), intent(IN) :: name                        !InTf!
       integer, intent(IN) :: mpicom                               !InTf!
       integer, intent(IN) :: mode                                 !InTf!
@@ -203,11 +205,18 @@ end module rpncomm_com
       RPN_COMM_custom_comm = MPI_COMM_NULL
       call rpn_comm_low2up(name,name2)
 
-      if(mode==RPN_COMM_GET) then                   ! look for rpn_comm communicator named "name"
-        RPN_COMM_custom_comm = com_tab(indx_com_tab(name2))%number
-      else if(mode==RPN_COMM_SET) then             ! add "name" and com to the rpn_comm communicators
-        i = new_com(name2,mpicom)
-        if(i>0) RPN_COMM_custom_comm = mpicom      ! if create was successful
+      if(mode==RPN_COMM_GET) then                  ! look for rpn_comm communicator named "name"
+        RPN_COMM_custom_comm = com_tab(indx_com_tab(name2))%number ! MPI_COMM_NULL if not found
+      else if(mode==RPN_COMM_SET) then             ! add/modify rpn_comm communicator named "name" 
+        i = indx_com_tab(name2)
+        if(i >= first_mutable) then    ! mutable or new name
+          if(i > MAX_COMM_TAB) then    ! new name
+            if(new_com(name2,mpicom) >0 ) RPN_COMM_custom_comm = mpicom    ! if create was successful
+          else                         ! mutable
+            com_tab(i)%number = mpicom
+            RPN_COMM_custom_comm = mpicom
+          endif
+        endif
       else if(mode==RPN_COMM_DEL) then             ! delete "name" and com from rpn_comm communicators
         i = indx_com_tab(name2)                    ! find name
         if(i>0 .and. i>base) then                  ! if found and not a permanent communicator

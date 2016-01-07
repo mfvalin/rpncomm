@@ -1144,6 +1144,8 @@ end subroutine RPN_COMM_shuf_coll
     integer, dimension(6*pe_tot_grid_host) :: all_bounds
     integer :: i, base, siz, ierror, k
 
+    global = global    ! to be removed later
+    levnk = levnk      ! to be removed later
     siz = pe_tot_grid_host * ( size(local) + size(all_bounds) )
     call window_alloc(siz)
 
@@ -1178,6 +1180,7 @@ end subroutine RPN_COMM_shuf_coll
 !     nothing to do, i will be the target of one sided communications
     endif
     call mpi_barrier(pe_indomm,ierror)
+    status = RPN_COMM_OK
     return
   end subroutine RPN_COMM_shuf_coll_2
 !
