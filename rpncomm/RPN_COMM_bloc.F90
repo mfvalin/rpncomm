@@ -55,6 +55,7 @@
       integer function RPN_COMM_bloc_find(nblocx,nblocy,set) ! find and optionally use an already defined block distribution !InTf!
       use rpn_comm
       use RPN_COMM_bloc_mgt
+      use rpncomm_com
       implicit none                                                                !InTf!
       integer, intent(IN) :: nblocx, nblocy                                        !InTf!
       logical, intent(IN) :: set   ! if block distribution found, apply it         !InTf!
@@ -92,8 +93,10 @@
           BLOC_comm_row   = t%BLOC_comm_row
           BLOC_comm_col   = t%BLOC_comm_col
           pe_bloc         = t%pe_bloc
+          com_tab(13)%number = pe_bloc
           pe_gr_bloc      = t%pe_gr_bloc
           pe_blocmaster   = t%pe_blocmaster
+          com_tab(12)%number = pe_blocmaster
           pe_gr_blocmaster = t%pe_gr_blocmaster
 !          write(rpn_u,*) 'INFO: using valid block distribution for',nblocx,' by',nblocy
 !        else
