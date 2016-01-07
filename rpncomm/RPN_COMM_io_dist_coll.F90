@@ -619,7 +619,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
     endif
 !print *,"DEBUG: listofk=",listofk
     if(maxval(listofk) <= 0) then   ! no contribution from any IO PE, job id done for this round
-      print 101,"INFO: no work to do on this pass"
+!      print 101,"DEBUG: no work to do on this pass"
       status = RPN_COMM_OK
       return
     endif
