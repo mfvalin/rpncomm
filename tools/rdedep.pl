@@ -562,9 +562,9 @@ sub process_file {
       next if ($file->{EXTENSION} =~ /^(c|cc|CC)$/);
 
       if ($file->{EXTENSION} =~ /^(F90)$/) {
-         if ($_ =~ /^[\s\t]*![\s\t]*\/\*/) {
-            print STDERR "\nWARNING: File $filename has C style comments (/* ... */)\n"
-         }
+#         if ($_ =~ /^[\s\t]*![\s\t]*\/\*/) {
+#            print STDERR "\nWARNING: File $filename has C style comments (/* ... */)\n"
+#         }
       }
 
       # FORTRAN include statement : include "..."    include ',,,"
