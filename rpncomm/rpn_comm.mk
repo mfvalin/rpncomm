@@ -64,7 +64,7 @@ $(VPATH)/RPN_COMM_interfaces_int.inc: $(wildcard $(VPATH)/RPN_COMM*.?90) $(wildc
 #$(VPATH)/dependencies.mk: $(wildcard $(VPATH)/*.f) $(wildcard $(VPATH)/*.f90) $(wildcard $(VPATH)/*.F90) $(wildcard $(VPATH)/*.c) \
 #                          $(wildcard $(VPATH)/*.h) $(wildcard $(VPATH)/*.inc) \
 #                          $(VPATH)/RPN_COMM_interfaces_int.inc $(VPATH)/RPN_COMM_interfaces.inc 
-$(VPATH)/dependencies.mk:
+$(VPATH)/dependencies.mk: $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM_interfaces_int.inc
 	rm -f $(VPATH)/dependencies.mk $(TMPDIR)/dependencies+.mk
 #	-which gnu_find 2>/dev/null 1>/dev/null || (cd $(VPATH) ; find . -maxdepth 1 -type f | grep RPN_COMM | grep -v TEST_0 | ../tools/mk.dependencies.pl >$(TMPDIR)/dependencies+.mk ) || true
 #	-(which gnu_find 2>/dev/null 1>/dev/null && (cd $(VPATH) ; gnu_find . -maxdepth 1 -type f | grep RPN_COMM | grep -v TEST_0 ../tools/mk.dependencies.pl >$(TMPDIR)/dependencies+.mk )) || true
@@ -76,6 +76,7 @@ $(VPATH)/dependencies.mk:
 dep_rm:
 	rm -f $(VPATH)/dependencies.mk
 dep: dep_rm $(VPATH)/dependencies.mk 
+dep2: $(VPATH)/dependencies.mk 
 #	rm -f $(VPATH)/dependencies.mk $(TMPDIR)/dependencies+.mk
 #	-which gnu_find 2>/dev/null 1>/dev/null || (cd $(VPATH) ; find . -maxdepth 1 -type f | grep RPN_COMM | grep -v TEST_0 | ../tools/mk.dependencies.pl >$(TMPDIR)/dependencies+.mk ) || true
 #	-(which gnu_find 2>/dev/null 1>/dev/null && (cd $(VPATH) ; gnu_find . -maxdepth 1 -type f | grep RPN_COMM | grep -v TEST_0 ../tools/mk.dependencies.pl >$(TMPDIR)/dependencies+.mk )) || true
