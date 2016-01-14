@@ -49,18 +49,21 @@ void *F_rpn_comm_shmget(int comm, unsigned int shm_size)  /* allocate a shared m
   if(id == -1) {
     if(myrank == 0) printf("ERROR: (rpn_comm_shmget) cannot create shared memory segment\n");
     return NULL;    /* error */
+  }else{
+    if(myrank == 0) printf("INFO: (rpn_comm_shmget) created shared memory segment of size %d\n",shm_size);
   }
 
 //  printf("id = %d %x \n",id,id);
   ptr=shmat(id,NULL,0);                                                   /* all processes attach memory segment */
-  if(ptr == NULL) printf("ERROR: (rpn_comm_shmget) got a null pointer from shmat\n");
+  if(ptr == NULL) printf("ERROR: (rpn_comm_shmget) got a null pointer from shmat, process = %d\n",myrank);
   myhost = (ptr == NULL);   /* this better be zero */
+//  if(ptr != NULL) printf("INFO: (rpn_comm_shmget) process %d attached to segment\n",myrank);
   ierr=MPI_Allreduce(&myhost,&myhost2,1,MPI_INTEGER,MPI_BOR,c_comm); /* boolean OR from all members of this comunicator */
 //  ierr=MPI_Barrier(c_comm);                                         /* all processes have attached the segment */
 //  printf("addr = %16p\n",ptr);
 
   if(myrank == 0) shmctl(id,IPC_RMID,&shm_buf);      /* mark segment for deletion to make sure it is released when all processes terminate */
-  if(0 == myhost2){                                                  /* not zero : OUCH */
+  if(0 != myhost2){                                                  /* not zero : OUCH */
     if(myrank == 0) fprintf(stderr,"ERROR: (rpn_comm_shmget) some processes were not able to attach to segment \n");
     return NULL;    /* error */
     }
