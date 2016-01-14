@@ -1,13 +1,18 @@
 .SUFFIXES:	.f .F .c .o .a .f90 .F90 .Abs .serial-Abs
 
+# special cosmetic ifort option to get rid of unknown directive nessage
+ifneq (,$(findstring intel,$(COMP_ARCH)))
+  EXTRA_IFORT = -diag-disable 5140
+endif
+
 .f.o:
-	$(MPIFC) -I$(VPATH) -c $(OPENMP) $(FCFLAGS) $<
+	$(MPIFC) -I$(VPATH) -c $(OPENMP) $(FCFLAGS) $(EXTRA_IFORT) $<
 .F.o:
-	$(MPIFC) -I$(VPATH) -c $(OPENMP) $(FCFLAGS) $<
+	$(MPIFC) -I$(VPATH) -c $(OPENMP) $(FCFLAGS) $(EXTRA_IFORT) $<
 .f90.o:
-	$(MPIF90C) -I$(VPATH) -c $(OPENMP) $(FCFLAGS) $<
+	$(MPIF90C) -I$(VPATH) -c $(OPENMP) $(FCFLAGS) $(EXTRA_IFORT) $<
 .F90.o:
-	$(MPIF90C) -I$(VPATH) -c $(OPENMP) $(FCFLAGS) -DMARKER=RPN_COMM_marker_$(RPN_COMM_version) $<
+	$(MPIF90C) -I$(VPATH) -c $(OPENMP) $(FCFLAGS) $(EXTRA_IFORT) -DMARKER=RPN_COMM_marker_$(RPN_COMM_version) $<
 .c.o:
 	$(MPICC) -I$(VPATH) -c $(CFLAGS) $<
 .o.Abs:
