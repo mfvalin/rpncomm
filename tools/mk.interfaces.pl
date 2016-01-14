@@ -5,6 +5,7 @@ if ( $#ARGV > -1 ){   # collect arguments (nems of files to process
  $listfile[$#listfile] =~ s/\n/ /;
 }
 $use_preproc=1;
+print "      interface\n";
 foreach $file (@listfile) {
   if($file =~ /^-h|--help/) {
     print STDERR "usage : mk.interfaces.pl [-h|--help] [--no-if] list of file names\n";
@@ -17,15 +18,17 @@ foreach $file (@listfile) {
   if (! open(INPUT,"<$file") ) {
       print STDERR "Can't open input file $file.\n";
       next;}
-
-  if($file =~ /^(.*)[.].*/) {
-    print "#if ! defined(IN_$1)\n" if($use_preproc == 1);
-    }
-
+  $Useful=0;
+  $HeaderDone=0;
   while (<INPUT>) {
     if($_ =~ /^(.*)(!InTf!)(.*)/) {
       $line = $1 ;
-      if($line  =~ /!!(.*)/) { 
+      $Useful=1;
+      if($file =~ /^(.*)[.].*/) {
+        print "#if ! defined(IN_$1)\n" if($use_preproc == 1 && $HeaderDone == 0);
+        $HeaderDone=1;
+        }
+      if($line  =~ /^!!(.*)/) { 
         $line = $1;
       }   # lines starting with !!
       if($line  =~ /^!VOID[\$].*[ ]([a-zA-Z][a-zA-Z_0-9]*)[ ]*$/) {   # special IGNORE TKR
@@ -59,6 +62,9 @@ foreach $file (@listfile) {
       $line =~ s/^\s+// ; $line =~ s/\s+$// ;   # trim space at both ends
       $tail = '&' ; $head = "      " ;
 
+      if($line  =~ /(.*)!.*/) {
+        $line = $1;
+      }
       $l = length "$line";
       while ($l > 66) {                # fixed/free format split with continuation lines
         $body = substr $line, 0, 66;
@@ -71,5 +77,6 @@ foreach $file (@listfile) {
     }   # !InTf!
   }   # <INPUT>
 
-  print "#endif\n" if($use_preproc == 1);
+  print "#endif\n" if($use_preproc == 1 && $Useful == 1);
 }
+print "      end interface\n";
