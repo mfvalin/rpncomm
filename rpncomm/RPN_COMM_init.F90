@@ -630,6 +630,6 @@
       end interface
 
       seconds_since = c_alarm(seconds)
-      print *,'alarm set to ',seconds,' seconds'
+!      print *,'alarm set to ',seconds,' seconds'
       return
       end function RPN_COMM_set_timeout_alarm                             !InTf!
