@@ -25,12 +25,16 @@
 !   RPN_COMM_tmg_wrt, RPN_COMM_move
 !
 SUBROUTINE RPN_COMM_defo(com)             !InTf!
+! use rpn_comm
   use rpncomm_com
   implicit none                           !InTf!
   character(len=*), intent(IN) ::  com    !InTf!
   integer comm
-  integer, external :: rpn_comm_comm
+  integer, external :: rpn_comm_comm   !, RPN_COMM_custom_comm
 
+! comm=rpn_comm_comm(com)               ! get communicator value
+! pe_defcomm = RPN_COMM_custom_comm(comm,RPN_COMM_DEFAULT,RPN_COMM_SET)  ! set value in communicators table
+!
   if(.not. associated(com_tab)) call init_com_tab   ! in case communicator table is not initialized yet
   comm=rpn_comm_comm(com)               ! get communicator
   pe_defcomm = comm                     ! set default communicator

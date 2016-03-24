@@ -1047,9 +1047,9 @@ goto 603
   endif
 
   local(1:5) = [2,4,6,8,10] + 100*me
-  call RPN_COMM_i_win_acc_r(window,c_loc(local(1)),target_pe,offset,nint(nval/2.0),oper,ierr)  ! (window,larray,target,offset,nelem,ierr)
+  call RPN_COMM_i_win_getacc_r(window,c_loc(local(1)),C_NULL_PTR,target_pe,offset,nint(nval/2.0),oper,ierr)  ! (window,larray,target,offset,nelem,ierr)
   do i = nint(nval/2.0),nval
-    call RPN_COMM_i_win_acc_r(window,c_loc(local(i)),target_pe,offset+i-1,1,oper,ierr)
+    call RPN_COMM_i_win_getacc_r(window,c_loc(local(i)),C_NULL_PTR,target_pe,offset+i-1,1,oper,ierr)
   enddo
 
   call RPN_COMM_i_win_close(window,ierr)
@@ -1122,10 +1122,10 @@ goto 603
 
   local(1:5) = [2,4,6,8,10] + 100*me
   nerrors = 0
-  call RPN_COMM_i_win_acc_r(window,c_loc(local(1)),target_pe,offset,nint(nval/2.0),oper,ierr)  ! (window,larray,target,offset,nelem,ierr)
+  call RPN_COMM_i_win_getacc_r(window,c_loc(local(1)),C_NULL_PTR,target_pe,offset,nint(nval/2.0),oper,ierr)  ! (window,larray,target,offset,nelem,ierr)
   if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   do i = nint(nval/2.0)+1,nval
-    call RPN_COMM_i_win_acc_r(window,c_loc(local(i)),target_pe,offset+i-1,1,oper,ierr)
+    call RPN_COMM_i_win_getacc_r(window,c_loc(local(i)),C_NULL_PTR,target_pe,offset+i-1,1,oper,ierr)
     if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   enddo
 
@@ -1801,16 +1801,20 @@ subroutine RPN_COMM_i_win_put_r(window,larray,targetpe,offset,nelem,ierr) !InTf!
 end subroutine RPN_COMM_i_win_put_r                                   !InTf!
 
 !InTf!
-!****f* rpn_comm/RPN_COMM_i_win_acc_r accumulate into a remote one sided communication window
+!****f* rpn_comm/RPN_COMM_i_win_getacc_r get/accumulate into a remote one sided communication window
 ! SYNOPSIS
-subroutine RPN_COMM_i_win_acc_r(window,larray,targetpe,offset,nelem,oper,ierr) !InTf!
+subroutine RPN_COMM_i_win_getacc_r(window,larray,garray,targetpe,offset,nelem,oper,ierr) !InTf!
 !===============================================================================
-! one sided communication remote accumulate into one sided communication window
-! from a local array
-! it is an error to attempt a "remote" accumulate when the window is not "exposed"
+! one sided communication remote get/accumulate from/into a one sided communication window
+! from a local array, into another local array
+! it is an error to attempt a "remote" get/accumulate when the window is not "exposed"
+! larray must not be a NULL pointer
+! if garray is not a NULL pointer, a get and accumulate operation is performed
+! if garray is a NULL pointer, a simple accumulate will be performed
 !
 ! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
-! larray (IN)     C compatible pointer (type(C_PTR)) to local array (source of put)
+! larray (IN)     C compatible pointer (type(C_PTR)) to local array (source of accumulate)
+! garray (IN)     C compatible pointer (type(C_PTR)) to local array (destination of get)
 ! target (IN)     ordinal in window communicator of remote PE
 ! offset (IN)     displacement (origin 0) into remote PE window data array
 ! nelem  (IN)     number of elements to transfer (type of element was defined at window creation)
@@ -1830,6 +1834,7 @@ subroutine RPN_COMM_i_win_acc_r(window,larray,targetpe,offset,nelem,oper,ierr) !
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   type(rpncomm_operator), intent(IN) :: oper                          !InTf!
   type(C_PTR), intent(IN), value :: larray                            !InTf!
+  type(C_PTR), intent(IN), value :: garray                            !InTf!
   integer, intent(IN) :: targetpe                                     !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
@@ -1838,7 +1843,7 @@ subroutine RPN_COMM_i_win_acc_r(window,larray,targetpe,offset,nelem,oper,ierr) !
   logical :: is_open
   integer :: ierr2, indx
   logical, external :: RPN_COMM_i_win_check
-  integer, dimension(:), pointer :: local
+  integer, dimension(:), pointer :: local, local2
   type(rpncomm_windef), pointer :: win_entry
   integer(kind=MPI_ADDRESS_KIND) :: offset_8
 
@@ -1850,6 +1855,7 @@ subroutine RPN_COMM_i_win_acc_r(window,larray,targetpe,offset,nelem,oper,ierr) !
   call c_f_pointer( window%p , win_entry )                   ! pointer to win_tab entry (rpncomm_windef)
   if(offset+nelem > win_entry%siz) return                ! out of bounds condition for "remote" array
   call c_f_pointer( larray , local, [nelem* win_entry%ext] )   ! pointer to local array
+  if(C_ASSOCIATED(garray)) call c_f_pointer( garray , local2, [nelem* win_entry%ext] )
 
   if(.not. win_entry%active_mode) then
     call mpi_win_lock(MPI_LOCK_EXCLUSIVE, targetpe, 0, win_entry%win, ierr2)
@@ -1862,6 +1868,9 @@ subroutine RPN_COMM_i_win_acc_r(window,larray,targetpe,offset,nelem,oper,ierr) !
   endif
   offset_8 = offset
   if(debug_mode) print *,'DEBUG: ACC to',targetpe,' at',offset_8+1,oper%t2,' :',local(1:nelem)
+  if(C_ASSOCIATED(garray)) then
+    call MPI_get(local2,nelem,win_entry%typ,targetpe,offset_8,nelem,win_entry%typ,win_entry%win,ierr2)
+  endif
   if(win_entry%opr == MPI_REPLACE) then                  ! replace operation, use put instead of accumulate
     call MPI_put       (local,       nelem,        win_entry%typ,   targetpe,   offset_8,    nelem,        win_entry%typ,           win_entry%win, ierr2)
   else
@@ -1885,7 +1894,7 @@ subroutine RPN_COMM_i_win_acc_r(window,larray,targetpe,offset,nelem,oper,ierr) !
   ierr = RPN_COMM_OK
   return
 
-end subroutine RPN_COMM_i_win_acc_r                                   !InTf!
+end subroutine RPN_COMM_i_win_getacc_r                                   !InTf!
 
 !InTf!
 !****f* rpn_comm/RPN_COMM_i_win_put_l write into a local one sided communication window
@@ -1990,7 +1999,7 @@ subroutine RPN_COMM_i_win_get_r(window,larray,target,offset,nelem,ierr) !InTf!
   call c_f_pointer( larray , local, [nelem*win_entry%ext] )   ! pointer to local array
 
   if(.not. win_entry%active_mode) then
-    call mpi_win_lock(MPI_LOCK_EXCLUSIVE, target, 0, win_entry%win, ierr2)
+    call mpi_win_lock(MPI_LOCK_SHARED, target, 0, win_entry%win, ierr2) ! read mode, lock can be shared
     if(ierr2 .ne. MPI_SUCCESS) return
   endif
 
