@@ -59,7 +59,8 @@
 !       print *,"ERROR: too many PEs requested in set (",npes," ),max permitted:",pe_nxy * pe_nxy
 !       return
 !     endif
-    modulo_x_y = mod(pe_ny,pe_nx) == 0 .or. mod(pe_nx,pe_ny) == 0 ! one is a multiple of the other
+!     modulo_x_y = mod(pe_ny,pe_nx) == 0 .or. mod(pe_nx,pe_ny) == 0 ! one is a multiple of the other
+    modulo_x_y = .true.   ! forced true for the time being
     do i = 0 , npes-1
 !       if(npes > pe_nxy) then
 !         if(pe_nx > pe_ny) then
@@ -70,9 +71,19 @@
 !           y(i+1) = mod( i * deltay , pe_ny)
 !         endif
 !       else
-        x(i+1) = mod( i * deltax , pe_nx )
-        y(i+1) = mod( i * deltay , pe_ny )
-        if(modulo_x_y) y(i+1) = mod(y(i+1)+i/pe_ny,pe_ny)
+        if(modulo_x_y) then
+          if(pe_nx < pe_ny) then
+            x(i+1) = mod( i , pe_nx)
+            y(i+1) = mod(x(i+1)+(i/pe_nx)*scrambley,pe_ny)
+          else
+            y(i+1) = mod( i , pe_ny)
+            x(i+1) = mod(y(i+1)+(i/pe_ny)*scramblex,pe_nx)
+          endif
+!           y(i+1) = mod(y(i+1)+i/pe_ny,pe_ny)
+        else
+          x(i+1) = mod( i * deltax , pe_nx )
+          y(i+1) = mod( i * deltay , pe_ny )
+        endif
 !       endif
     enddo
   end subroutine RPN_COMM_make_io_pe_list  !InTf!
