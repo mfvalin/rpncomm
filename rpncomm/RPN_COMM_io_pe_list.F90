@@ -16,7 +16,7 @@
     integer, save :: pe_nx_old = 0
     integer, save :: pe_ny_old = 0
     logical :: modulo_x_y
-    integer, dimension(16), save :: primes = [ &
+    integer, dimension(-1:16), save :: primes = [ 2, 3, &
          5,      7,      11,     13,   &
         17,     19,      23,     29,   &
         31,     37,      41,     43,   &
@@ -60,6 +60,14 @@
 !       return
 !     endif
     modulo_x_y = mod(pe_ny,pe_nx) == 0 .or. mod(pe_nx,pe_ny) == 0 ! one is a multiple of the other
+    if(.not. modulo_x_y) then
+      do i = -1, 16
+        if( (mod(pe_ny,primes(i))==0) .and. (mod(pe_nx,primes(i))==0) .and. (npes >max(pe_nx,pe_ny)) ) then
+	  modulo_x_y = .true.
+	  exit
+        endif
+      enddo
+    endif
     do i = 0 , npes-1
 !       if(npes > pe_nxy) then
 !         if(pe_nx > pe_ny) then
@@ -70,9 +78,18 @@
 !           y(i+1) = mod( i * deltay , pe_ny)
 !         endif
 !       else
-        x(i+1) = mod( i * deltax , pe_nx )
-        y(i+1) = mod( i * deltay , pe_ny )
-        if(modulo_x_y) y(i+1) = mod(y(i+1)+i/pe_ny,pe_ny)
+        if(modulo_x_y) then   ! pe_nx and pe_ny have a common factor and npes is larger than max(pe_nx,pe_ny)
+          if(pe_nx < pe_ny) then
+            x(i+1) = mod( i , pe_nx)
+            y(i+1) = mod(x(i+1)+(i/pe_nx)*scrambley,pe_ny)
+          else
+            y(i+1) = mod( i , pe_ny)
+            x(i+1) = mod(y(i+1)+(i/pe_ny)*scramblex,pe_nx)
+          endif
+        else                  ! pe_nx and pe_ny do not have a common factor or npes is smaller than max(pe_nx,pe_ny)
+          x(i+1) = mod( i * deltax , pe_nx )
+          y(i+1) = mod( i * deltay , pe_ny )
+        endif
 !       endif
     enddo
   end subroutine RPN_COMM_make_io_pe_list  !InTf!
