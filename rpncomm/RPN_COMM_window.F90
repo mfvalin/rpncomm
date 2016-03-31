@@ -1047,9 +1047,9 @@ goto 603
   endif
 
   local(1:5) = [2,4,6,8,10] + 100*me
-  call RPN_COMM_i_win_getacc_r(window,c_loc(local(1)),C_NULL_PTR,target_pe,offset,nint(nval/2.0),oper,ierr)  ! (window,larray,target,offset,nelem,ierr)
+  call RPN_COMM_i_win_getacc_r(window,c_loc(local(1)),C_NULL_PTR,.false.,target_pe,offset,nint(nval/2.0),oper,ierr)  ! (window,larray,target,offset,nelem,ierr)
   do i = nint(nval/2.0),nval
-    call RPN_COMM_i_win_getacc_r(window,c_loc(local(i)),C_NULL_PTR,target_pe,offset+i-1,1,oper,ierr)
+    call RPN_COMM_i_win_getacc_r(window,c_loc(local(i)),C_NULL_PTR,.false.,target_pe,offset+i-1,1,oper,ierr)
   enddo
 
   call RPN_COMM_i_win_close(window,ierr)
@@ -1122,10 +1122,10 @@ goto 603
 
   local(1:5) = [2,4,6,8,10] + 100*me
   nerrors = 0
-  call RPN_COMM_i_win_getacc_r(window,c_loc(local(1)),C_NULL_PTR,target_pe,offset,nint(nval/2.0),oper,ierr)  ! (window,larray,target,offset,nelem,ierr)
+  call RPN_COMM_i_win_getacc_r(window,c_loc(local(1)),C_NULL_PTR,.false.,target_pe,offset,nint(nval/2.0),oper,ierr)  ! (window,larray,target,offset,nelem,ierr)
   if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   do i = nint(nval/2.0)+1,nval
-    call RPN_COMM_i_win_getacc_r(window,c_loc(local(i)),C_NULL_PTR,target_pe,offset+i-1,1,oper,ierr)
+    call RPN_COMM_i_win_getacc_r(window,c_loc(local(i)),C_NULL_PTR,.false.,target_pe,offset+i-1,1,oper,ierr)
     if(ierr .ne. RPN_COMM_OK) nerrors = nerrors + 1
   enddo
 
@@ -1803,7 +1803,7 @@ end subroutine RPN_COMM_i_win_put_r                                   !InTf!
 !InTf!
 !****f* rpn_comm/RPN_COMM_i_win_getacc_r get/accumulate into a remote one sided communication window
 ! SYNOPSIS
-subroutine RPN_COMM_i_win_getacc_r(window,larray,garray,targetpe,offset,nelem,oper,ierr) !InTf!
+subroutine RPN_COMM_i_win_getacc_r(window,larray,garray,before,targetpe,offset,nelem,oper,ierr) !InTf!
 !===============================================================================
 ! one sided communication remote get/accumulate from/into a one sided communication window
 ! from a local array, into another local array
@@ -1815,6 +1815,7 @@ subroutine RPN_COMM_i_win_getacc_r(window,larray,garray,targetpe,offset,nelem,op
 ! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
 ! larray (IN)     C compatible pointer (type(C_PTR)) to local array (source of accumulate)
 ! garray (IN)     C compatible pointer (type(C_PTR)) to local array (destination of get)
+! before (IN)     if .true. get before accumulate, otherwise get after accumulate
 ! target (IN)     ordinal in window communicator of remote PE
 ! offset (IN)     displacement (origin 0) into remote PE window data array
 ! nelem  (IN)     number of elements to transfer (type of element was defined at window creation)
@@ -1835,18 +1836,20 @@ subroutine RPN_COMM_i_win_getacc_r(window,larray,garray,targetpe,offset,nelem,op
   type(rpncomm_operator), intent(IN) :: oper                          !InTf!
   type(C_PTR), intent(IN), value :: larray                            !InTf!
   type(C_PTR), intent(IN), value :: garray                            !InTf!
+  logical, intent(IN) :: before                                       !InTf!
   integer, intent(IN) :: targetpe                                     !InTf!
   integer, intent(IN) :: offset                                       !InTf!
   integer, intent(IN) :: nelem                                        !InTf!
 !******
 
-  logical :: is_open
+  logical :: is_open, after
   integer :: ierr2, indx
   logical, external :: RPN_COMM_i_win_check
   integer, dimension(:), pointer :: local, local2
   type(rpncomm_windef), pointer :: win_entry
   integer(kind=MPI_ADDRESS_KIND) :: offset_8
 
+  after = .not. before
   ierr = RPN_COMM_ERROR
   is_open = RPN_COMM_i_win_check(window,ierr2)
   if( (.not. is_open) .or. (ierr2 .ne. MPI_SUCCESS) )  return  ! bad window reference or window not open (exposed)
@@ -1868,8 +1871,12 @@ subroutine RPN_COMM_i_win_getacc_r(window,larray,garray,targetpe,offset,nelem,op
   endif
   offset_8 = offset
   if(debug_mode) print *,'DEBUG: ACC to',targetpe,' at',offset_8+1,oper%t2,' :',local(1:nelem)
-  if(C_ASSOCIATED(garray)) then
+  if(C_ASSOCIATED(garray) .and. before) then
     call MPI_get(local2,nelem,win_entry%typ,targetpe,offset_8,nelem,win_entry%typ,win_entry%win,ierr2)
+    if(ierr2 .ne. MPI_SUCCESS) then
+      print *,'ERROR: GET before ACC failed in window',win_entry%win
+      return
+    endif
   endif
   if(win_entry%opr == MPI_REPLACE) then                  ! replace operation, use put instead of accumulate
     call MPI_put       (local,       nelem,        win_entry%typ,   targetpe,   offset_8,    nelem,        win_entry%typ,           win_entry%win, ierr2)
@@ -1880,6 +1887,13 @@ subroutine RPN_COMM_i_win_getacc_r(window,larray,garray,targetpe,offset,nelem,op
   if(ierr2 .ne. MPI_SUCCESS) then
     print *,'ERROR: remote ACC failed in window',win_entry%win
     return
+  endif
+  if(C_ASSOCIATED(garray) .and. after) then
+    call MPI_get(local2,nelem,win_entry%typ,targetpe,offset_8,nelem,win_entry%typ,win_entry%win,ierr2)
+    if(ierr2 .ne. MPI_SUCCESS) then
+      print *,'ERROR: GET after ACC failed in window',win_entry%win
+      return
+    endif
   endif
   if(.not. win_entry%active_mode) then
     call mpi_win_unlock(targetpe, win_entry%win, ierr2)
