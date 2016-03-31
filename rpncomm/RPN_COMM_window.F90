@@ -199,7 +199,10 @@ module RPN_COMM_windows
           if(ierr .ne. MPI_SUCCESS) return       ! could not allocate memory, OUCH !!
           win_tab(i)%is_user = .false.  ! internally supplied space
         endif
+        win_tab(i)%base2 = C_NULL_PTR
+        win_tab(i)%win2 = MPI_WIN_NULL
         call c_f_pointer(win_tab(i)%base,win_tab(i)%remote,[extent*siz])  ! make Fortran pointer to array associated with window
+        win_tab(i)%remote2 => NULL()
 
         call MPI_win_create(win_tab(i)%remote, win_size, extent, MPI_INFO_NULL, comm, win_tab(i)%win, ierror) ! create window
         if(ierror .ne. MPI_SUCCESS) then
@@ -214,6 +217,8 @@ module RPN_COMM_windows
         win_tab(i)%indx = indx                   ! entry index points to itself
         win_tab(i)%siz = siz                     ! number of elements in window
         win_tab(i)%com = comm                    ! communicator associated with window
+        call mpi_comm_size(comm,win_tab(i)%npe,ierror)   ! number of PEs in communicator
+        call mpi_comm_rank(comm,win_tab(i)%rank,ierror)  ! my rank in communicator
         win_tab(i)%grp = group                   ! group associated with said communicator
         win_tab(i)%active_mode = .true.          ! use active mode by default
         win_tab(i)%s_group = MPI_GROUP_NULL      ! no group by default for remote targets
@@ -1339,11 +1344,144 @@ subroutine RPN_COMM_i_win_oper(window,oper,ierr)  !InTf!
   return
 end subroutine RPN_COMM_i_win_oper                                   !InTf!
 !InTf!
-!****f* rpn_comm/RPN_COMM_i_win_create create a one sided communication window
+!****f* rpn_comm/RPN_COMM_i_win_post post a shopping list
+! SYNOPSIS
+subroutine RPN_COMM_i_win_post(window,pe,offset,nelem,ierr)          !InTf!
+!===============================================================================
+! post a message in secondary window pointing to data in primary window
+! the secondary window (see RPN_COMM_i_win_create_secondary) of the target PE
+! is used to post a pointer to a message in this PE's primary window
+!
+! first an accumulate is used to bump the target PE's "message list index"
+! then the message information (sender/message offset/message length) is
+! remotely stored in the target PE's primary window at "message list index"
+!
+! the secondary window contains groups of 3 integers
+! the first 3 numbers are ("message list index",0,0)
+!===============================================================================
+!
+! window (IN)      rpn_comm window type from call to RPN_COMM_i_win_create (see RPN_COMM_types.inc)
+! pe     (IN)      target pe
+! offset (IN)      offset in primary window of message
+! nelem  (IN)      length of  message
+! ierr   (OUT)     RPN_COMM_OK or RPN_COMM_ERROR will be returned
+!===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2016
+! IGNORE
+  use RPN_COMM_windows
+  implicit none
+!!  import :: rpncomm_window                                          !InTf!
+! ARGUMENTS
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
+  integer, intent(IN) :: pe                                           !InTf!
+  integer, intent(IN) :: offset                                       !InTf!
+  integer, intent(IN) :: nelem                                        !InTf!
+  integer, intent(OUT) :: ierr                                        !InTf!
+!******
+
+  integer :: indx, ierr2, incr
+  integer *8 :: offset_8
+  integer, dimension(3) :: desc
+
+  ierr = RPN_COMM_ERROR
+  if(.not. win_valid(window) ) return
+
+  indx = window%t2
+  if(.not. C_ASSOCIATED(win_tab(indx)%base2)) then  ! secondary window does not exist
+    print *,'ERROR: secondary window does not exist'
+    return
+  endif
+  if(offset == -1) then         ! reinitialize secondary window
+    ierr = RPN_COMM_OK
+    win_tab(indx)%remote2 = 0
+    return
+  endif
+  if(pe >= win_tab(indx)%npe) then
+    print *,'ERROR: target pe',pe,' out of range, maxpe=',win_tab(indx)%npe-1
+    return
+  endif
+
+  call mpi_win_lock(MPI_LOCK_EXCLUSIVE, pe, 0, win_tab(indx)%win2, ierr2)   ! lock target for get/accumulate
+  incr = 1
+  offset_8 = 0
+
+  call MPI_accumulate(incr,1,MPI_INTEGER,pe,offset_8,1,MPI_INTEGER,MPI_SUM,win_tab(indx)%win2,ierr2) ! add 1 to index
+  call MPI_get(incr,1,MPI_INTEGER,pe,offset_8,1,MPI_INTEGER,win_tab(indx)%win2, ierr2)               ! get new index
+  call mpi_win_unlock(pe, win_tab(indx)%win2, ierr2)   ! make sure incr is available
+
+  call mpi_win_lock(MPI_LOCK_EXCLUSIVE, pe, 0, win_tab(indx)%win2, ierr2)   ! lock target for put, no overlap
+!   call mpi_win_lock(MPI_LOCK_SHARED, pe, 0, win_tab(indx)%win2, ierr2)   ! lock target for put, no overlap
+  desc(1) = win_tab(indx)%rank    ! me
+  desc(2) = offset                ! start of "shopping list" in primary window
+  desc(3) = nelem                 ! number of items in "shopping list"
+  offset_8 = 3*incr - 1    ! 3 integers per entry , first 3 integers=[index,0,0]
+  call MPI_put(desc,3,MPI_INTEGER,pe,offset_8,3,MPI_INTEGER,win_tab(indx)%win2, ierr2)  ! send "shopping list" to target pe
+  call mpi_win_unlock(pe, win_tab(indx)%win2, ierr2)
+
+  ierr = RPN_COMM_OK
+  return
+end subroutine RPN_COMM_i_win_post                                    !InTf!
+!InTf!
+!****f* rpn_comm/RPN_COMM_i_win_create_secondary create a one sided secondary communication window
+! SYNOPSIS
+subroutine RPN_COMM_i_win_create_secondary(window,siz,ierr)  !InTf!
+!===============================================================================
+! add one sided communication secondary window to existing window (user exposed interface)
+!===============================================================================
+!
+! window (IN)      rpn_comm window type from call to RPN_COMM_i_win_create (see RPN_COMM_types.inc)
+! siz    (IN)      number of integer elements in secondary window
+! ierr   (OUT)     RPN_COMM_OK or RPN_COMM_ERROR will be returned
+!===============================================================================
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2016
+! IGNORE
+  use RPN_COMM_windows
+  implicit none
+!!  import :: C_PTR                                                   !InTf!
+!!  import :: rpncomm_window, rpncomm_datatype, rpncomm_communicator  !InTf!
+! ARGUMENTS
+  integer, intent(OUT) :: ierr                                        !InTf!
+  type(rpncomm_window), intent(IN) :: window                          !InTf!
+  integer, intent(IN) :: siz                                          !InTf!
+!******
+  integer :: indx, extent
+  integer(kind=MPI_ADDRESS_KIND) win_size  ! may be wider than a default integer
+
+  ierr = RPN_COMM_ERROR
+  if(.not. win_valid(window) ) return
+
+  indx = window%t2
+  if(C_ASSOCIATED(win_tab(indx)%base2)) then  ! secondary window exists
+    print *,'ERROR: secondary window already exists'
+    return
+  endif
+
+  call MPI_TYPE_EXTENT(MPI_INTEGER, extent, ierr)  ! determine size associated with MPI integer
+  win_size = 3 * siz * extent
+  call MPI_alloc_mem(win_size, MPI_INFO_NULL, win_tab(indx)%base2,ierr)  ! allocate memory
+  if(ierr .ne. MPI_SUCCESS) then
+    print *,'ERROR: cannot allocate memory for secondary window'
+    return
+  endif
+  call c_f_pointer(win_tab(indx)%base2,win_tab(indx)%remote2,[3*siz])    ! make fortran pointer
+  win_tab(indx)%remote2 = 0                                              ! initialize
+  call MPI_win_create(win_tab(indx)%remote2, win_size, extent, MPI_INFO_NULL, win_tab(indx)%com, win_tab(indx)%win2,ierr)  ! create secondary window
+  if(ierr .ne. MPI_SUCCESS) then
+    print *,'ERROR: creation of secondary window unsuccessful'
+    return
+  endif
+
+  ierr = RPN_COMM_OK
+  return
+end subroutine RPN_COMM_i_win_create_secondary                                  !InTf!
+!InTf!
+!****f* rpn_comm/RPN_COMM_i_win_create create a one sided primary communication window
 ! SYNOPSIS
 subroutine RPN_COMM_i_win_create(window,dtype,siz,com,array,ierr)  !InTf!
 !===============================================================================
-! create a one sided communication window (user exposed interface)
+! create a one sided communication primary window (user exposed interface)
 !===============================================================================
 !
 ! window (OUT)     rpn_comm window type returned to caller (see RPN_COMM_types.inc)
@@ -1419,22 +1557,40 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
 
 !print *,'DEBUG: window is valid, index =',indx
 !print *,'DEBUG: window is valid, win   =',win_tab(indx)%win
-  call MPI_win_free(win_tab(indx)%win,ierr2)       ! free window
+  call MPI_win_free(win_tab(indx)%win,ierr2)       ! free primary window
   if(ierr2 .ne. MPI_SUCCESS) then
-    print *,'ERROR: error freeing window'
+    print *,'ERROR: error freeing primary window'
   endif
-  win_tab(indx)%win = MPI_WIN_NULL                 ! MPI null window
+  if(win_tab(indx)%win2 .ne. MPI_WIN_NULL) then
+    call MPI_win_free(win_tab(indx)%win,ierr2)      ! free secondary window if it exists
+    if(ierr2 .ne. MPI_SUCCESS) then
+      print *,'ERROR: error freeing secondary window'
+    endif
+  endif
 
   if(.not. win_tab(indx)%is_user) then   ! internal storage allocation, release it
-    print *,'INFO: attempting to free internal window storage'
+    print *,'INFO: attempting to free internal primary window storage'
     call MPI_free_mem(win_tab(indx)%remote,ierr1)
     if(ierr1 .ne. MPI_SUCCESS) then
-      print *,'ERROR: error freeing window storage'
+      print *,'ERROR: error freeing primary window storage'
     endif
+!     win_tab(indx)%remote => NULL()
+!     win_tab(indx)%base = C_NULL_PTR
   else
     ierr1 = MPI_SUCCESS
   endif
+  if(C_ASSOCIATED(win_tab(indx)%base2)) then   ! internal storage allocation, release it if it exists
+    print *,'INFO: attempting to free internal secondary window storage'
+    call MPI_free_mem(win_tab(indx)%remote2,ierr1)
+    if(ierr1 .ne. MPI_SUCCESS) then
+      print *,'ERROR: error freeing secondary window storage'
+    endif
+!     win_tab(indx)%remote2 => NULL()
+!     win_tab(indx)%base2 = C_NULL_PTR
+  endif
   win_tab(indx) = NULL_rpncomm_windef              ! blank entry
+  win_tab(indx)%win  = MPI_WIN_NULL                ! MPI null window
+  win_tab(indx)%win2 = MPI_WIN_NULL                ! MPI null window
   win_tab(indx)%com = MPI_COMM_NULL                ! MPI null communicator
   win_tab(indx)%typ = MPI_DATATYPE_NULL            ! MPI null datatype
 

@@ -62,14 +62,19 @@
 !  end type rpncomm_operator
 !====================================================================================
   type :: rpncomm_windef
-    integer, dimension(:), pointer :: remote   ! base translated as Fortran pointer to 1D array
-    type(C_PTR) :: base    ! base address of array (C type pointer)
+    integer, dimension(:), pointer :: remote   ! base translated as Fortran pointer to primary array
+    integer, dimension(:), pointer :: remote2  ! base translated as Fortran pointer to secondary array
+    type(C_PTR) :: base    ! base address of primary window array (C type pointer)
+    type(C_PTR) :: base2   ! base address of secondary window array (C type pointer) (optional)
+    integer :: win         ! MPI primary window
+    integer :: win2        ! MPI secondary window (optional)
     integer :: indx        ! index of this entry in window table
     integer :: opr         ! MPI operator
     integer :: typ         ! MPI datatype
     integer :: ext         ! size of MPI datatype  (extent)
-    integer :: win         ! MPI window
     integer :: com         ! MPI communicator
+    integer :: npe         ! size of MPI communicator
+    integer :: rank        ! rank in MPI communicator
     integer :: grp         ! MPI group associated with communicator
     integer :: s_group     ! MPI send (put) group
     integer :: r_group     ! MPI receive (get) group
@@ -78,7 +83,7 @@
     logical :: is_user     ! .true. if array associated with window was user supplied rather than internal
     logical :: active_mode ! use active mode for this window's communications
   end type rpncomm_windef
-  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),C_NULL_PTR,0,0,0,0,0,0,0,0,0,0,.false.,.false.,.true.)
+  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),NULL(),C_NULL_PTR,C_NULL_PTR,-1,-1,0,0,0,0,0,0,0,0,0,0,0,.false.,.false.,.true.)
 !====================================================================================
   type, bind(C)    :: rpncomm_bnds
     integer(c_int) :: lo, hi, lnp, gnp  ! low bound, high bound, local dimension, global dimension
