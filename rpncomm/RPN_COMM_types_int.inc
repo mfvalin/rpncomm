@@ -62,10 +62,14 @@
 !  end type rpncomm_operator
 !====================================================================================
   type :: rpncomm_windef
-    integer, dimension(:), pointer :: remote   ! base translated as Fortran pointer to primary array
-    integer, dimension(:), pointer :: remote2  ! base translated as Fortran pointer to secondary array
+!    integer, dimension(:), pointer :: remote   ! base translated as Fortran pointer to primary array
+!    type(rpncomm_message), dimension(:), pointer :: remote2  ! base translated as Fortran pointer to secondary array (messages)
     type(C_PTR) :: base    ! base address of primary window array (C type pointer)
     type(C_PTR) :: base2   ! base address of secondary window array (C type pointer) (optional)
+    type(C_PTR) :: slots   ! base address of slot table (C type pointer) (optional)
+    integer :: nbase
+    integer :: nbase2
+    integer :: nslots
     integer :: win         ! MPI primary window
     integer :: win2        ! MPI secondary window (optional)
     integer :: indx        ! index of this entry in window table
@@ -83,7 +87,18 @@
     logical :: is_user     ! .true. if array associated with window was user supplied rather than internal
     logical :: active_mode ! use active mode for this window's communications
   end type rpncomm_windef
-  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),NULL(),C_NULL_PTR,C_NULL_PTR,-1,-1,0,0,0,0,0,0,0,0,0,0,0,.false.,.false.,.true.)
+!  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(NULL(),NULL(),C_NULL_PTR,C_NULL_PTR,C_NULL_PTR,0,0,0,-1,-1,0,0,0,0,0,0,0,0,0,0,0,.false.,.false.,.true.)
+  type(rpncomm_windef), parameter :: NULL_rpncomm_windef = rpncomm_windef(C_NULL_PTR,C_NULL_PTR,C_NULL_PTR,0,0,0,-1,-1,0,0,0,0,0,0,0,0,0,0,0,.false.,.false.,.true.)
+!====================================================================================
+  type :: rpncomm_message
+    integer :: src         ! ordinal of source PE in rpncomm_windef%com
+    integer :: off_in      ! offset of input data in rpncomm_windef%win
+    integer :: n_in        ! number of data elements (input)
+    integer :: off_out     ! offset of output data in rpncomm_windef%win
+    integer :: n_out       ! number of data elements (output)
+  end type rpncomm_message
+  type(rpncomm_message), parameter :: NULL_rpncomm_message = rpncomm_message(-1,-1,-1,-1,-1)
+  integer, parameter :: WINDEF_MESSAGE_SIZE = 5
 !====================================================================================
   type, bind(C)    :: rpncomm_bnds
     integer(c_int) :: lo, hi, lnp, gnp  ! low bound, high bound, local dimension, global dimension
