@@ -68,12 +68,60 @@
 !    }
 !   3 - free the one sided communication window (COLLECTIVE operation)
 !
-!   window creation/destruction : RPN_COMM_i_win_create, RPN_COMM_i_win_free
+!   window creation/destruction : RPN_COMM_i_win_create, RPN_COMM_i_win_create_secondary, RPN_COMM_i_win_free
 !   window status queries       : RPN_COMM_i_valid_win, RPN_COMM_i_win_check
 !   window info queries         : RPN_COMM_i_win_get_ptr, RPN_COMM_i_win_get_size
 !   window "exposition"         : RPN_COMM_i_win_open, RPN_COMM_i_win_close
 !   window get operations       : RPN_COMM_i_win_get_r, RPN_COMM_i_win_get_l
 !   window put operations       : RPN_COMM_i_win_put_r, RPN_COMM_i_win_put_l
+!
+!  -------------- one sided request/reply system (RPN_COMM_i_win_post) --------------
+!
+!  in this special case, two (2) MPI one sided windows are used in internal type rpncomm_windef
+!
+!  the primary window MUST be created by a call to RPN_COMM_i_win_create
+!    the storage associated with the primary window may be allocated by the user or internally.
+!
+!  the secondary window MUST be created by a call to RPN_COMM_i_win_create_secondary after creation
+!    of rpncomm_window by a previous call to RPN_COMM_i_win_create.
+!  (the storage associated with the secondary window  will be allocated internally)
+!
+!  primary window layout for request/reply  on PE with ordinal PEK  (client)
+!
+!  +-------------+-------------------+-------------------------------------+-------------------+--------------------
+!  |             |  request to PEJ   |                                     |  reply from PEJ   |
+!  +-------------+-------------------+-------------------------------------+-------------------+--------------------
+!                ^                                                         ^
+!        offseti |                                                 offseto |
+!                <--    n_in       -->                                     <--    n_out     -->
+!
+!
+!  secondary window layout for request/reply on PE with ordinal PEJ  (supplier)
+!
+!  +-----------------+-----------------+.............+-----------------+.............+-----------------+
+!  | request 1       |  request 2      |             |  request n      |             +  request MAXREQ |
+!  +-----------------+-----------------+.............+-----------------+.............+-----------------+
+!
+!  request format : 5 integers (PEK, offseti, n_in, offseto, n_out)  (request from PEK)
+!  request 1 is special : (last valid request, 0, 0, 0, 0) (initial value of last valid request is 1)
+!  PE ordinals are ranks in the communicator associated with both primary and secondary windows
+!
+!  PEJ is expected to "get" n_in words at displacement offseti in primary window of PEK
+!  PEJ is expected to "put" n_out words at displacement offseto in primary window of PEK
+!  a "word" may be anything having the size of MPI_INTEGER (integer, real, ...)
+!
+!  typical sequence of operations for request/reply:
+!
+!  1 - call RPN_COMM_i_win_open(some_window,.false.,ierr)
+!  2 - call RPN_COMM_i_win_post(some_window,pe(:),offseti(:),nelemi(:),offseto(:),nelemo(:),nreq,ierr)
+!      (step 2 may be repeated)
+!  3 - call RPN_COMM_i_win_close(some_window,ierr)
+!  4 - call RPN_COMM_i_win_open(some_window,.false.,ierr)
+!  5 - remote "get" operations to get request(s)
+!  6 - remote "put" operations to put replies
+!  7 - call RPN_COMM_i_win_close(some_window,ierr)
+!
+!  RPN_COMM_i_win_open and RPN_COMM_i_win_close are COLLECTIVE operations
 !
 ! AUTHOR
 !  M.Valin Recherche en Prevision Numerique 2015
@@ -102,7 +150,7 @@ module RPN_COMM_windows
     integer :: pe  ! PE on which this PE has acquired a message slot
     integer :: n   ! slot number
   end type slot
-  integer, parameter :: WINDEF_SLOT_SIZE = 2
+  integer, parameter :: WINDEF_SLOT_SIZE = 2     ! number of integers in type slot
  contains
 !****if* RPN_COMM_windows/init_win_tab
 ! SYNOPSIS
@@ -257,7 +305,7 @@ module RPN_COMM_windows
   is_valid = .false.
   if(.not. associated(win_tab)) call init_win_tab  ! create and initialize window table if necessary
 
-  if( ieor(window%t1,RPN_COMM_MAGIC) .ne. window%t2 )   return  ! inconsistent tags
+  if( ieor(window%t1,RPN_COMM_MAGIC) .ne. window%t2 )    return  ! inconsistent tags
   if(window%t2 <= 0 .or. window%t2>RPN_COMM_MAX_WINDOWS) return  ! invalid index
 
   temp = c_loc(win_tab(window%t2))                 ! address of relevant win_tab entry
@@ -270,6 +318,104 @@ end function win_valid
 
 end module RPN_COMM_windows
 
+!===============================================================================
+! test code for one sided request/reply window package
+!===============================================================================
+subroutine RPN_COMM_i_win_req_test(nparams,params)
+  use ISO_C_BINDING
+  implicit none
+  include 'RPN_COMM.inc'
+  include 'mpif.h'
+  integer, intent(IN) :: nparams
+  integer, intent(IN), dimension(nparams) :: params
+
+  integer, parameter :: REQUEST_SIZE = 2
+  real, dimension(REQUEST_SIZE), target :: request
+  integer, parameter :: REPLY_SIZE = 3
+  real, dimension(REPLY_SIZE), target :: reply
+  real :: a, b
+  integer :: status, Me, Me_x, Me_y, npes, ierr, i, indx, nreq, nreq2, errors
+  type(rpncomm_window) :: window
+  type(rpncomm_datatype) :: dtype
+  type(rpncomm_communicator) :: com
+  integer, dimension(:), pointer :: pe, offseti, n_in, offseto, n_out
+  type(C_PTR) :: cptr
+  real, dimension(:), pointer :: request_reply1, request_reply2
+  integer, dimension(:,:), pointer :: requests
+
+  status = RPN_COMM_mype(Me,Me_x,Me_y)
+  call RPN_COMM_size( RPN_COMM_GRID, npes ,ierr )
+  call RPN_COMM_i_comm(RPN_COMM_GRID,com)
+  call RPN_COMM_i_datyp(RPN_COMM_INTEGER,dtype)
+
+  allocate(pe(npes),offseti(npes), n_in(npes), offseto(npes), n_out(npes))
+  indx = 0
+  do i = 0 , npes-1
+    if(i == Me) continue
+    indx = indx + 1
+    pe(indx) = i
+    offseti(indx) = (indx - 1) * REQUEST_SIZE
+    n_in(indx) = REQUEST_SIZE
+    offseto(indx) = npes*REQUEST_SIZE + (indx - 1) * REPLY_SIZE
+    n_out(indx) = REPLY_SIZE
+  enddo
+  nreq = indx
+
+  allocate(request_reply1(npes * (REPLY_SIZE + REQUEST_SIZE)))
+  allocate(request_reply2(npes * (REPLY_SIZE + REQUEST_SIZE)))
+  request_reply1 = 999.999
+
+  do i = 1 , nreq
+    request_reply1(2*i-1) = i
+    request_reply1(2*i) = i+1
+  enddo
+
+  indx = 2*nreq
+  request_reply2 = request_reply1
+  do i = 1 , nreq
+    a = request_reply1(2*i-1)
+    b = request_reply1(2*i)
+    request_reply2(indx + 3*i-2) = a + b
+    request_reply2(indx + 3*i-1) = a * b
+    request_reply2(indx + 3*i)   = a*a + b*b
+  enddo
+  
+
+  call RPN_COMM_i_win_create(window, dtype, size(request_reply1), com, C_LOC(request_reply1(1)), ierr)
+  call RPN_COMM_i_win_create_secondary(window,npes,ierr)
+  cptr = RPN_COMM_i_win_get_ptr(window,2,ierr)    ! get pointer to secondary window
+  call c_f_pointer(cptr,requests,[5,npes])        ! fortran pointer to table of client requests
+
+  call RPN_COMM_i_win_open(window,.false.,ierr)   ! open in passive mode
+  call RPN_COMM_i_win_post(window,pe,offseti,n_in,offseto,n_out,nreq,ierr)
+  call RPN_COMM_i_win_close(window,ierr)
+
+  nreq2 = requests(1,1)
+  print *,Me,' number of requests = ',nreq2
+  do i = 2, npes
+    print 100,i,requests(:,i)
+100 format(I3,5I6)
+  enddo
+  call RPN_COMM_i_win_open(window,.false.,ierr)   ! open in passive mode
+  do i = 2 , nreq2
+    call RPN_COMM_i_win_get_r(window,C_LOC(request),pe(i),offseti(i),n_in(i),ierr)  ! get request (a,b)
+    reply(1) = request(1) + request(2)
+    reply(2) = request(1) * request(2)
+    reply(3) = request(1)*request(1) + request(2)*request(2)
+    call RPN_COMM_i_win_put_r(window,C_LOC(reply),pe(i),offseto(i),n_out(i),ierr)  ! put reply (a+b , a*b, a**2+b**2)
+  enddo
+  call RPN_COMM_i_win_close(window,ierr)
+
+  indx = 2*nreq
+  errors = 0
+  do i = indx+1 , indx+3*nreq
+    if( request_reply2(i) .ne. request_reply1(i) ) errors = errors + 1
+  enddo
+  print *,"errors detected =",errors
+
+  deallocate(pe, offseti, n_in, offseto, n_out, request_reply1, request_reply2)
+  return
+end subroutine RPN_COMM_i_win_req_test
 !===============================================================================
 ! test code for one sided communication window package
 !===============================================================================
@@ -341,7 +487,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
   if(me == 0) then
     print *,'TEST INFO: size associated to window =',wsiz
   endif
-  cptr = RPN_COMM_i_win_get_ptr(window,ierr)   ! get C pointer to local window data
+  cptr = RPN_COMM_i_win_get_ptr(window,1,ierr)   ! get C pointer to primary local window data
   call c_f_pointer(cptr,fptr,[wsiz])           ! convert to Fortran pointer
   nerrors = 0
   do i = 1 , wsiz                              ! check values in array (consistency check)
@@ -354,7 +500,7 @@ subroutine RPN_COMM_i_win_test(nparams,params)
   if(me == 0) then
     print *,'TEST INFO: size associated to window2 =',wsiz
   endif
-  cptr2 = RPN_COMM_i_win_get_ptr(window2,ierr)   ! get C pointer to local window data
+  cptr2 = RPN_COMM_i_win_get_ptr(window2,1,ierr)   ! get C pointer to primary local window data
   call c_f_pointer(cptr2,fptr2,[wsiz])           ! convert to Fortran pointer
   fptr2 = -1                                     ! initialize contents of array associated with windows2
 ! ===================================== remote PUT test ===================================
@@ -1356,11 +1502,11 @@ subroutine RPN_COMM_i_win_oper(window,oper,ierr)  !InTf!
   return
 end subroutine RPN_COMM_i_win_oper                                   !InTf!
 !InTf!
-!****f* rpn_comm/RPN_COMM_i_win_post post a shopping list
+!****f* rpn_comm/RPN_COMM_i_win_post post a "shopping list"
 ! SYNOPSIS
-subroutine RPN_COMM_i_win_post(window,pe,offseti,nelemi,offseto,nelemo,ierr)          !InTf!
+subroutine RPN_COMM_i_win_post(window,pe,offseti,nelemi,offseto,nelemo,nreq,ierr)          !InTf!
 !===============================================================================
-! post a message in secondary window pointing to data in primary window
+! post a set of messages in secondary window pointing to data in primary window
 ! the secondary window (see RPN_COMM_i_win_create_secondary) of the target PE
 ! is used to post a pointer to a message in this PE's primary window
 !
@@ -1370,14 +1516,19 @@ subroutine RPN_COMM_i_win_post(window,pe,offseti,nelemi,offseto,nelemo,ierr)    
 !
 ! the secondary window contains groups of WINDEF_MESSAGE_SIZE integers
 ! the first WINDEF_MESSAGE_SIZE numbers are (last_message_index,....)
+!
+! offseti(1) = -1 indicates a special reinitialization mode (offseto, nelemo are ignored)
+!    nelemi(1) = -1 : reinitialize secondary window, keep slot assignments
+!    nelemi(1) = -2 : fully reinitialize secondary window, delete slot assignments
 !===============================================================================
 !
 ! window  (IN)      rpn_comm window type from call to RPN_COMM_i_win_create (see RPN_COMM_types.inc)
-! pe      (IN)      target pe
-! offseti (IN)      offset in primary window of input message
-! nelemi  (IN)      length of input message
-! offseto (IN)      offset in primary window of output message
-! nelemo  (IN)      length of output message
+! pe      (IN)      target pe (array of dimension nreq)
+! offseti (IN)      offset in primary window of request message (array of dimension nreq)
+! nelemi  (IN)      length of request message (array of dimension nreq)
+! offseto (IN)      offset in primary window of reply message (array of dimension nreq)
+! nelemo  (IN)      length of reply message (array of dimension nreq)
+! nreq    (IN)      number of requests (dimension of arrays pe, offseti, nelemi, offseto, nelemo)
 ! ierr    (OUT)     RPN_COMM_OK or RPN_COMM_ERROR will be returned
 !===============================================================================
 ! AUTHOR
@@ -1388,99 +1539,120 @@ subroutine RPN_COMM_i_win_post(window,pe,offseti,nelemi,offseto,nelemo,ierr)    
 !!  import :: rpncomm_window                                          !InTf!
 ! ARGUMENTS
   type(rpncomm_window), intent(IN) :: window                          !InTf!
-  integer, intent(IN) :: pe                                           !InTf!
-  integer, intent(IN) :: offseti                                      !InTf!
-  integer, intent(IN) :: nelemi                                       !InTf!
-  integer, intent(IN) :: offseto                                      !InTf!
-  integer, intent(IN) :: nelemo                                       !InTf!
+  integer, dimension(nreq), intent(IN) :: pe                          !InTf!
+  integer, dimension(nreq), intent(IN) :: offseti                     !InTf!
+  integer, dimension(nreq), intent(IN) :: nelemi                      !InTf!
+  integer, dimension(nreq), intent(IN) :: offseto                     !InTf!
+  integer, dimension(nreq), intent(IN) :: nelemo                      !InTf!
+  integer, intent(IN) :: nreq                                         !InTf!
   integer, intent(OUT) :: ierr                                        !InTf!
 !******
 
-  integer :: indx, ierr2, incr, i, insert
+  integer :: indx, ierr2, incr, i, insert, m
   integer *8 :: offset_8
-  type(rpncomm_message) :: message
-  type(rpncomm_message), dimension(:), pointer :: remote2  ! base translated as Fortran pointer to secondary array (messages)
+  type(rpncomm_request_message) :: message
+  type(rpncomm_request_message), dimension(:), pointer :: remote2  ! base translated as Fortran pointer to secondary array (messages)
   type(slot), dimension(:), pointer :: slottab
+  integer :: pe1, offseti1, nelemi1, offseto1, nelemo1
 
   ierr = RPN_COMM_ERROR
   if(.not. win_valid(window) ) return
 
   indx = window%t2
+
+  if(win_tab(indx)%active_mode) THEN  ! OOPS, not passive mode
+    print *,'ERROR: rpncomm_window must be open in passive mode to use RPN_COMM_i_win_post'
+    return
+  ENDIF
+
   if(C_ASSOCIATED(win_tab(indx)%base2)) then  ! secondary window
     call c_f_pointer(win_tab(indx)%base2,remote2,[win_tab(indx)%nbase2])
   else
-    print *,'ERROR: secondary window does not exist'
+    print *,'ERROR: secondary window does not exist for this rpncomm_window'
     return
   endif
 
   if(C_ASSOCIATED(win_tab(indx)%slots)) then  ! slot table
     call c_f_pointer(win_tab(indx)%slots,slottab,[win_tab(indx)%nslots])
   else
-    print *,'ERROR: slot table does not exist'
+    print *,'ERROR: slot table does not exist for this rpncomm_window'
     return
   endif
 
-  if(offseti == -1 .and. nelemi == -1) then         ! reinitialize secondary window, keep slot assignments
+  if(offseti(1) == -1 .and. nelemi(1) == -1) then         ! reinitialize secondary window, keep slot assignments
     ierr = RPN_COMM_OK
-!     win_tab(indx)%remote2(2:) = NULL_rpncomm_message        ! clear messages
-    remote2(2:) = NULL_rpncomm_message        ! clear messages
+!     win_tab(indx)%remote2(2:) = NULL_rpncomm_request_message        ! clear messages
+    remote2(2:) = NULL_rpncomm_request_message        ! clear messages
     return
   endif
-  if(offseti == -1 .and. nelemi == -2) then         ! fully reinitialize secondary window
+  if(offseti(1) == -1 .and. nelemi(1) == -2) then         ! fully reinitialize secondary window
     ierr = RPN_COMM_OK
-!     win_tab(indx)%remote2(1) = rpncomm_message(1,0,0,0,0)   ! counters in slot 1
-!     win_tab(indx)%remote2(2:) = NULL_rpncomm_message        ! clear messages
-    remote2(1) = rpncomm_message(1,0,0,0,0)   ! counters in slot 1
-    remote2(2:) = NULL_rpncomm_message        ! clear messages
+!     win_tab(indx)%remote2(1) = rpncomm_request_message(1,0,0,0,0)   ! counters in slot 1
+!     win_tab(indx)%remote2(2:) = NULL_rpncomm_request_message        ! clear messages
+    remote2(1) = rpncomm_request_message(1,0,0,0,0)   ! counters in slot 1
+    remote2(2:) = NULL_rpncomm_request_message        ! clear messages
+    return
+  endif
+  if(offseti(1) == -1) then   ! nelemi(1) not -1 or -2
+    print *,'ERROR: invalid secondary window reinitialization mode'
     return
   endif
 
-  if(pe >= win_tab(indx)%npe) then
-    print *,'ERROR: target pe',pe,' out of range, maxpe=',win_tab(indx)%npe-1
-    return
-  endif
+  do m = 1, nreq   ! loop over requests
 
-  incr = 0
-  do i = 1, win_tab(indx)%nslots
-    if(slottab(i)%pe == pe) then
-      incr = slottab(i)%n
-      exit
-    endif
-  enddo
-
-  if(incr == 0) then     ! pe not found in slot table, get a slot on pe
-    call mpi_win_lock(MPI_LOCK_EXCLUSIVE, pe, 0, win_tab(indx)%win2, ierr2)   ! lock target for get/accumulate
-    incr = 1
-    offset_8 = 0
-    call MPI_accumulate(incr,1,MPI_INTEGER,pe,offset_8,1,MPI_INTEGER,MPI_SUM,win_tab(indx)%win2,ierr2) ! add 1 to index
-    call MPI_get(incr,1,MPI_INTEGER,pe,offset_8,1,MPI_INTEGER,win_tab(indx)%win2, ierr2)               ! get new index
-    call mpi_win_unlock(pe, win_tab(indx)%win2, ierr2)   ! make sure incr is usable locally
-  !   if(incr > size(win_tab(indx)%remote2)) then
-    if(incr > win_tab(indx)%nbase2) then
-      print *,"ERROR: no space left in target pe's (",pe,") message slots"
+    pe1 = pe(m)
+    offseti1 = offseti(1)
+    nelemi1  = nelemi(1)
+    offseto1 = offseto(1)
+    nelemo1  = nelemo(1)
+    if(pe1 >= win_tab(indx)%npe) then
+      print *,'ERROR: target pe',pe,' out of range, maxpe=',win_tab(indx)%npe-1
       return
     endif
-    insert = 0
-    do i = 1, win_tab(indx)%nslots  ! insert in slot table
-      if(slottab(i)%pe == -1) then
-        slottab(i)%n = incr
-        slottab(i)%pe = pe
-        insert = i
+
+    incr = 0
+    do i = 1, win_tab(indx)%nslots
+      if(slottab(i)%pe == pe1) then
+        incr = slottab(i)%n
         exit
       endif
     enddo
-    if(insert == 0) then
-      print *,"ERROR: slot table full"
-      return
-    endif
-  endif
 
-  call mpi_win_lock(MPI_LOCK_EXCLUSIVE, pe, 0, win_tab(indx)%win2, ierr2)   ! lock target for put, no overlap, safer
+    if(incr == 0) then     ! pe1 not found in slot table, get a slot on pe1
+      call MPI_win_lock(MPI_LOCK_EXCLUSIVE, pe1, 0, win_tab(indx)%win2, ierr2)   ! lock target for get/accumulate
+      incr = 1
+      offset_8 = 0
+      call MPI_accumulate(incr,1,MPI_INTEGER,pe1,offset_8,1,MPI_INTEGER,MPI_SUM,win_tab(indx)%win2,ierr2) ! add 1 to index
+      call MPI_get(incr,1,MPI_INTEGER,pe1,offset_8,1,MPI_INTEGER,win_tab(indx)%win2, ierr2)               ! get new index
+      call MPI_win_unlock(pe1, win_tab(indx)%win2, ierr2)   ! make sure incr is usable locally
+    !   if(incr > size(win_tab(indx)%remote2)) then
+      if(incr > win_tab(indx)%nbase2) then
+        print *,"ERROR: no space left in target pe's (",pe,") message slots"
+        return
+      endif
+      insert = 0
+      do i = 1, win_tab(indx)%nslots  ! insert in slot table
+        if(slottab(i)%pe == -1) then
+          slottab(i)%n = incr
+          slottab(i)%pe = pe1
+          insert = i
+          exit
+        endif
+      enddo
+      if(insert == 0) then
+        print *,"ERROR: slot table full"
+        return
+      endif
+    endif
+
+    call mpi_win_lock(MPI_LOCK_EXCLUSIVE, pe1, 0, win_tab(indx)%win2, ierr2)   ! lock target for put, no overlap, safer
 !   call mpi_win_lock(MPI_LOCK_SHARED, pe, 0, win_tab(indx)%win2, ierr2)   ! lock target for put, no overlap, maybe later
-  message = rpncomm_message( win_tab(indx)%rank, offseti, nelemi, offseto, nelemo)
-  offset_8 = WINDEF_MESSAGE_SIZE*incr - 1    ! WINDEF_MESSAGE_SIZE integers per entry , first WINDEF_MESSAGE_SIZE integers=[index,.....]
-  call MPI_put(message,WINDEF_MESSAGE_SIZE,MPI_INTEGER,pe,offset_8,WINDEF_MESSAGE_SIZE,MPI_INTEGER,win_tab(indx)%win2, ierr2)  ! send "shopping list" to target pe
-  call mpi_win_unlock(pe, win_tab(indx)%win2, ierr2)
+    message = rpncomm_request_message( win_tab(indx)%rank, offseti1, nelemi1, offseto1, nelemo1)
+    offset_8 = WINDEF_MESSAGE_SIZE*incr - 1    ! WINDEF_MESSAGE_SIZE integers per entry , first WINDEF_MESSAGE_SIZE integers=[index,.....]
+    call MPI_put(message,WINDEF_MESSAGE_SIZE,MPI_INTEGER,pe1,offset_8,WINDEF_MESSAGE_SIZE,MPI_INTEGER,win_tab(indx)%win2, ierr2)  ! send "shopping list" to target pe
+    call mpi_win_unlock(pe1, win_tab(indx)%win2, ierr2)
+
+  enddo
 
   ierr = RPN_COMM_OK
   return
@@ -1512,7 +1684,7 @@ subroutine RPN_COMM_i_win_create_secondary(window,nslots,ierr)  !InTf!
   integer :: indx, extent, siz
   integer(kind=MPI_ADDRESS_KIND) win_size  ! may be wider than a default integer
   integer(kind=MPI_ADDRESS_KIND) slot_size
-  type(rpncomm_message), dimension(:), pointer :: remote2  ! base translated as Fortran pointer to secondary array (messages)
+  type(rpncomm_request_message), dimension(:), pointer :: remote2  ! base translated as Fortran pointer to secondary array (messages)
   type(slot), dimension(:), pointer :: slottab
   integer :: ierr2
 
@@ -1536,10 +1708,10 @@ subroutine RPN_COMM_i_win_create_secondary(window,nslots,ierr)  !InTf!
   win_tab(indx)%nbase2 = siz
 !   call c_f_pointer(win_tab(indx)%base2,win_tab(indx)%remote2,[siz])    ! make fortran pointer
   call c_f_pointer(win_tab(indx)%base2,remote2,[siz])    ! make fortran pointer
-!   win_tab(indx)%remote2(1) = rpncomm_message(1,0,0,0,0)                ! slot 1 used as counter
-!   win_tab(indx)%remote2(2:) = NULL_rpncomm_message                         ! initialize
-  remote2(1) = rpncomm_message(1,0,0,0,0)                ! slot 1 used as counter
-  remote2(2:) = NULL_rpncomm_message                         ! initialize
+!   win_tab(indx)%remote2(1) = rpncomm_request_message(1,0,0,0,0)                ! slot 1 used as counter
+!   win_tab(indx)%remote2(2:) = NULL_rpncomm_request_message                         ! initialize
+  remote2(1)  = rpncomm_request_message(1,0,0,0,0)                   ! slot 1 is used as counter
+  remote2(2:) = NULL_rpncomm_request_message                         ! initialize
 !   call MPI_win_create(win_tab(indx)%remote2, win_size, extent, MPI_INFO_NULL, win_tab(indx)%com, win_tab(indx)%win2,ierr2)  ! create secondary window
   call MPI_win_create(remote2, win_size, extent, MPI_INFO_NULL, win_tab(indx)%com, win_tab(indx)%win2,ierr2)  ! create secondary window
   if(ierr2 .ne. MPI_SUCCESS) then
@@ -1636,7 +1808,7 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
   integer :: indx, ierr1, ierr2
   integer, dimension(:), pointer :: slottab   ! slot table
   integer, dimension(:), pointer :: remote   ! base translated as Fortran pointer to primary array
-  type(rpncomm_message), dimension(:), pointer :: remote2  ! base translated as Fortran pointer to secondary array (messages)
+  type(rpncomm_request_message), dimension(:), pointer :: remote2  ! base translated as Fortran pointer to secondary array (messages)
 
   ierr = RPN_COMM_ERROR
   if(.not. win_valid(window) ) return
@@ -1655,7 +1827,7 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
     endif
   endif
 
-  if(.not. win_tab(indx)%is_user) then   ! internal storage allocation, release it
+  if(.not. win_tab(indx)%is_user) then   ! internal storage allocation for primary window, release it
     print *,'INFO: attempting to free internal primary window storage'
     call c_f_pointer(win_tab(indx)%base,remote,[win_tab(indx)%nbase])
 !     call MPI_free_mem(win_tab(indx)%remote,ierr1)
@@ -1668,7 +1840,8 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
   else
     ierr1 = MPI_SUCCESS
   endif
-  if(C_ASSOCIATED(win_tab(indx)%base2)) then   ! internal storage allocation, release it if it exists
+
+  if(C_ASSOCIATED(win_tab(indx)%base2)) then   ! internal storage allocation for secondary window, release it if it exists
     print *,'INFO: attempting to free internal secondary window storage'
     call c_f_pointer(win_tab(indx)%base2,remote2,[win_tab(indx)%nbase2])
 !     call MPI_free_mem(win_tab(indx)%remote2,ierr1)
@@ -1679,12 +1852,13 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
 !     win_tab(indx)%remote2 => NULL()
 !     win_tab(indx)%base2 = C_NULL_PTR
   endif
-  if(C_ASSOCIATED(win_tab(indx)%slots)) then   ! internal storage allocation, release it if it exists
+
+  if(C_ASSOCIATED(win_tab(indx)%slots)) then   ! internal storage allocation for message slots, release it if it exists
     print *,'INFO: attempting to free internal slot table'
     call c_f_pointer(win_tab(indx)%slots,slottab,[win_tab(indx)%nslots])
     call MPI_free_mem(slottab,ierr1)
     if(ierr1 .ne. MPI_SUCCESS) then
-      print *,'ERROR: error freeing sslot table'
+      print *,'ERROR: error freeing slot table'
     endif
   endif
   win_tab(indx) = NULL_rpncomm_windef              ! blank entry
@@ -1899,11 +2073,12 @@ end function RPN_COMM_i_win_check                                     !InTf!
 !InTf!
 !****f* rpn_comm/RPN_COMM_i_win_get_ptr get data pointer associated to a one sided communication window
 ! SYNOPSIS
-function RPN_COMM_i_win_get_ptr(window,ierr) result(ptr)                 !InTf!
+function RPN_COMM_i_win_get_ptr(window,np,ierr) result(ptr)              !InTf!
 !===============================================================================
 ! get a one sided communication window (see RPN_COMM_i_win_create) data pointer
 !
 ! window (IN)     rpn_comm one sided window type(rpncomm_window) (see RPN_COMM_types.inc)
+! np     (IN)     1 : get pointer to primary window, 2: get pointer to secondary window
 ! ierr   (OUT)    error status, RPN_COMM_OK or RPN_COMM_ERROR
 !
 ! function value : C compatible (type(C_PTR)) pointer to the data array associated with window
@@ -1917,6 +2092,7 @@ function RPN_COMM_i_win_get_ptr(window,ierr) result(ptr)                 !InTf!
 !!  import :: C_PTR                                                   !InTf!
 !!  import :: rpncomm_window                                          !InTf!
 ! ARGUMENTS
+  integer, intent(IN)  :: np                                          !InTf!
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
   type(C_PTR) :: ptr                                                  !InTf!
@@ -1926,10 +2102,12 @@ function RPN_COMM_i_win_get_ptr(window,ierr) result(ptr)                 !InTf!
 
   ierr = RPN_COMM_ERROR
   ptr = C_NULL_PTR
-  if(.not. win_valid(window) ) return
+  if(.not. win_valid(window) ) return   ! invalid window
+  if(np < 1 .or. np > 2) return         ! bad np code (must be 1 or 2)
 
   indx = window%t2            ! window table entry for this window
-  ptr = win_tab(indx)%base    ! get data pointer from window table entry
+  if(np == 1) ptr = win_tab(indx)%base    ! get primary data pointer from window table entry
+  if(np == 2) ptr = win_tab(indx)%base2   ! get secondary data pointer from window table entry
 
   ierr = RPN_COMM_OK
   return

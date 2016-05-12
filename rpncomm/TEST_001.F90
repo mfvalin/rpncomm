@@ -67,6 +67,10 @@ subroutine rpn_comm_test_001
     print *,'start shared memory segment test'
     call RPN_COMM_shm_test(nparams,params)
   endif
+  if(IAND(test_to_perform,512)==512)then
+    print *,'start one sided request/reply test'
+    call RPN_COMM_i_win_req_test(nparams,params)
+  endif
   call RPN_COMM_finalize(ierr)
   stop
 end
