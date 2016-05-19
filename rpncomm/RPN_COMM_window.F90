@@ -144,7 +144,7 @@ module RPN_COMM_windows
   integer, parameter :: RPN_COMM_MAX_WINDOWS = 64
   integer, save :: integer_size = 0                                       ! will contain extent of MPI_INTEGER
   type(rpncomm_windef), dimension(:), pointer, save :: win_tab => NULL()  ! rpn comm window table
-  logical, save :: debug_mode = .true.
+  logical, save :: debug_mode = .false.
   type(rpncomm_operator), save :: op = NULL_rpncomm_operator
   type :: slot
     integer :: pe  ! PE on which this PE has acquired a message slot
@@ -350,70 +350,87 @@ subroutine RPN_COMM_i_win_req_test(nparams,params)
 
   allocate(pe(npes),offseti(npes), n_in(npes), offseto(npes), n_out(npes))
   indx = 0
+  print *,'requests from PE',Me
   do i = 0 , npes-1
-    if(i == Me) continue
-    indx = indx + 1
-    pe(indx) = i
-    offseti(indx) = (indx - 1) * REQUEST_SIZE
-    n_in(indx) = REQUEST_SIZE
-    offseto(indx) = npes*REQUEST_SIZE + (indx - 1) * REPLY_SIZE
-    n_out(indx) = REPLY_SIZE
+    if(i .ne. Me) then
+      indx = indx + 1
+      pe(indx) = i
+      offseti(indx) = (indx - 1) * REQUEST_SIZE
+      n_in(indx) = REQUEST_SIZE
+      offseto(indx) = npes*REQUEST_SIZE + (indx - 1) * REPLY_SIZE
+      n_out(indx) = REPLY_SIZE
+      print 100,indx,pe(indx),offseti(indx),n_in(indx),offseto(indx),n_out(indx)
+    endif
   enddo
   nreq = indx
+!   print *,'number of requests =',nreq
 
   allocate(request_reply1(npes * (REPLY_SIZE + REQUEST_SIZE)))
   allocate(request_reply2(npes * (REPLY_SIZE + REQUEST_SIZE)))
   request_reply1 = 999.999
 
   do i = 1 , nreq
-    request_reply1(2*i-1) = i
-    request_reply1(2*i) = i+1
+    request_reply1(2*i-1) = i+5*Me
+    request_reply1(2*i) = i+1+5*Me
   enddo
 
-  indx = 2*nreq
+  indx = REQUEST_SIZE*nreq           ! start of reply area
   request_reply2 = request_reply1
   do i = 1 , nreq
     a = request_reply1(2*i-1)
     b = request_reply1(2*i)
-    request_reply2(indx + 3*i-2) = a + b
-    request_reply2(indx + 3*i-1) = a * b
-    request_reply2(indx + 3*i)   = a*a + b*b
+    request_reply2(offseto(i) + 1) = a + b
+    request_reply2(offseto(i) + 2) = a * b
+    request_reply2(offseto(i) + 3)   = a*a + b*b
   enddo
-  
+print 101,request_reply1
+101 format(15F8.1)
 
   call RPN_COMM_i_win_create(window, dtype, size(request_reply1), com, C_LOC(request_reply1(1)), ierr)
   call RPN_COMM_i_win_create_secondary(window,npes,ierr)
   cptr = RPN_COMM_i_win_get_ptr(window,2,ierr)    ! get pointer to secondary window
   call c_f_pointer(cptr,requests,[5,npes])        ! fortran pointer to table of client requests
-
+!   print *,Me,'initial state of request table'
+!   do i = 1, npes
+!     print 100,i,requests(:,i)
+!   enddo
   call RPN_COMM_i_win_open(window,.false.,ierr)   ! open in passive mode
-  call RPN_COMM_i_win_post(window,pe,offseti,n_in,offseto,n_out,nreq,ierr)
+  call RPN_COMM_i_win_post(window,pe,offseti,n_in,offseto,n_out,nreq,ierr)  ! post requests
   call RPN_COMM_i_win_close(window,ierr)
 
   nreq2 = requests(1,1)
-  print *,Me,' number of requests = ',nreq2
+  print *,'number of requests received = ',nreq2-1
   do i = 2, npes
     print 100,i,requests(:,i)
-100 format(I3,5I6)
+100 format(I3,15I6)
   enddo
+
   call RPN_COMM_i_win_open(window,.false.,ierr)   ! open in passive mode
   do i = 2 , nreq2
-    call RPN_COMM_i_win_get_r(window,C_LOC(request),pe(i),offseti(i),n_in(i),ierr)  ! get request (a,b)
-    reply(1) = request(1) + request(2)
-    reply(2) = request(1) * request(2)
-    reply(3) = request(1)*request(1) + request(2)*request(2)
-    call RPN_COMM_i_win_put_r(window,C_LOC(reply),pe(i),offseto(i),n_out(i),ierr)  ! put reply (a+b , a*b, a**2+b**2)
+print *,'GETr ',pe(i-1),offseti(i-1),n_in(i-1)
+    call RPN_COMM_i_win_get_r(window,C_LOC(request),pe(i-1),offseti(i-1),n_in(i-1),ierr)  ! get request (a,b)
+    reply(1) = request(1) + request(2)     ! a + b
+    reply(2) = request(1) * request(2)     ! a * b
+    reply(3) = request(1)*request(1) + request(2)*request(2)  ! a*a + b*b
+print *,'request+reply :',pe(i-1),offseto(i-1),n_out(i-1)
+print 101,request,reply
+    call RPN_COMM_i_win_put_r(window,C_LOC(reply),pe(i-1),offseto(i-1),n_out(i-1),ierr)  ! put reply (a+b , a*b, a*a+b*b)
   enddo
   call RPN_COMM_i_win_close(window,ierr)
-
-  indx = 2*nreq
+! print 101,request_reply1
+! goto 999
+  indx = 2*npes
   errors = 0
   do i = indx+1 , indx+3*nreq
     if( request_reply2(i) .ne. request_reply1(i) ) errors = errors + 1
   enddo
-  print *,"errors detected =",errors
+  print *,"errors detected =",errors,indx+1 , indx+3*nreq
+print 101,request_reply1
+print 101,request_reply2
 
   deallocate(pe, offseti, n_in, offseto, n_out, request_reply1, request_reply2)
+999 continue
+!   call RPN_COMM_i_win_free(window,ierr)
   return
 end subroutine RPN_COMM_i_win_req_test
 !===============================================================================
@@ -1601,10 +1618,10 @@ subroutine RPN_COMM_i_win_post(window,pe,offseti,nelemi,offseto,nelemo,nreq,ierr
   do m = 1, nreq   ! loop over requests
 
     pe1 = pe(m)
-    offseti1 = offseti(1)
-    nelemi1  = nelemi(1)
-    offseto1 = offseto(1)
-    nelemo1  = nelemo(1)
+    offseti1 = offseti(m)
+    nelemi1  = nelemi(m)
+    offseto1 = offseto(m)
+    nelemo1  = nelemo(m)
     if(pe1 >= win_tab(indx)%npe) then
       print *,'ERROR: target pe',pe,' out of range, maxpe=',win_tab(indx)%npe-1
       return
@@ -1648,7 +1665,10 @@ subroutine RPN_COMM_i_win_post(window,pe,offseti,nelemi,offseto,nelemo,nreq,ierr
     call mpi_win_lock(MPI_LOCK_EXCLUSIVE, pe1, 0, win_tab(indx)%win2, ierr2)   ! lock target for put, no overlap, safer
 !   call mpi_win_lock(MPI_LOCK_SHARED, pe, 0, win_tab(indx)%win2, ierr2)   ! lock target for put, no overlap, maybe later
     message = rpncomm_request_message( win_tab(indx)%rank, offseti1, nelemi1, offseto1, nelemo1)
-    offset_8 = WINDEF_MESSAGE_SIZE*incr - 1    ! WINDEF_MESSAGE_SIZE integers per entry , first WINDEF_MESSAGE_SIZE integers=[index,.....]
+    offset_8 = WINDEF_MESSAGE_SIZE*(incr - 1)    ! WINDEF_MESSAGE_SIZE integers per entry , first WINDEF_MESSAGE_SIZE integers=[index,.....]
+! print *,'message offset =',offset_8,', message size =',WINDEF_MESSAGE_SIZE
+! print *,'sending to',pe1,offset_8,WINDEF_MESSAGE_SIZE
+! print *,win_tab(indx)%rank, offseti1, nelemi1, offseto1, nelemo1
     call MPI_put(message,WINDEF_MESSAGE_SIZE,MPI_INTEGER,pe1,offset_8,WINDEF_MESSAGE_SIZE,MPI_INTEGER,win_tab(indx)%win2, ierr2)  ! send "shopping list" to target pe
     call mpi_win_unlock(pe1, win_tab(indx)%win2, ierr2)
 
