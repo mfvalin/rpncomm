@@ -71,6 +71,7 @@ subroutine rpn_comm_test_001
     print *,'start one sided request/reply test'
     call RPN_COMM_i_win_req_test(nparams,params)
   endif
+  print *,'end of test(s)'
   call RPN_COMM_finalize(ierr)
   stop
 end
