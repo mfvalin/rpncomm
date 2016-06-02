@@ -151,7 +151,18 @@ module RPN_COMM_windows
     integer :: n   ! slot number
   end type slot
   integer, parameter :: WINDEF_SLOT_SIZE = 2     ! number of integers in type slot
- contains
+   interface
+    function c_malloc(siz) result (p) bind(C,name='malloc')
+      import C_SIZE_T, C_PTR
+      integer(C_SIZE_T), intent(IN), value :: siz
+      type(C_PTR) :: p
+    end function c_malloc
+    subroutine c_free(p) bind(C,name='free')
+      import C_PTR
+      type(C_PTR), intent(IN), value :: p
+    end subroutine c_free
+  end interface
+contains
 !****if* RPN_COMM_windows/init_win_tab
 ! SYNOPSIS
   subroutine init_win_tab
@@ -343,6 +354,7 @@ subroutine RPN_COMM_i_win_req_test(nparams,params)
   real, dimension(:), pointer :: request_reply1, request_reply2
   integer, dimension(:,:), pointer :: requests
   integer :: pe_from, pe_offset, pe_nwds 
+  real *8 t1, t2
 
   status = RPN_COMM_mype(Me,Me_x,Me_y)
   call RPN_COMM_size( RPN_COMM_GRID, npes ,ierr )
@@ -350,81 +362,77 @@ subroutine RPN_COMM_i_win_req_test(nparams,params)
   call RPN_COMM_i_datyp(RPN_COMM_INTEGER,dtype)
 
   allocate(pe(npes),offseti(npes), n_in(npes), offseto(npes), n_out(npes))
-  indx = 0
-  print *,'requests from PE',Me
+  nreq = 0
+  if(npes < 4) print *,'requests to PE(n) from PE',Me
   do i = 0 , npes-1
     if(i .ne. Me) then
-      indx = indx + 1
-      pe(indx) = i
-      offseti(indx) = (indx - 1) * REQUEST_SIZE
-      n_in(indx) = REQUEST_SIZE
-      offseto(indx) = npes*REQUEST_SIZE + (indx - 1) * REPLY_SIZE
-      n_out(indx) = REPLY_SIZE
-      print 100,indx,pe(indx),offseti(indx),n_in(indx),offseto(indx),n_out(indx)
+      nreq = nreq + 1
+      pe(nreq) = i
+      offseti(nreq) = (nreq - 1) * REQUEST_SIZE
+      n_in(nreq) = REQUEST_SIZE
+      offseto(nreq) = npes*REQUEST_SIZE + (nreq - 1) * REPLY_SIZE
+      n_out(nreq) = REPLY_SIZE
+      if(npes < 4) print 100,nreq,pe(nreq),offseti(nreq),n_in(nreq),offseto(nreq),n_out(nreq)
     endif
   enddo
-  nreq = indx
-!   print *,'number of requests =',nreq
 
   allocate(request_reply1(npes * (REPLY_SIZE + REQUEST_SIZE)))
   allocate(request_reply2(npes * (REPLY_SIZE + REQUEST_SIZE)))
   request_reply1 = 999.999
 
-  do i = 1 , nreq
+  do i = 1 , nreq                    ! requests
     request_reply1(2*i-1) = i+5*Me
     request_reply1(2*i) = i+1+5*Me
   enddo
 
-  indx = REQUEST_SIZE*nreq           ! start of reply area
   request_reply2 = request_reply1
   do i = 1 , nreq
-    a = request_reply1(2*i-1)
+    a = request_reply1(2*i-1)         ! requests
     b = request_reply1(2*i)
-    request_reply2(offseto(i) + 1) = a + b
+    request_reply2(offseto(i) + 1) = a + b       ! expected replies
     request_reply2(offseto(i) + 2) = a * b
     request_reply2(offseto(i) + 3)   = a*a + b*b
   enddo
-print 101,request_reply1
+  if(npes < 4) print 101,request_reply1
 101 format(15F8.1)
 
   call RPN_COMM_i_win_create(window, dtype, size(request_reply1), com, C_LOC(request_reply1(1)), ierr)
-  call RPN_COMM_i_win_create_secondary(window,npes,ierr)
+  call RPN_COMM_i_win_create_secondary(window,npes-1,ierr)   ! deliberately wrong allocation size
+  call RPN_COMM_i_win_create_secondary(window,-npes,ierr)    ! reallocate with correct size
 
   cptr = RPN_COMM_i_win_get_ptr(window,2,ierr)    ! get pointer to secondary window
   call c_f_pointer(cptr,requests,[5,npes])        ! fortran pointer to table of client requests
-!   print *,Me,'initial state of request table'
-!   do i = 1, npes
-!     print 100,i,requests(:,i)
-!   enddo
+  t1 = MPI_wtime()
   call RPN_COMM_i_win_open(window,.false.,ierr)   ! open in passive mode
-print *,'posting requests'
   call RPN_COMM_i_win_post(window,pe,offseti,n_in,offseto,n_out,nreq,ierr)  ! post requests
   call RPN_COMM_i_win_close(window,ierr)
+  t1 = MPI_wtime() - t1
 
   nreq2 = requests(1,1)
   print *,'number of requests received = ',nreq2-1
   do i = 2, npes
-    print 100,i,requests(:,i)
+    if(npes < 4) print 100,i,requests(:,i)
 100 format(I3,15I6)
   enddo
 
+  t2 = MPI_wtime()
   call RPN_COMM_i_win_open(window,.false.,ierr)   ! open in passive mode
   do i = 2 , nreq2
     pe_from   = requests(1,i)
     pe_offset = requests(2,i)
     pe_nwds   = requests(3,i)
-! print *,'GETr ',pe_from, pe_offset, pe_nwds
     call RPN_COMM_i_win_get_r(window,C_LOC(request),pe_from,pe_offset,pe_nwds,ierr)  ! get request (a,b)
     reply(1) = request(1) + request(2)     ! a + b
     reply(2) = request(1) * request(2)     ! a * b
     reply(3) = request(1)*request(1) + request(2)*request(2)  ! a*a + b*b
     pe_offset = requests(4,i)
     pe_nwds   = requests(5,i)
-print *,'request+reply :',pe_from,pe_offset,pe_nwds
-print 101,request,reply
+    if(npes < 4) print *,'request+reply :',pe_from,pe_offset,pe_nwds
+    if(npes < 4) print 101,request,reply
     call RPN_COMM_i_win_put_r(window,C_LOC(reply),pe_from,pe_offset,pe_nwds,ierr)  ! put reply (a+b , a*b, a*a+b*b)
   enddo
   call RPN_COMM_i_win_close(window,ierr)
+  t2 = MPI_wtime() - t2
 
   indx = 2*npes
   errors = 0
@@ -433,11 +441,14 @@ print 101,request,reply
   enddo
   call MPI_allreduce(errors,toterrors,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
   print *,"local errors, total errors =",errors,toterrors,indx+1 , indx+3*nreq
-print 101,request_reply1
-print 101,request_reply2
+  print 102,"time to post requests=",t1," time to reply=",t2
+102 format(A,F9.6,A,F9.6)
+  if(npes < 4) print 101,request_reply1
+  if(npes < 4) print 101,request_reply2
 
 999 continue
   deallocate(pe, offseti, n_in, offseto, n_out, request_reply1, request_reply2)
+  print *,"freeing window"
   call RPN_COMM_i_win_free(window,ierr)
   return
 end subroutine RPN_COMM_i_win_req_test
@@ -1680,13 +1691,14 @@ end subroutine RPN_COMM_i_win_post                                    !InTf!
 !InTf!
 !****f* rpn_comm/RPN_COMM_i_win_create_secondary create a one sided secondary communication window
 ! SYNOPSIS
-subroutine RPN_COMM_i_win_create_secondary(window,nslots,ierr)  !InTf!
+subroutine RPN_COMM_i_win_create_secondary(window,slots,ierr)  !InTf!
 !===============================================================================
 ! add one sided communication secondary window to existing window (user exposed interface)
 !===============================================================================
 !
 ! window (IN)      rpn_comm window type from call to RPN_COMM_i_win_create (see RPN_COMM_types.inc)
 ! slots  (IN)      number of message slots (max message targets)
+!                  slots < 0 means reallocate window with size abs(nslots)
 ! ierr   (OUT)     RPN_COMM_OK or RPN_COMM_ERROR will be returned
 !===============================================================================
 ! AUTHOR
@@ -1699,21 +1711,42 @@ subroutine RPN_COMM_i_win_create_secondary(window,nslots,ierr)  !InTf!
 ! ARGUMENTS
   integer, intent(OUT) :: ierr                                        !InTf!
   type(rpncomm_window), intent(IN) :: window                          !InTf!
-  integer, intent(IN) :: nslots                                       !InTf!
+  integer, intent(IN) :: slots                                        !InTf!
 !******
-  integer :: indx, extent, siz
+  integer :: indx, extent, siz, nslots
   integer(kind=MPI_ADDRESS_KIND) win_size  ! may be wider than a default integer
   type(rpncomm_request_message), dimension(:), pointer :: remote2  ! base translated as Fortran pointer to secondary array (messages)
   type(slot), dimension(:), pointer :: slottab
   integer :: ierr2
+  integer(C_SIZE_T) :: msize
 
+  nslots = abs(slots)
   ierr = RPN_COMM_ERROR
   if(.not. win_valid(window) ) return
 
   indx = window%t2
   if(C_ASSOCIATED(win_tab(indx)%base2)) then  ! secondary window exists
-    print *,'ERROR: secondary window already exists'
-    return
+    if(slots > 0) then
+      print *,'ERROR: secondary window already exists'
+      return
+    else
+      call MPI_win_free(win_tab(indx)%win2,ierr2)      ! free secondary window
+      if(ierr2 .ne. MPI_SUCCESS) then
+        print *,'ERROR: error freeing secondary window'
+      endif
+      call c_f_pointer(win_tab(indx)%base2,remote2,[win_tab(indx)%nbase2])
+      call MPI_free_mem(remote2,ierr2)                 ! free secondary window memory
+      win_tab(indx)%win2 = MPI_WIN_NULL                ! MPI null window
+!       print *,'DEBUG: deallocating slot table, size=',win_tab(indx)%nslots
+      call c_f_pointer(win_tab(indx)%slots,slottab,[win_tab(indx)%nslots])
+!       print *,slottab
+      call c_free(win_tab(indx)%slots)
+      win_tab(indx)%base2 = C_NULL_PTR
+      win_tab(indx)%nbase2 = 0
+!       deallocate(slottab)                              ! free slot table
+      win_tab(indx)%slots = C_NULL_PTR
+      win_tab(indx)%nslots = 0
+    endif
   endif
 
   call MPI_TYPE_EXTENT(MPI_INTEGER, extent, ierr2)  ! determine size associated with MPI integer
@@ -1734,12 +1767,17 @@ subroutine RPN_COMM_i_win_create_secondary(window,nslots,ierr)  !InTf!
     print *,'ERROR: creation of secondary window unsuccessful'
     return
   endif
-
-  allocate(slottab(nslots))   ! allocate slot table
-  win_tab(indx)%slots = C_LOC(slottab(1))
+!   print *,'INFO: allocated slot table, size=',nslots
+!   allocate(slottab(nslots))   ! allocate slot table
+  
+!   win_tab(indx)%slots = C_LOC(slottab(1))
+  msize = nslots*4*WINDEF_SLOT_SIZE
+  win_tab(indx)%slots = c_malloc(msize)
   win_tab(indx)%nslots = nslots
+  call c_f_pointer(win_tab(indx)%slots,slottab,[win_tab(indx)%nslots])
   slottab(1:nslots) = slot(-1,-1)
 
+!   if(slots < 0) print *,'INFO: reallocated secondary window'
   ierr = RPN_COMM_OK
   return
 end subroutine RPN_COMM_i_win_create_secondary                                  !InTf!
@@ -1829,12 +1867,14 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
   if(ierr2 .ne. MPI_SUCCESS) then
     print *,'ERROR: error freeing primary window'
   endif
+  if(debug_mode) print *,"DEBUG: freed primary window"
 
   if(win_tab(indx)%win2 .ne. MPI_WIN_NULL) then
     call MPI_win_free(win_tab(indx)%win2,ierr2)      ! free secondary window if it exists
     if(ierr2 .ne. MPI_SUCCESS) then
       print *,'ERROR: error freeing secondary window'
     endif
+    if(debug_mode) print *,"DEBUG: freed secondary window"
   endif
 
   if(.not. win_tab(indx)%is_user) then   ! internal storage allocation for primary window, release it
@@ -1844,6 +1884,7 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
       print *,'ERROR: error freeing primary window storage'
     endif
     win_tab(indx)%base = C_NULL_PTR
+    if(debug_mode) print *,"DEBUG: freed primary window storage"
   else
     ierr1 = MPI_SUCCESS
   endif
@@ -1855,14 +1896,15 @@ subroutine RPN_COMM_i_win_free(window,ierr)                           !InTf!
       print *,'ERROR: error freeing secondary window storage'
     endif
     win_tab(indx)%base2 = C_NULL_PTR
+    if(debug_mode) print *,"DEBUG: freed secondary window storage"
   endif
 
   if(C_ASSOCIATED(win_tab(indx)%slots)) then   ! internal storage allocation for message slots, release it if it exists
-    call c_f_pointer(win_tab(indx)%slots,slottab,[win_tab(indx)%nslots])
-    call MPI_free_mem(slottab,ierr1)
-    if(ierr1 .ne. MPI_SUCCESS) then
-      print *,'ERROR: error freeing slot table'
-    endif
+    call c_free(win_tab(indx)%slots)
+!     call c_f_pointer(win_tab(indx)%slots,slottab,[win_tab(indx)%nslots])
+!     deallocate(slottab)
+    win_tab(indx)%slots = C_NULL_PTR
+    if(debug_mode) print *,"DEBUG: freed slot table"
   endif
   win_tab(indx) = NULL_rpncomm_windef              ! blank entry
   win_tab(indx)%win  = MPI_WIN_NULL                ! MPI null window
