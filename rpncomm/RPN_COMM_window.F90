@@ -332,6 +332,8 @@ end module RPN_COMM_windows
 !===============================================================================
 ! test code for one sided request/reply window package
 !===============================================================================
+!****f* rpn_comm/DEMO demo code for one sided request/reply
+! SYNOPSIS
 subroutine RPN_COMM_i_win_req_test(nparams,params)
   use ISO_C_BINDING
   implicit none
@@ -405,7 +407,7 @@ subroutine RPN_COMM_i_win_req_test(nparams,params)
   t1 = MPI_wtime()
   call RPN_COMM_i_win_open(window,.false.,ierr)   ! open in passive mode
   call RPN_COMM_i_win_post(window,pe,offseti,n_in,offseto,n_out,nreq,ierr)  ! post requests
-  call RPN_COMM_i_win_close(window,ierr)
+  call RPN_COMM_i_win_close(window,ierr)          ! close window
   t1 = MPI_wtime() - t1
 
   nreq2 = requests(1,1)
@@ -431,7 +433,7 @@ subroutine RPN_COMM_i_win_req_test(nparams,params)
     if(npes < 4) print 101,request,reply
     call RPN_COMM_i_win_put_r(window,C_LOC(reply),pe_from,pe_offset,pe_nwds,ierr)  ! put reply (a+b , a*b, a*a+b*b)
   enddo
-  call RPN_COMM_i_win_close(window,ierr)
+  call RPN_COMM_i_win_close(window,ierr)          ! close window
   t2 = MPI_wtime() - t2
 
   indx = 2*npes
@@ -452,6 +454,7 @@ subroutine RPN_COMM_i_win_req_test(nparams,params)
   call RPN_COMM_i_win_free(window,ierr)
   return
 end subroutine RPN_COMM_i_win_req_test
+!******
 !===============================================================================
 ! test code for one sided communication window package
 !===============================================================================
