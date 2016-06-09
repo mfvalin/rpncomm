@@ -418,12 +418,13 @@ subroutine RPN_COMM_i_win_req_test(nparams,params)
   enddo
 
   t2 = MPI_wtime()
-  call RPN_COMM_i_win_open(window,.false.,ierr)   ! open in passive mode
   do i = 2 , nreq2
     pe_from   = requests(1,i)
     pe_offset = requests(2,i)
     pe_nwds   = requests(3,i)
+    call RPN_COMM_i_win_open(window,.false.,ierr)   ! open in passive mode
     call RPN_COMM_i_win_get_r(window,C_LOC(request),pe_from,pe_offset,pe_nwds,ierr)  ! get request (a,b)
+    call RPN_COMM_i_win_close(window,ierr)          ! close window
     reply(1) = request(1) + request(2)     ! a + b
     reply(2) = request(1) * request(2)     ! a * b
     reply(3) = request(1)*request(1) + request(2)*request(2)  ! a*a + b*b
@@ -431,9 +432,10 @@ subroutine RPN_COMM_i_win_req_test(nparams,params)
     pe_nwds   = requests(5,i)
     if(npes < 4) print *,'request+reply :',pe_from,pe_offset,pe_nwds
     if(npes < 4) print 101,request,reply
+    call RPN_COMM_i_win_open(window,.false.,ierr)   ! open in passive mode
     call RPN_COMM_i_win_put_r(window,C_LOC(reply),pe_from,pe_offset,pe_nwds,ierr)  ! put reply (a+b , a*b, a*a+b*b)
+    call RPN_COMM_i_win_close(window,ierr)          ! close window
   enddo
-  call RPN_COMM_i_win_close(window,ierr)          ! close window
   t2 = MPI_wtime() - t2
 
   indx = 2*npes
