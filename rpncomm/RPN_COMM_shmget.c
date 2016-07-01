@@ -21,7 +21,7 @@
         end function rpn_comm_shmget                          !InTf!
 #endif
 
-void *F_rpn_comm_shmget(int comm, unsigned int shm_size)  /* allocate a shared memory segment */
+void *F_rpn_comm_shmget(int comm, unsigned int shm_size)  /* allocate a shared memory segment ( < 2 GBytes ) */
 {
   size_t size=shm_size;                                   /* size of shared memory segment in bytes */
   int id;
