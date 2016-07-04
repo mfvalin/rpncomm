@@ -21,7 +21,6 @@
         end function rpn_comm_shmget                          !InTf!
 #endif
 
-
 void *C_rpn_comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate a shared memory segment */
 {
  MPI_Comm c_comm;

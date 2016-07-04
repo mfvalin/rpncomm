@@ -17,6 +17,27 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
+#define IN_RPN_COMM_init
+!===================================================================
+      module app_internals
+      use ISO_C_BINDING
+      implicit none
+      integer, save :: application_color = 0
+      integer, save :: rank_on_node = -1
+      integer, save :: node_rank_zero = -1                           ! communicator used by processes of rank 0 on SMP nodes
+      type(C_PTR), save :: internal_shared_mem = C_NULL_PTR
+      end module app_internals
+!InTf!
+      function RPN_COMM_app_color(new) result(old)                   !InTf!
+      use app_internals
+      implicit none                                                  !InTf!
+      integer, intent(IN) :: new                                     !InTf!
+      integer :: old                                                 !InTf!
+      old = application_color
+      if(new > 0) application_color = new
+      return
+      end function RPN_COMM_app_color                                !InTf!
+!===================================================================
 !InTf!
       subroutine RPN_COMM_mydomain (call_back, mydomain)             !InTf!
       use rpn_comm
@@ -108,7 +129,9 @@
       INTEGER FUNCTION RPN_COMM_init_multi_level&
      &      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids)
       use rpn_comm
+      use app_internals
       implicit none                                                  !InTf!
+#include "RPN_COMM_interfaces_int.inc"
       external :: Userinit                                           !InTf!
       integer, intent(out)   :: Pelocal,Petotal                      !InTf!
       integer, intent(inout) :: Pex,Pey                              !InTf!
@@ -142,8 +165,7 @@
       integer unit, ndom, lndom, nproc, procmax,procmin
       type(domm), allocatable, dimension(:) :: locdom
       logical ok, allok
-      logical RPN_COMM_grank
-      integer RPN_COMM_petopo, RPN_COMM_version
+      integer, external :: RPN_COMM_version
       character *4096 SYSTEM_COMMAND,SYSTEM_COMMAND_2
       character *256 , dimension(:), allocatable :: directories
       character *256 :: my_directory, my_directory_file
@@ -155,6 +177,8 @@
       integer pe_my_location(8)
       external RPN_COMM_unbind_process
       integer, external :: RPN_COMM_get_a_free_unit, RPN_COMM_set_timeout_alarm, fnom
+      integer :: my_host_id
+      integer, parameter :: INTERNAL_SHMEM_SIZE = 1024 * 1024   ! 1 MByte
 !
 !      if(RPM_COMM_IS_INITIALIZED) then ! ignore with warning message or abort ?
 !      endif
@@ -178,12 +202,27 @@
       unit = 5
       ok = .true.
 
+      status = RPN_COMM_set_timeout_alarm(60)   ! if initializing MPI takes more than 60 seconds, we have a problem
       call MPI_INITIALIZED(mpi_started,ierr)
-      status = RPN_COMM_set_timeout_alarm(60)
       if (.not. mpi_started ) call MPI_init(ierr)
       status = RPN_COMM_set_timeout_alarm(0)
-      pe_wcomm=WORLD_COMM_MPI      ! UNIVERSE at this point
-      call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)
+      call MPI_COMM_RANK(WORLD_COMM_MPI,pe_me,ierr)                               ! rank in "universe"
+
+      my_host_id = abs(f_gethostid())        ! coloring to find processes running on the same node
+      call MPI_COMM_split(WORLD_COMM_MPI,my_host_id,pe_me,pe_wcomm,ierr)          ! find all processes in "universe" on this SMP node
+      call MPI_COMM_RANK(pe_wcomm,rank_on_node,ierr)                              ! find rank on SMP node
+      call MPI_COMM_split(WORLD_COMM_MPI,rank_on_node,pe_me,node_rank_zero,ierr)
+      if(rank_on_node .ne. 0) node_rank_zero = MPI_COMM_NULL                      ! only useful between rank 0 on SMP nodes
+      call RPN_COMM_unbind_process ! unbind processes if needed (FULL_UNBIND environment variable)
+!       call RPN_COMM_rebind_processes(pe_wcomm)     ! place holder for process/thread rebinder (may supersede line above)
+!     get a shared memory segment to store some information that is identical for every process
+      internal_shared_mem = rpn_comm_shmget(pe_wcomm,INTERNAL_SHMEM_SIZE)
+!     add code to check that C_NULL_PTR was not returned
+
+      call MPI_COMM_split(WORLD_COMM_MPI,application_color,pe_me,pe_wcomm,ierr)   ! apply application "color", split "universe" as needed
+      WORLD_COMM_MPI = pe_wcomm                                                   ! WORLD_COMM_MPI/pe_wcomm is new "universe"
+
+      call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)                                     ! rank in "universe"
       if(pe_me == 0)then
         call RPN_COMM_env_var("RPN_COMM_MONITOR",SYSTEM_COMMAND)
         if(SYSTEM_COMMAND .ne. " ") then
@@ -194,7 +233,6 @@
         endif
       endif
       call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)
-      call RPN_COMM_unbind_process ! unbind processes if needed (FULL_UNBIND environment variable)
 
       version_marker=RPN_COMM_version()
 !     check that all participants use the same version of rpn_comm
@@ -211,7 +249,7 @@
 !!      call rpn_comm_softbarrier_init_all
 !       call resetenv   ! mpich1 will no longer work
 !
-      allocate(pe_location(8,0:pe_tot-1))
+      allocate(pe_location(8,0:pe_tot-1))    ! point instead to shared memory segment and adjust code accordingly
 
       pe_all_domains = pe_wcomm
       pe_me_all_domains = pe_me
@@ -310,7 +348,7 @@
         call MPI_COMM_SPLIT(WORLD_COMM_MPI,my_color, &       ! split using my color
      &                     pe_me,pe_wcomm,ierr)
         RPN_COMM_init_multi_level = my_color
-        call RPN_COMM_chdir(trim(my_directory))              ! cd to my directory
+        ierr = RPN_COMM_chdir(trim(my_directory))              ! cd to my directory
         if(diag_mode.ge.2)&
      &       write(rpn_u,*)"my directory is:",trim(my_directory)
         call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)               ! my rank
@@ -401,7 +439,7 @@
 !
 !     make communicator for PEs on same host
 !
-      my_color = abs(f_gethostid())  ! coloring by host identifier
+      my_color = my_host_id                                    ! coloring by host identifier
       call MPI_COMM_SPLIT(pe_grid,my_color,&
      &                    pe_me_grid,pe_grid_host,ierr)        ! same (sub)grid, same host node communicator
       call MPI_COMM_RANK(pe_grid_host,pe_me_grid_host,ierr)    ! my rank on this host
@@ -526,6 +564,8 @@
       pe_my_location(6) = my_colors(2)
       pe_my_location(7) = pe_me_a_domain
       pe_my_location(8) = my_colors(1)
+!     pe_location will end up in shared memory, after gather on world rank 0,
+!     then broadcast to rank 0 of each SMP node using communicator node_rank_zero
       call MPI_allgather(&
      &     pe_my_location,8,MPI_INTEGER,&
      &     pe_location,   8,MPI_INTEGER,WORLD_COMM_MPI,&
