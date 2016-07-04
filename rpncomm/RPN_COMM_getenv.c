@@ -45,4 +45,5 @@ int rpn_comm_getenv(char *name,char *value, int *length)
 {
   char *temp=getenv(name);
   if(temp != NULL) strncpy_(value,temp,(size_t) *length);
+  return (temp == NULL) ? -1 : 0;
 }

@@ -49,7 +49,7 @@ static int f_RPN_COMM_copy_1(int fd1, int fd2)  /* copy fd1 into fd2 (synchronou
 {
   char buffer[BUFSIZE];
   int nbytes;
-  int written, towrite, status;
+  int written, towrite;
 
   if(debug>=10) printf("copy 1: synchronous copy of fd %d onto fd %d\n",fd1,fd2);
   while( (nbytes = read(fd1,buffer,BUFSIZE)) > 0 ) {  /* loop until nothing to read */
@@ -62,7 +62,7 @@ static int f_RPN_COMM_copy_1(int fd1, int fd2)  /* copy fd1 into fd2 (synchronou
     }
     if(towrite != 0) break;  /* short write, error */
   }
-  if(debug>=10) printf("synchronous copy done, status=%d\n",status);
+  if(debug>=10) printf("synchronous copy done,\n");
   if(towrite != 0) return(-1);  /* short write, return an error */
   return (close(fd1) + close(fd2));  /*return compound status of close */
 }

@@ -132,6 +132,7 @@ MPI_Fint RPN_COMM_c2f( F_C_univ *in, int what) {
       return MPI_Comm_c2f(in->all.comm);
       break;
   }
+  return(-1) ; /* TODO check that -1 is a suitable return code */
 }
 
 void *RPN_COMM_f2c( MPI_Fint in, int what) {

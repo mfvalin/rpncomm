@@ -222,7 +222,7 @@
         integer :: ierr
         
 !        call MPI_type_get_extent(dtyp%t2,lb,extent,ierr)   ! computable extent ?
-        call MPI_type_extent(dtyp%t2,extent,ierr)   ! computable extent ?
+        call MPI_type_extent(dtyp%t2,extent2,ierr)   ! computable extent ?
         if (ierr .ne. MPI_SUCCESS) then
           extent = -1
         else
