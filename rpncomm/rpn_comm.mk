@@ -96,10 +96,10 @@ ssm-package:
 	    rpn-comm_$(RPN_COMM_version_s)_multi/src/.)
 	(cd $(VPATH) ; tar zcf rpn-comm_$(RPN_COMM_version_s)_multi.ssm rpn-comm_$(RPN_COMM_version_s)_multi)
 
-rpn_comm_fortran_stubs.F90: $(VPATH)/rpn_comm_stubs.sh
+rpn_comm_fortran_stubs.o: $(VPATH)/rpn_comm_stubs.sh
 	$(SHELL) $(VPATH)/rpn_comm_stubs.sh fortran
 
-rpn_comm_c_stubs.c: $(VPATH)/rpn_comm_stubs.sh
+rpn_comm_c_stubs.o: $(VPATH)/rpn_comm_stubs.sh
 	$(SHELL) $(VPATH)/rpn_comm_stubs.sh c
 
 $(STUB_LIBRARY): rpn_comm_fortran_stubs.o rpn_comm_c_stubs.o
