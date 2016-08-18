@@ -388,7 +388,7 @@ if [[ "$1" == c || "$1" == all ]] ; then
   cat <<EOT >rpn_comm_c_stubs.c
 #include <stdio.h>
 #include <stdlib.h>
-#include <mpi_stub.h>
+#include "mpi_stub.h"
 int MPI_Comm_rank(int comm, int *rank){
    *rank = 0;
    return(MPI_SUCCESS);
