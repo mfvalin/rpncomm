@@ -9,28 +9,34 @@ do
   echo "print 100,'#define $i ',$i" >>make_mpif_include.f90
 done
 cat <<EOT >>make_mpif_include.f90
-100 format(A,I4)
+100 format(A,I10)
 end program
 EOT
-s.f90 -mpi -o make_mpif_include make_mpif_include.f90
+#s.f90 -mpi -o make_mpif_include make_mpif_include.f90
+MPIRUN=mpirun
+Fortran="s.f90 -mpi"
+Ccompiler="s.cc -mpi"
+if which aprun 1>/dev/null 2>/dev/null ; then
+  MPIRUN=aprun
+  Fortran=ftn
+  Ccompiler=cc
+fi
+${Fortran} -o make_mpif_include make_mpif_include.f90
 rm -f make_mpif_include.f90
 if which poe 1>/dev/null 2>/dev/null ; then
   export MP_PROCS=1
   export MP_HOSTFILE=$TMPDIR/MP_HOSTFILE_$$
   echo localhost>$MP_HOSTFILE
   unset MP_LABELIO
-  ./make_mpif_include  >mpi_stub.h
+  ./make_mpif_include | grep '#define'  >mpi_stub.h
   rm -f $MP_HOSTFILE
 else
-  if which mpirun 1>/dev/null 2>/dev/null ; then
-     mpirun -n 1 ./make_mpif_include  >mpi_stub.h
-  else
-     echo "ERROR: neither mpirun nor poe found, aborting"
-     exit 1
-  fi
+  ${MPIRUN} -n 1 ./make_mpif_include | grep '#define' >mpi_stub.h
 fi
 rm -f make_mpif_include.f90 make_mpif_include
-[[ "$1" == fortran || "$1" == all ]] && echo "CREATING: rpn_comm_fortran_stubs.F90" && cat <<EOT >rpn_comm_fortran_stubs.F90
+if [[ "$1" == fortran || "$1" == all ]] ; then
+  echo "CREATING: rpn_comm_fortran_stubs.F90"
+  cat <<EOT >rpn_comm_fortran_stubs.F90
 #include "mpi_stub.h"
       subroutine MPI_abort
       write(6,*) 'MPI_abort is called, ABORT'
@@ -375,7 +381,11 @@ rm -f make_mpif_include.f90 make_mpif_include
       end
 !
 EOT
-[[ "$1" == c || "$1" == all ]] && echo "CREATING: rpn_comm_c_stubs.c" && cat <<EOT >rpn_comm_c_stubs.c
+  ${Fortran} -c rpn_comm_fortran_stubs.F90
+fi
+if [[ "$1" == c || "$1" == all ]] ; then
+  echo "CREATING: rpn_comm_c_stubs.c"
+  cat <<EOT >rpn_comm_c_stubs.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <mpi_stub.h>
@@ -400,6 +410,8 @@ int MPI_Allgather(void *outx, int nout, int outtype, void *inx, int nin, int int
    return(MPI_SUCCESS);
 }
 EOT
+  ${Ccompiler} -c rpn_comm_c_stubs.c
+fi
 if [[ "$1" == "none" ]] ; then
 echo "CREATING: rpn_comm_fortran_stubs.F90 and rpn_comm_c_stubs.c with NO stubs"
 cat <<EOT >rpn_comm_fortran_stubs.f90
@@ -407,9 +419,12 @@ cat <<EOT >rpn_comm_fortran_stubs.f90
       return
       end
 EOT
+  ${Fortran} -c rpn_comm_fortran_stubs.F90
 cat <<EOT >rpn_comm_c_stubs.c
 int no_mpi_c_stubs(){
    return(0);
 }
 EOT
+  ${Ccompiler} -c rpn_comm_c_stubs.c
 fi
+

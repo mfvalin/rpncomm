@@ -68,6 +68,7 @@ void MPI_mgi_closeall(void);
 int MPI_mgi_open(const char *channel_name,int server, int window_size);
 int MPI_mgi_read(int channel, unsigned char *data, unsigned char *dtyp, int nelm);
 int MPI_mgi_write(int channel, unsigned char *data, unsigned char *dtyp, int nelm);
+void *MPI_mgi_memptr(int channel);
 
 static int in_closeall = 0;
 
@@ -109,7 +110,7 @@ typedef struct{
 static MPI_mgi_channel mpi_channel_table[MAX_CHANNELS];
 static int last_mpi_channel=-1;
 
-void *MPI_mgi_channel_mem(int channel){
+void *MPI_mgi_memptr(int channel){
   if(channel >= MAX_CHANNELS) return NULL;
   return mpi_channel_table[last_mpi_channel].winbuf;
 }
