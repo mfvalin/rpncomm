@@ -27,7 +27,25 @@
           integer(C_INT), intent(IN), value :: size           !InTf!   ! size in bytes of shared memory area (if <0, split communicator to SMP node)
           type(C_PTR) :: where                                !InTf!   ! pointer to shared memory area
         end function rpn_comm_shmget                          !InTf!
+!InTf!
+        function rpn_comm_shmget_all(comm,size) result(where) bind(C,name='F_rpn_comm_shmget_all')    !InTf!
+        import C_INT, C_PTR                                   !InTf!
+        implicit none                                         !InTf!
+          integer(C_INT), intent(IN), value :: comm           !InTf!   ! Fortran communicator (all members MUST be on same SMP node if size > 0)
+          integer(C_INT), intent(IN), value :: size           !InTf!   ! size in bytes of shared memory area (if <0, split communicator to SMP node)
+          type(C_PTR) :: where                                !InTf!   ! pointer to shared memory area
+        end function rpn_comm_shmget                          !InTf!
+!InTf!
+        function rpn_comm_shmget_all_numa(comm,size) result(where) bind(C,name='F_rpn_comm_shmget_all_numa')    !InTf!
+        import C_INT, C_PTR                                   !InTf!
+        implicit none                                         !InTf!
+          integer(C_INT), intent(IN), value :: comm           !InTf!   ! Fortran communicator (all members MUST be on same SMP node if size > 0)
+          integer(C_INT), intent(IN), value :: size           !InTf!   ! size in bytes of shared memory area (if <0, split communicator to SMP node)
+          type(C_PTR) :: where                                !InTf!   ! pointer to shared memory area
+        end function rpn_comm_shmget                          !InTf!
 #endif
+
+static int myrank;
 
 void *C_rpn_comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate a shared memory segment */
 {
@@ -36,7 +54,7 @@ void *C_rpn_comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate 
   int id;
   struct shmid_ds shm_buf;
   void *ptr;
-  int ierr, myrank, myhost, myhost2;
+  int ierr, myhost, myhost2;
   
   myhost=gethostid();
   if(shm_size > 0){
@@ -83,12 +101,13 @@ void *C_rpn_comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate 
 }
 
 unsigned long long rdtscp(int *socket, int *processor);
-// all members of the c_comm_in communicator MUST be on same node (same hostid)
+static  int my_numa = 0;
+static  int my_core = 0;
+
+// all members of the c_comm_in communicator MUST be on the same node (same hostid)
 void *C_rpn_comm_shmget_numa(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate a shared memory segment by numa space */
 {
   MPI_Comm New_Comm = c_comm_in;
-  int my_numa = 0;
-  int my_core = 0;
   int status;
   unsigned long long dummy;
 
@@ -100,10 +119,46 @@ void *C_rpn_comm_shmget_numa(MPI_Comm c_comm_in, unsigned int shm_size)  /* allo
   return C_rpn_comm_shmget(New_Comm, shm_size);
 }
 
+// all members of the c_comm_in communicator need not be be on the same node (same hostid)
+void *C_rpn_comm_shmget_all(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate a shared memory segment by host */
+{
+  MPI_Comm New_Comm = c_comm_in;
+  int status;
+  unsigned long long dummy;
+  int hostid=gethostid();
+  int localrank, ierr;
+
+  hostid &= 0x7FFFFFFF;
+  ierr = MPI_Comm_rank(MPI_COMM_WORLD,&localrank);
+  status = MPI_Comm_split(c_comm_in,hostid,localrank,&New_Comm);  // split communicator c_comm_in by host to produce New_Comm
+  return C_rpn_comm_shmget(New_Comm, shm_size);
+}
+
+// all members of the c_comm_in communicator need not be be on the same node (same hostid)
+void *C_rpn_comm_shmget_all_numa(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate a shared memory segment by numa space */
+{
+  MPI_Comm New_Comm = c_comm_in;
+  int status;
+  unsigned long long dummy;
+  int hostid=gethostid();
+  int localrank, ierr;
+
+  hostid &= 0x7FFFFFFF;
+  ierr = MPI_Comm_rank(MPI_COMM_WORLD,&localrank);
+  status = MPI_Comm_split(c_comm_in,hostid,localrank,&New_Comm);  // split communicator c_comm_in by host to produce New_Comm
+  return C_rpn_comm_shmget_numa(New_Comm, shm_size);
+}
+
 void *F_rpn_comm_shmget(MPI_Fint f_comm, unsigned int shm_size)  /* allocate a shared memory segment */
 {
 //  MPI_Fint f_comm=comm;                                   /* all members of this communicator MUST be on same SMP node */
   return(C_rpn_comm_shmget(MPI_Comm_f2c(f_comm), shm_size));  /* translate Fortran communicator into C communicator before call */
+}
+
+void *F_rpn_comm_shmget_all(MPI_Fint f_comm, unsigned int shm_size)  /* allocate a shared memory segment */
+{
+//  MPI_Fint f_comm=comm;                                   /* all members of this communicator need not be on same SMP node */
+  return(C_rpn_comm_shmget_all(MPI_Comm_f2c(f_comm), shm_size));  /* translate Fortran communicator into C communicator before call */
 }
 
 void *F_rpn_comm_shmget_numa(MPI_Fint f_comm, unsigned int shm_size)  /* allocate a shared memory segment per  numa space*/
@@ -112,3 +167,29 @@ void *F_rpn_comm_shmget_numa(MPI_Fint f_comm, unsigned int shm_size)  /* allocat
   return(C_rpn_comm_shmget_numa(MPI_Comm_f2c(f_comm), shm_size));  /* translate Fortran communicator into C communicator before call */
 }
 
+void *F_rpn_comm_shmget_all_numa(MPI_Fint f_comm, unsigned int shm_size)  /* allocate a shared memory segment per  numa space*/
+{
+//  MPI_Fint f_comm=comm;                                   /* all members of this communicator need not be on same SMP node */
+  return(C_rpn_comm_shmget_all_numa(MPI_Comm_f2c(f_comm), shm_size));  /* translate Fortran communicator into C communicator before call */
+}
+
+#if defined(SELF_TEST)
+main(int argc, char **argv){
+//  int MPI_Init(int *argc, char ***argv)
+  int ierr;
+  int *sharedmem;
+  int localrank;
+  int hostid=gethostid();
+  MPI_Comm comm = MPI_COMM_WORLD;
+
+  ierr = MPI_Init(&argc, &argv);
+  ierr = MPI_Comm_rank(MPI_COMM_WORLD,&localrank);
+//   hostid &= 0x7FFFFFFF;
+//   ierr = MPI_Comm_split(MPI_COMM_WORLD,hostid,localrank,&comm);
+  sharedmem = (int *) C_rpn_comm_shmget_all_numa(comm,1024*1024);
+  if(myrank==0) sharedmem[0] = localrank + 100000;
+  ierr = MPI_Barrier(MPI_COMM_WORLD);
+  printf("Rank = %5.5d, Address = %p, contents = %d, core=%2.2d, numa=%d, hostid=%x\n",localrank,sharedmem,sharedmem[0],my_core,my_numa,hostid);
+  ierr = MPI_Finalize();
+}
+#endif

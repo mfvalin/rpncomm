@@ -19,7 +19,7 @@ unsigned long long rdtscp(int *socket, int *processor)  // get tsc/socket/proces
    return 0;
 #endif
 }
-#if defined(SELF_TEST)
+#if defined(SELF_TEST_1)
 int main(int argc, char **argv) {
   int socket, processor;
   socket = -1; processor = 01;
