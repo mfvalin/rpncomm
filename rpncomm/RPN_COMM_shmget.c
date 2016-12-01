@@ -26,7 +26,7 @@
           integer(C_INT), intent(IN), value :: comm           !InTf!   ! Fortran communicator (all members MUST be on same SMP node if size > 0)
           integer(C_INT), intent(IN), value :: size           !InTf!   ! size in bytes of shared memory area (if <0, split communicator to SMP node)
           type(C_PTR) :: where                                !InTf!   ! pointer to shared memory area
-        end function rpn_comm_shmget                          !InTf!
+        end function rpn_comm_shmget_numa                     !InTf!
 !InTf!
         function rpn_comm_shmget_all(comm,size) result(where) bind(C,name='F_rpn_comm_shmget_all')    !InTf!
         import C_INT, C_PTR                                   !InTf!
@@ -34,7 +34,7 @@
           integer(C_INT), intent(IN), value :: comm           !InTf!   ! Fortran communicator (all members MUST be on same SMP node if size > 0)
           integer(C_INT), intent(IN), value :: size           !InTf!   ! size in bytes of shared memory area (if <0, split communicator to SMP node)
           type(C_PTR) :: where                                !InTf!   ! pointer to shared memory area
-        end function rpn_comm_shmget                          !InTf!
+        end function rpn_comm_shmget_all                      !InTf!
 !InTf!
         function rpn_comm_shmget_all_numa(comm,size) result(where) bind(C,name='F_rpn_comm_shmget_all_numa')    !InTf!
         import C_INT, C_PTR                                   !InTf!
@@ -42,7 +42,7 @@
           integer(C_INT), intent(IN), value :: comm           !InTf!   ! Fortran communicator (all members MUST be on same SMP node if size > 0)
           integer(C_INT), intent(IN), value :: size           !InTf!   ! size in bytes of shared memory area (if <0, split communicator to SMP node)
           type(C_PTR) :: where                                !InTf!   ! pointer to shared memory area
-        end function rpn_comm_shmget                          !InTf!
+        end function rpn_comm_shmget_all_numa                 !InTf!
 #endif
 
 static int myrank;
