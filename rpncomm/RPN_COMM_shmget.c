@@ -19,6 +19,14 @@
           integer(C_INT), intent(IN), value :: size           !InTf!   ! size in bytes of shared memory area (if <0, split communicator to SMP node)
           type(C_PTR) :: where                                !InTf!   ! pointer to shared memory area
         end function rpn_comm_shmget                          !InTf!
+!InTf!
+        function rpn_comm_shmget_numa(comm,size) result(where) bind(C,name='F_rpn_comm_shmget_numa')    !InTf!
+        import C_INT, C_PTR                                   !InTf!
+        implicit none                                         !InTf!
+          integer(C_INT), intent(IN), value :: comm           !InTf!   ! Fortran communicator (all members MUST be on same SMP node if size > 0)
+          integer(C_INT), intent(IN), value :: size           !InTf!   ! size in bytes of shared memory area (if <0, split communicator to SMP node)
+          type(C_PTR) :: where                                !InTf!   ! pointer to shared memory area
+        end function rpn_comm_shmget                          !InTf!
 #endif
 
 void *C_rpn_comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate a shared memory segment */
@@ -74,9 +82,33 @@ void *C_rpn_comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate 
   return ptr;                                        /* return pointer tio shared memory area */
 }
 
+unsigned long long rdtscp(int *socket, int *processor);
+// all members of the c_comm_in communicator MUST be on same node (same hostid)
+void *C_rpn_comm_shmget_numa(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate a shared memory segment by numa space */
+{
+  MPI_Comm New_Comm = c_comm_in;
+  int my_numa = 0;
+  int my_core = 0;
+  int status;
+  unsigned long long dummy;
+
+#if defined(__x86_64__) &&  defined(__linux__)
+  dummy = rdtscp(&my_numa, &my_core);  // on non X86 systems, per numaspace becomes per node
+#endif
+  // step 1, split communicator c_comm_in by numa space to produce New_Comm
+  status = MPI_Comm_split(c_comm_in,my_numa,my_core,&New_Comm);
+  return C_rpn_comm_shmget(New_Comm, shm_size);
+}
+
 void *F_rpn_comm_shmget(MPI_Fint f_comm, unsigned int shm_size)  /* allocate a shared memory segment */
 {
 //  MPI_Fint f_comm=comm;                                   /* all members of this communicator MUST be on same SMP node */
   return(C_rpn_comm_shmget(MPI_Comm_f2c(f_comm), shm_size));  /* translate Fortran communicator into C communicator before call */
+}
+
+void *F_rpn_comm_shmget_numa(MPI_Fint f_comm, unsigned int shm_size)  /* allocate a shared memory segment per  numa space*/
+{
+//  MPI_Fint f_comm=comm;                                   /* all members of this communicator MUST be on same SMP node */
+  return(C_rpn_comm_shmget_numa(MPI_Comm_f2c(f_comm), shm_size));  /* translate Fortran communicator into C communicator before call */
 }
 
