@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <string.h>
+#include <malloc.h>
 
 // the following 3 routines are temporarily static and will have to be moved to their own source file
 static int MPI_mgi_Unpublish_name(const char *service_name, MPI_Info info, const char *port_name);
@@ -94,13 +95,16 @@ typedef struct{
 } arena;
 
 typedef struct{
-  char *channel_name;     // character string used to refer to channel by name
+  char *channel_name;     // full channel name
   char *port_name;        // MPI port name (from MPI_Open_port)
+  char *alias1;
+  char *alias2;
   arena *winbuf;          // local one sided window memory address   (local memory arena)
   MPI_Win window;         // one sided MPI window communicator
   MPI_Comm global, local; // inter-communicator, intra-communicator, both expected to have same size membership (2 members) 
   int is_server;          // 0 for client, 1 for server
   int is_active;          // 1 if active, 0 if inactive
+  int winsize;            // window size in KBytes
   int thispe;             // my rank in intra-communicator for this channel
   int otherpe;            // rank of remote process in intra-communicator for this channel
   arena remote;           // copy of memory arena control parameters from remote end
@@ -161,6 +165,56 @@ void MPI_mgi_closeall(void)  // close all channels
 }
 
 //
+// secondary init, MUST BE CALLED ONLY BY A RANK 0 PROCESS
+//
+static int init_2_called = 0;
+void MPI_mgi_init_2(void)
+{
+  if(init_2_called) return ; // active only once, called by MPI_mgi_open
+  init_2_called = 1;
+  return ;
+}
+
+//
+// this function MUST BE CALLED ONLY BY A RANK 0 PROCESS
+//
+// server       0 for client, 1 for server (must not be the same at both ends)
+//
+int MPI_mgi_init(int server)
+{
+  char *port_name;
+  char *cfg;
+  char prefix[257];
+  int i, status;
+
+  cfg = getenv("MGI_MPI_CFG");
+  if(cfg == NULL) return -1;    // no config found
+  sscanf(cfg,"%256s%d",prefix,&last_mpi_channel);  // get name prefix and number of MPI channels
+  last_mpi_channel--;      // origin 0
+  for(i=0 ; i<=last_mpi_channel ; i++) {    // get size, alias1, alias2 for all channels, build channel name
+    while(*cfg != ':') {                    // skip to : delimiter
+      if(*cfg == '\0') return(-1);          // premature termination of configuration string
+      cfg++;
+    }
+    cfg++;
+    mpi_channel_table[i].channel_name = (char *) malloc(257);
+    memset(mpi_channel_table[i].channel_name,0,257);
+    mpi_channel_table[i].alias1 = (char *) malloc(33);
+    memset(mpi_channel_table[i].alias1,0,33);
+    mpi_channel_table[i].alias2 = (char *) malloc(33);
+    memset(mpi_channel_table[i].alias2,0,33);
+    mpi_channel_table[i].winsize = 0;
+    sscanf(cfg,"%d%32s%32s",&mpi_channel_table[i].winsize,mpi_channel_table[i].alias1,mpi_channel_table[i].alias2);
+    snprintf(mpi_channel_table[i].channel_name,257,"%s_%d",prefix,i);
+  }
+  for(i=0 ; i<=last_mpi_channel ; i++) {
+    status = MPI_Open_port(MPI_INFO_NULL, port_name);    // create port, get port name
+    if(status != MPI_SUCCESS) return (-1);
+    MPI_mgi_Publish_name(mpi_channel_table[i].channel_name, MPI_INFO_NULL, port_name);   // publish it under name channel_name
+  }
+  return (0);
+}
+//
 // this function MUST BE CALLED ONLY BY A RANK 0 PROCESS
 //
 // channel_name character string used to refer to the communication channel
@@ -181,6 +235,8 @@ int MPI_mgi_open(const char *channel_name,int server, int window_size)
   int data_start ;
   arena *arenaptr;
   int otherpe;
+
+  MPI_mgi_init_2();
 
   if(last_mpi_channel >= MAX_CHANNELS-1) return -1;  // control table is full
   if(window_size < 1024) return -1;                  // window obviously too small
