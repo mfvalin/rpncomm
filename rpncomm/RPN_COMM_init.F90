@@ -216,7 +216,7 @@
       call RPN_COMM_unbind_process ! unbind processes if needed (FULL_UNBIND environment variable)
 !       call RPN_COMM_rebind_processes(pe_wcomm)     ! place holder for process/thread rebinder (may supersede line above)
 !     get a shared memory segment to store some information that is identical for every process
-      internal_shared_mem = rpn_comm_shmget(pe_wcomm,INTERNAL_SHMEM_SIZE)
+      internal_shared_mem = rpn_comm_shm_ptr( rpn_comm_shmget(pe_wcomm,INTERNAL_SHMEM_SIZE) )
 !     add code to check that C_NULL_PTR was not returned
 
       call MPI_COMM_split(WORLD_COMM_MPI,application_color,pe_me,pe_wcomm,ierr)   ! apply application "color", split "universe" as needed

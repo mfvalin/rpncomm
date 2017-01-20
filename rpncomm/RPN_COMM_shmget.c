@@ -11,13 +11,16 @@
 /* because they return a C pointer and have value type arguments */
 
 #ifdef MUST_NEVER_BE_TRUE
+        integer, parameter :: BY_HOST = 0
+        integer, parameter :: BY_NUMA = 1
+        integer, parameter :: BY_SOCKET = 1
 !InTf!
         function rpn_comm_shmget(comm,size) result(tag) bind(C,name='F_rpn_comm_shmget')    !InTf!
         import C_INT                                          !InTf!
         implicit none                                         !InTf!
           integer(C_INT), intent(IN), value :: comm           !InTf!   ! Fortran communicator
           integer(C_INT), intent(IN), value :: size           !InTf!   ! size in bytes of shared memory area
-          type(C_INT) :: tag                                  !InTf!   ! tag of shared memory area
+          integer(C_INT) :: tag                               !InTf!   ! tag of shared memory area
         end function rpn_comm_shmget                          !InTf!
 !InTf!
         function rpn_comm_shmget_numa(comm,size) result(tag) bind(C,name='F_rpn_comm_shmget_numa')    !InTf!
@@ -25,8 +28,29 @@
         implicit none                                         !InTf!
           integer(C_INT), intent(IN), value :: comm           !InTf!   ! Fortran communicator
           integer(C_INT), intent(IN), value :: size           !InTf!   ! size in bytes of shared memory area
-          type(C_INT) :: tag                                  !InTf!   ! tag of shared memory area
+          integer(C_INT) :: tag                               !InTf!   ! tag of shared memory area
         end function rpn_comm_shmget_numa                     !InTf!
+!InTf!
+        function rpn_comm_shm_rank(tag) result(rank) bind(C,name='rpn_comm_shm_rank')   !InTf!
+        import C_INT                                          !InTf!
+        implicit none                                         !InTf!
+          integer(C_INT), intent(IN), value :: tag            !InTf!   ! shared memory area tag (from shmget)
+          integer(C_INT) :: rank                              !InTf!   ! rank in communicator associated with tag
+        end function rpn_comm_shm_rank                        !InTf!
+!InTf!
+        function rpn_comm_shm_mode(tag) result(mode) bind(C,name='rpn_comm_shm_mode')   !InTf!
+        import C_INT                                          !InTf!
+        implicit none                                         !InTf!
+          integer(C_INT), intent(IN), value :: tag            !InTf!   ! shared memory area tag (from shmget)
+          integer(C_INT) :: mode                              !InTf!   ! mode (numa/node) associated with tag
+        end function rpn_comm_shm_mode                        !InTf!
+!InTf!
+        function rpn_comm_shm_ptr(tag) result(mem) bind(C,name='rpn_comm_shm_ptr')   !InTf!
+        import C_INT, C_PTR                                   !InTf!
+        implicit none                                         !InTf!
+          integer(C_INT), intent(IN), value :: tag            !InTf!   ! shared memory area tag (from shmget)
+          type(C_PTR) :: mem                                  !InTf!   ! pointer associated with tag
+        end function rpn_comm_shm_ptr                         !InTf!
 #endif
 
 #define MAX_SHARED_SEGMENTS 128
