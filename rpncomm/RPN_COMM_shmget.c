@@ -31,6 +31,13 @@
           integer(C_INT) :: tag                               !InTf!   ! tag of shared memory area
         end function rpn_comm_shmget_numa                     !InTf!
 !InTf!
+        function rpn_comm_shm_comm(tag) result(comm) bind(C,name='rpn_comm_shm_fcomm')   !InTf!
+        import C_INT                                          !InTf!
+        implicit none                                         !InTf!
+          integer(C_INT), intent(IN), value :: tag            !InTf!   ! shared memory area tag (from shmget)
+          integer(C_INT) :: comm                              !InTf!   ! Fortran communicator associated with tag
+        end function rpn_comm_shm_comm                        !InTf!
+!InTf!
         function rpn_comm_shm_rank(tag) result(rank) bind(C,name='rpn_comm_shm_rank')   !InTf!
         import C_INT                                          !InTf!
         implicit none                                         !InTf!
@@ -53,11 +60,10 @@
         end function rpn_comm_shm_ptr                         !InTf!
 #endif
 
-#define MAX_SHARED_SEGMENTS 128
+#define MAX_SEGMENT_COMMS 16
 static int shared_segments_max_index=-1;
 static struct {
   struct {
-    void *mem;
     MPI_Comm base;     // base communicator
     MPI_Comm node;     // node communicator
     MPI_Comm numa;     // numa communicator
@@ -70,18 +76,17 @@ static struct {
     int numa;
     int node0;
     int numa0;
-    int tag;
-    int mode;
   } ord;
-//   struct {
-//     int base;
-//     int node;
-//     int numa;
-//     int node0;
-//     int numa0;
-//   } pop;
-}table[MAX_SHARED_SEGMENTS];
-static int myhostid = -1;
+}com_table[MAX_SEGMENT_COMMS];      // table of communicators used for shared memory tag_table
+
+#define MAX_SHARED_SEGMENTS 128
+static int last_shared_segment = -1;
+static struct {
+  void *mem;       // address of shared memory segment
+  int tag;         // shared memory segment tag
+  short mode;      // BY_HOST/BY_NUMA/BY_SOCKET
+  short slot;      // slot in communicator table 
+} tag_table[MAX_SHARED_SEGMENTS];     // shared memory tag table
 
 static long long now = 0;
 #if defined(__x86_64__) &&  defined(__linux__)
@@ -105,48 +110,71 @@ static unsigned long long RDTSCP(int *socket, int *processor)  // get tsc/socket
 }
 #endif
 
-static int slot_lookup(int tag){       // find tag in table
+static int ptr_lookup(void *ptr){       // find memory pointer in tag_table
   int i;
 
-  for (i = 0 ; i <= shared_segments_max_index ; i++) {
-    if(table[i].ord.tag == tag) return(i);   // found in table, return index
+  for (i = 0 ; i <= last_shared_segment ; i++) {
+    if(tag_table[i].mem == ptr) return(i);   // found in tag_table, return index
   }
-  return(-1);                                 // not found in table, return -1
+  return(-1);                                 // not found in tag_table, return -1
 }
 
-static int comm_lookup(MPI_Comm com){       // find communicator in table
+static int tag_lookup(int tag){       // find tag in tag_table
+  int i;
+
+  for (i = 0 ; i <= last_shared_segment ; i++) {
+    if(tag_table[i].tag == tag) return(i);   // found in tag_table, return index
+  }
+  return(-1);                                 // not found in tag_table, return -1
+}
+
+static int comm_lookup(MPI_Comm com){       // find communicator in com_table
   int i;
 
   for (i = 0 ; i <= shared_segments_max_index ; i++) {
-    if(table[i].com.base == com) return(i);   // found in table, return index
+    if(com_table[i].com.base == com) return(i);   // found in com_table, return index
   }
-  if (shared_segments_max_index >= MAX_SHARED_SEGMENTS-1) return(-1);  // OOPS, table is full
-  return(shared_segments_max_index+1);                  // not found in table, table not full, return index of free slot
+  if (shared_segments_max_index >= MAX_SEGMENT_COMMS-1) return(-1);  // OOPS, com_table is full
+  return(shared_segments_max_index+1);                  // not found in com_table, com_table not full, return index of free slot
 }
 
 #define BY_HOST    0
 #define BY_SOCKET  1
 #define BY_NUMA    1
 
+MPI_Comm rpn_comm_shm_comm(int tag){   // get rank in communicator associated with this shared memory segment
+  int slot ;
+  slot = tag_lookup(tag);
+  if(slot <0 ) return (MPI_COMM_NULL);
+  return tag_table[slot].mode == BY_NUMA ? 
+         com_table[tag_table[slot].slot].com.numa : 
+         com_table[tag_table[slot].slot].com.node ;
+}
+int rpn_comm_shm_fcomm(int tag){
+  return MPI_Comm_c2f(rpn_comm_shm_comm(tag));
+}
+
 int rpn_comm_shm_rank(int tag){   // get rank in communicator associated with this shared memory segment
   int slot ;
-  slot = slot_lookup(tag);
+  slot = tag_lookup(tag);
   if(slot <0 ) return (-1);
-  return table[slot].ord.mode == BY_NUMA ? table[slot].ord.numa : table[slot].ord.node ;
+  return tag_table[slot].mode == BY_NUMA ? 
+         com_table[tag_table[slot].slot].ord.numa : 
+         com_table[tag_table[slot].slot].ord.node ;
 }
 
 int rpn_comm_shm_mode(int tag){   // get mode associated with this shared memory segment tag
   int slot ;
-  slot = slot_lookup(tag);
+  slot = tag_lookup(tag);
   if(slot <0 ) return (-1);
-  return table[slot].ord.mode ;
+  return tag_table[slot].mode ;
 }
 
 void *rpn_comm_shm_ptr(int tag){   // get pointer associated with this shared memory segment tag
   int slot ;
-  slot = slot_lookup(tag);
+  slot = tag_lookup(tag);
   if(slot <0 ) return (NULL);
-  return table[slot].com.mem ;
+  return tag_table[slot].mem ;
 }
 
 // mode can be either BY_HOST or BY_NUMA or BY_SOCKET
@@ -161,9 +189,13 @@ static int C_rpn_comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size, int mode
   int current_slot, my_numa, my_core;
   unsigned long long dummy;
 
+  if(last_shared_segment >= MAX_SHARED_SEGMENTS) {
+    fprintf(stderr,"ERROR: (rpn_comm_shmget) shared segment address table full \n");
+    return -1;    /* error, possibly fatal */
+  }
   current_slot = comm_lookup(c_comm_in);
   if(current_slot == -1){
-    fprintf(stderr,"ERROR: (rpn_comm_shmget) shared segments table full \n");
+    fprintf(stderr,"ERROR: (rpn_comm_shmget) shared segment communicator table full \n");
     return -1;    /* error, possibly fatal */
   }
   myhost = gethostid();
@@ -171,40 +203,40 @@ static int C_rpn_comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size, int mode
   myhost1 = (myhost >> 31) & 0x1 ; // sign bit
   if(current_slot > shared_segments_max_index) {   // new slot, populate it
 
-    table[current_slot].com.base = c_comm_in ;     // base communicator
+    com_table[current_slot].com.base = c_comm_in ;     // base communicator
     ierr = MPI_Comm_rank(c_comm_in,&myrank0) ;     // rank in base communicator
-    table[current_slot].ord.base = myrank0 ;
+    com_table[current_slot].ord.base = myrank0 ;
 
     ierr = MPI_Comm_split(c_comm_in,myhost0,myrank0,&t_comm) ;  // split base using lower 31 bits of host id , weight=rank in base
     ierr = MPI_Comm_split(t_comm   ,myhost1,myrank0,&c_comm) ;  // re split using upper bit of host id , weight=rank in base
-    table[current_slot].com.node = c_comm ;        // intra node communicator
+    com_table[current_slot].com.node = c_comm ;        // intra node communicator
     ierr = MPI_Comm_rank(c_comm,&myrank) ;         // rank in intra node communicator
-    table[current_slot].ord.node = myrank ;
+    com_table[current_slot].ord.node = myrank ;
 
     ierr = MPI_Comm_split(c_comm_in,myrank,myrank0,&c_comm2) ; // split base into noderoots, color=rank in node,  weight=rank in base
-    table[current_slot].com.node0 = c_comm2 ;      // node roots (rank 0) communicator
+    com_table[current_slot].com.node0 = c_comm2 ;      // node roots (rank 0) communicator
     ierr = MPI_Comm_rank(c_comm2,&myrank2) ;       // rank in above group
-    table[current_slot].ord.node0 = myrank2 ;
+    com_table[current_slot].ord.node0 = myrank2 ;
 
     dummy = RDTSCP(&my_numa, &my_core);  // on non X86 systems, per numaspace becomes per node
 
     ierr = MPI_Comm_split(c_comm_in,my_numa,myrank0,&c_comm) ;  // split node into numa spaces, color=numa (my_numa), weight=rank in base
-    table[current_slot].com.numa = c_comm ;    // intra numa communicator
+    com_table[current_slot].com.numa = c_comm ;    // intra numa communicator
     ierr = MPI_Comm_rank(c_comm,&myrank) ;       // rank in intra numa communicator
-    table[current_slot].ord.numa = myrank ;
+    com_table[current_slot].ord.numa = myrank ;
 
     ierr = MPI_Comm_split(c_comm_in,myrank,myrank0,&c_comm2) ; // split base into numaroots, color=rank in numa,  weight=rank in base
-    table[current_slot].com.numa0 = c_comm2;   // numa roots (rank 0) communicator
+    com_table[current_slot].com.numa0 = c_comm2;   // numa roots (rank 0) communicator
     ierr = MPI_Comm_rank(c_comm2,&myrank2) ;     // rank in above group
-    table[current_slot].ord.numa0 = myrank2;
+    com_table[current_slot].ord.numa0 = myrank2;
   }
 
   if (mode == BY_HOST) {                      // get appropriate communicator for operatio
-    c_comm = table[current_slot].com.node ;
-    myrank = table[current_slot].ord.node ;
+    c_comm = com_table[current_slot].com.node ;
+    myrank = com_table[current_slot].ord.node ;
   }else{
-    c_comm = table[current_slot].com.numa ;
-    myrank = table[current_slot].ord.numa ;
+    c_comm = com_table[current_slot].com.numa ;
+    myrank = com_table[current_slot].ord.numa ;
   }
 //
 // at this point, 
@@ -243,11 +275,13 @@ static int C_rpn_comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size, int mode
     return -1;                                     /* error, possibly fatal */
     }
 // bump shared_segments_max_index if new entry
-  table[current_slot].com.mem = ptr ;
-  table[current_slot].ord.tag = id ;
-  table[current_slot].ord.mode = mode;
-  shared_segments_max_index = (shared_segments_max_index < current_slot) ?current_slot  : shared_segments_max_index;
-  return id;                                        /* return pointer to shared memory area */
+  last_shared_segment++ ;
+  tag_table[last_shared_segment].mem  = ptr;
+  tag_table[last_shared_segment].tag  = id;
+  tag_table[last_shared_segment].mode = mode;
+  tag_table[last_shared_segment].slot = current_slot;
+  shared_segments_max_index = (shared_segments_max_index < current_slot) ? current_slot  : shared_segments_max_index;
+  return id;                                        /* return id of shared memory area */
 }
 /*=================================== start of user callable functions =============================================*/
 int rpn_comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size)  /* allocate a shared memory segment by SMP node */
@@ -292,7 +326,7 @@ main(int argc, char **argv){
 //   tag = rpn_comm_shmget_numa(comm,1024*1024);
   tag = rpn_comm_shmget(comm,1024*1024);
   sharedmem = rpn_comm_shm_ptr(tag) ;
-  myrank = table[0].ord.numa ;
+  myrank = com_table[0].ord.numa ;
   if(myrank==0) sharedmem[0] = localrank + 110000;
   ierr = MPI_Barrier(MPI_COMM_WORLD);
   dummy = RDTSCP(&my_numa, &my_core);  // on non X86 systems, per numaspace becomes per node
