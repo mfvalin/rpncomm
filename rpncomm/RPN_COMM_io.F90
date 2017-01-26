@@ -169,13 +169,25 @@ integer function RPN_COMM_file_copy_start(name1,name2)  ! start asynchronous fil
 end function RPN_COMM_file_copy_start
 
 integer function RPN_COMM_file_bcst(name,com)
+  use iso_c_binding
+  implicit none
+  character (len=*), intent(IN) :: name   ! name of the file to replicate
+  integer, intent(IN) :: com              ! communicator
+  integer, external :: RPN_COMM_files_bcst
+
+  RPN_COMM_file_bcst = RPN_COMM_files_bcst(name,name,com)
+
+  return
+end function RPN_COMM_file_bcst
+
+integer function RPN_COMM_files_bcst(name,lname,com)
 !
 ! replicate a file across all the hosts in a communication domain
 ! PE 0 of domain reads the file in chunks and broadcasts the chunks and their length
-! one PE per host then writes the chunk into the file ( except PE 0 on hos hosts)
+! one PE per host then writes the chunk into the new file ( except PE 0 if local name is the same as source file name)
 !
 ! this function is normally called after PE 0 has read the file from shared storage and written it to 
-! fast local storage on its host
+! fast local storage on its host if lname = name
 !
 ! this is deemed more efficient than having all processes reading the same file on shared storage
 ! there will be a few processes on the same host reading the same local file subsequently
@@ -183,7 +195,8 @@ integer function RPN_COMM_file_bcst(name,com)
   use iso_c_binding
   use rpn_comm_io
   implicit none
-  character (len=*), intent(IN) :: name   ! name of the file to replicate
+  character (len=*), intent(IN) :: name   ! name of the file to replicate ("slow" shared storage)
+  character (len=*), intent(IN) :: lname  ! name of the replica (normally written to fast local storage)
   integer, intent(IN) :: com              ! communicator
 
   interface
@@ -196,7 +209,7 @@ integer function RPN_COMM_file_bcst(name,com)
 
   integer(C_LONG_LONG), parameter :: NW8 = 1024*1024
   integer, dimension(0:NW8), target :: buf  ! 4 MegaByte buffer
-  integer :: fd, status, rank, rank_on_host, ierr, my_color, same_host, errors, sum_errors
+  integer :: fdi, fdo, status, rank, rank_on_host, ierr, my_color, same_host, errors, sum_errors
   integer(C_LONG_LONG) :: nwr, nww
 
   call mpi_comm_rank(com,rank,ierr)                         ! my rank in communicator
@@ -205,43 +218,50 @@ integer function RPN_COMM_file_bcst(name,com)
   call mpi_comm_rank(same_host,rank_on_host,ierr)           ! my rank on host
 
   errors = 0
-  fd = 0   ! must initialize because some PEs may not call open
+  fdi = 0   ! must initialize because some PEs may not call open
+  fdo = 0   ! must initialize because some PEs may not call open
   if(rank == 0) then
-    fd = rpn_comm_open(name,0)   ! PE 0, open for read (file MUST exist)
-    if(rpn_comm_io_debug) print 111,"rank=",rank," read  fd=",fd," file=",trim(name)," hostid=",my_color
+    fdi = rpn_comm_open(name,0)   ! PE 0, open for read (file MUST exist)
+    if(trim(lname) /= trim(name)) fdo = rpn_comm_open(name,1)
+    if(rpn_comm_io_debug) print 111,"rank=",rank," read  fd=",fdi," file=",trim(name)," hostid=",my_color
   else if(rank_on_host ==0) then ! open for write, one process per host, but not if same host as PE 0
-    fd = rpn_comm_open(name,1) 
-    if(rpn_comm_io_debug) print 111,"rank=",rank," write fd=",fd," file=",trim(name)," hostid=",my_color
+    fdo = rpn_comm_open(name,1) 
+    if(rpn_comm_io_debug) print 111,"rank=",rank," write fd=",fdo," file=",trim(name)," hostid=",my_color
   else                           ! nothing to do on this PE
-    if(rpn_comm_io_debug) print 111,"rank=",rank," noop  fd=",fd," file=",trim(name)," hostid=",my_color
+    if(rpn_comm_io_debug) print 111,"rank=",rank," noop  fd=",-1," file=",trim(name)," hostid=",my_color
   endif
-  if(fd < 0) errors = errors + 1
+  if(fdi < 0 .or. fdo < 0) errors = errors + 1
   call mpi_allreduce(errors,sum_errors,1,MPI_INTEGER,MPI_SUM,com,ierr)  !  get global eror count
-  if(sum_errors > 0) goto 999  ! on open failed somewhere
+  if(sum_errors > 0) goto 999  ! an open failed somewhere
 
   nwr = 1
   do while(nwr > 0)
-    if(rank == 0) buf(0) = rpn_comm_read(fd,c_loc(buf(1)),NW8*4)   ! PE ranked at 0 reads 
-    call mpi_bcast(buf,NW8+1,MPI_INTEGER,0,com,ierr)     ! and broadcasts (this is lazy, but intra host broadcast deemed cheap)
+    if(rank == 0) buf(0) = rpn_comm_read(fdi,c_loc(buf(1)),NW8*4)   ! PE ranked at 0 reads 
+    call mpi_bcast(buf,NW8+1,MPI_INTEGER,0,com,ierr)               ! and broadcasts (this is lazy)
     nwr = buf(0)                                                   ! valid everywhere after broadcast
-    nww = buf(0)                                                   ! needed for PEs that do not write to no get errors
+    nww = buf(0)                                                   ! needed for PEs that do not write to get errors
+    if(rank == 0 .and. trim(lname) /= trim(name)) then
+      if(rpn_comm_io_debug) print 111,"DEBUG: rank no",rank," writing"
+      nww = rpn_comm_write(fdo,c_loc(buf(1)),nwr)  ! one PE per node writes
+    endif
     if(rank /= 0 .and. rank_on_host == 0 .and. nwr > 0) then
       if(rpn_comm_io_debug) print 111,"DEBUG: rank no",rank," writing"
-      nww = rpn_comm_write(fd,c_loc(buf(1)),nwr)  ! one PE per node writes
+      nww = rpn_comm_write(fdo,c_loc(buf(1)),nwr)  ! one PE per node writes
     endif
     if(nww /= nwr) errors = errors + 1                             ! not everything written, OOPS
   enddo
   call mpi_allreduce(errors,sum_errors,1,MPI_INTEGER,MPI_SUM,com,ierr)  ! OOPS anywhere ?
-  if(sum_errors > 0) goto 999  ! on open failed somewhere
+  if(sum_errors > 0) goto 999  ! something failed somewhere
 
-  status = rpn_comm_close(fd)
-  RPN_COMM_file_bcst = status
+  if(fdi > 0) status = rpn_comm_close(fdi)
+  if(fdo > 0) status = rpn_comm_close(fdo)
+  RPN_COMM_files_bcst = status
   return
 
 111 format(A,I4,A,I4,A,A,A,Z9)
 999 continue   ! error exception
-  if(rank == 0) print 111,"ERROR: RPN_COMM_file_bcst errors =", sum_errors," rank =",rank
-  RPN_COMM_file_bcst = sum_errors
+  if(rank == 0) print 111,"ERROR: RPN_COMM_files_bcst errors =", sum_errors," rank =",rank
+  RPN_COMM_files_bcst = sum_errors
   return
 
-end function RPN_COMM_file_bcst
+end function RPN_COMM_files_bcst
