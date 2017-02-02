@@ -405,8 +405,8 @@ main(int argc, char **argv){
 //   hostid &= 0x7FFFFFFF;
 //   ierr = MPI_Comm_split(MPI_COMM_WORLD,hostid,localrank,&comm);
 //   tag = RPN_Comm_shmget_numa(comm,1024*1024);
-  tag = RPN_Comm_shmget(comm,1024*1024);
-  sharedmem = RPN_Comm_shm_ptr(tag) ;
+  tag = RPN_Comm_shmget_numa(comm,1024*1024);
+  sharedmem = (int *)RPN_Comm_shm_ptr(tag) ;
   myrank = com_table[0].ord.numa ;
   if(myrank==0) sharedmem[0] = localrank + 110000;
   ierr = MPI_Barrier(MPI_COMM_WORLD);

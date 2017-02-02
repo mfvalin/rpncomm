@@ -6,6 +6,54 @@
 #include <fcntl.h>
 #include <pthread.h>
 
+/*
+!  interfaces for use by Fortran code
+  integer(C_INT) function c_rpn_comm_unlink(name) BIND(C,name='f_RPN_COMM_unlink')  ! interface to libc open function  !InTf!
+    import :: C_PTR, C_INT                                           !InTf!
+    type(C_PTR), value :: name                                       !InTf!
+  end function c_rpn_comm_unlink                                     !InTf!
+
+  integer(C_INT) function c_rpn_comm_open(name, mode) BIND(C,name='f_RPN_COMM_open')  ! interface to libc open function  !InTf!
+    import :: C_INT, C_PTR                                           !InTf!
+    integer(C_INT), intent(IN), value :: mode                        !InTf!
+    type(C_PTR), value :: name                                       !InTf!
+  end function c_rpn_comm_open                                       !InTf!
+
+  integer(C_LONG_LONG) function rpn_comm_read(fd,buffer,nbytes) BIND(C,name='f_RPN_COMM_read')  ! interface to libc read function  !InTf!
+    import :: C_INT, C_PTR, C_LONG_LONG                              !InTf!
+    integer(C_INT), intent(IN), value :: fd                          !InTf!
+    integer(C_LONG_LONG), intent(IN), value :: nbytes                !InTf!
+    type(C_PTR), value :: buffer                                     !InTf!
+  end function rpn_comm_read                                         !InTf!
+
+  integer(C_LONG_LONG) function rpn_comm_write(fd,buffer,nbytes) BIND(C,name='f_RPN_COMM_write')  ! interface to libc write function  !InTf!
+    import :: C_INT, C_PTR, C_LONG_LONG                              !InTf!
+    integer(C_INT), intent(IN), value :: fd                          !InTf!
+    integer(C_LONG_LONG), intent(IN), value :: nbytes                !InTf!
+    type(C_PTR), value :: buffer                                     !InTf!
+  end function rpn_comm_write                                        !InTf!
+
+  integer(C_INT) function rpn_comm_close(fd) BIND(C,name='f_RPN_COMM_close')  ! interface to libc close function  !InTf!
+    import :: C_INT                                                  !InTf!
+    integer(C_INT), intent(IN), value :: fd                          !InTf!
+  end function rpn_comm_close                                        !InTf!
+
+  integer(C_LONG_LONG) function rpn_comm_file_size(fd) BIND(C,name='f_RPN_COMM_file_size')  ! via libc fstat function  !InTf!
+    import :: C_INT, C_LONG_LONG                                     !InTf!
+    integer(C_INT), intent(IN), value :: fd                          !InTf!
+  end function rpn_comm_file_size                                    !InTf!
+
+  integer(C_INT) function rpn_comm_wait(id) BIND(C,name='f_RPN_COMM_wait') ! wait for asynchronous copy with tag = id to terminate  !InTf!
+    import :: C_INT                                                  !InTf!
+    integer(C_INT), intent(IN), value :: id                          !InTf!
+  end function rpn_comm_wait                                         !InTf!
+
+  integer(C_INT) function rpn_comm_copy(fd1,fd2,asynchronous) BIND(C,name='f_RPN_COMM_copy')  ! C descriptor copy, possibly asunchronous  !InTf!
+    import :: C_INT                                                  !InTf!
+    integer(C_INT), intent(IN), value :: fd1,fd2,asynchronous        !InTf!
+  end function rpn_comm_copy                                         !InTf!
+*/
+
 int f_RPN_COMM_unlink(const char *pathname)  /* libc unlink interface for Fortran */
 {
   return ( unlink(pathname) ) ;
@@ -35,6 +83,13 @@ long long f_RPN_COMM_write(int fd, void *buf, long long Count)  /* libc write in
 int f_RPN_COMM_close(int fd)  /* libc close interface for Fortran */
 {
   return(close(fd));
+}
+
+long long f_RPN_COMM_file_size(int fd)  /* libc close interface for Fortran */
+{
+  struct stat fstatus;
+  int status = fstat(fd, &fstatus);
+  return(fstatus.st_size);
 }
 
 #define BUFSIZE 1024*1024*4
