@@ -428,6 +428,74 @@ function RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_i, 
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           .false.,.false.,status)
 end function RPN_COMM_shuf_ezdist
+function RPN_COMM_shuf_ezdist_hxy(setno, grid_id, global, dnk, local, lnk, liste_i, liste_o, hx, hy) result (status)
+! important notes:
+!      it is the caller's responsibility to ensure that liste_o is properly initialized to .false. 
+!      before calling the distribute function
+  use rpn_comm
+  implicit none
+#include <RPN_COMM_interfaces_int.inc>
+  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
+  integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
+  integer, intent(IN) :: dnk                       ! number of levels to distribute
+  integer, intent(IN) :: lnk                       ! number of levels in the "local" array
+  integer, intent(IN) :: hx                        ! halo in the x direction
+  integer, intent(IN) :: hy                        ! halo in the y direction
+  integer, intent(IN), dimension(*)     :: global
+  integer, intent(OUT), dimension(*)    :: local
+  integer, intent(IN), dimension(dnk)   :: liste_i ! needed only on IO Pes, list of levels to distribute
+  logical, intent(INOUT), dimension(lnk):: liste_o ! liste_o(k) will be set to .true. if level k received
+  integer :: status                                ! RPN_COMM_OK or RPN_COMM_ERROR
+!
+  integer, dimension(pe_nx)    :: start_x ! PE (i-1,any) points start at start_x(i) in global space (X direction)
+  integer, dimension(pe_nx)    :: count_x ! PE (i-1,any) contains count_x(i) points in the X direction
+  integer, dimension(pe_ny)    :: start_y ! PE (any,j-1) points start at start_y(j) in global space (Y direction)
+  integer, dimension(pe_ny)    :: count_y ! PE (any,j-1) contains count_y(j) points in the Y direction
+  integer :: gni,gnj                      ! horizontal dimensions of the "global" array
+  integer :: mini,maxi,minj,maxj          ! horizontal dimensions of the "local" array
+
+  status = rpn_comm_get_2dgrid(grid_id,pe_nx,pe_ny,gni,gnj, mini,maxi,minj,maxj,start_x,count_x,start_y,count_y)
+!   print *,'DEBUG: rpn_comm_get_2dgrid',mini,maxi,minj,maxj
+!
+  if(status .ne. RPN_COMM_OK) then
+    status = RPN_COMM_ERROR
+    return
+  endif
+
+  gni = gni + 2 * hx
+  gnj = gnj + 2 * hy
+  if(pe_mex == 0) then
+    mini = mini + hx
+    maxi = maxi + hx
+  endif
+  if(pe_mex == pe_nx-1) then
+    mini = mini + hx
+    maxi = maxi + hx
+  endif
+  if(pe_mey == 0) then
+    minj = minj + hy
+    maxj = maxj + hy
+  endif
+  if(pe_mey == pe_ny-1) then
+    minj = minj + hy
+    maxj = maxj + hy
+  endif
+
+  count_x(1) = count_x(1) + hx
+  count_x(pe_nx) = count_x(pe_nx) + hx
+  if(pe_nx > 1) start_x(2:pe_nx) = start_x(2:pe_nx) + hy
+
+  count_y(1) = count_y(1) + hy
+  count_y(pe_ny) = count_y(pe_ny) + hy
+  if(pe_ny > 1) start_y(2:pe_ny) = start_y(2:pe_ny) + hy
+
+  call RPN_COMM_shuf_dist(setno,  &
+                          global,gni,gnj,dnk,  &
+                          local,mini,maxi,minj,maxj,lnk,  &
+                          liste_i,liste_o,  &
+                          start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
+                          .false.,.false.,status)
+end function RPN_COMM_shuf_ezdist_hxy
 !====================================================================================
 !! integer, external :: RPN_COMM_shuf_ezcoll  !InTfX!   ! best interface we can provide for the time being
 function RPN_COMM_shuf_ezcoll(setno, grid_id, global, dnk, local, lnk, liste_o) result (status)
