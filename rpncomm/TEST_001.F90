@@ -130,6 +130,7 @@ subroutine RPN_COMM_shm_test(nparams,params)
   integer, intent(IN), dimension(nparams) :: params
 
   type(C_PTR) :: my_ptr
+  integer(C_INT) :: my_tag
   integer, parameter :: ni=80
   integer, parameter :: nj=40
   integer, parameter :: nk=62
@@ -137,7 +138,8 @@ subroutine RPN_COMM_shm_test(nparams,params)
   integer, dimension(:,:,:,:), pointer :: array
 
   siz = ni*nj*nk*4*pe_tot_grid_host
-  my_ptr = rpn_comm_shmget(pe_grid_host , siz)
+  my_tag = rpn_comm_shmget(pe_grid_host , siz)
+  my_ptr = rpn_comm_shm_ptr(my_tag)
   if( .not. c_associated(my_ptr) ) then
     print *,'ERROR: shared segment creation failed'
   else
