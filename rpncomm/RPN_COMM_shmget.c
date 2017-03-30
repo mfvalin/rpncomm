@@ -42,7 +42,7 @@
           integer(C_INT) :: tag                               !InTf!   ! tag of shared memory area
         end function RPN_Comm_shmget_numa                     !InTf!
 !InTf!
-        function RPN_Comm_shm_comm(tag) result(comm) bind(C,name='RPN_Comm_shm_fcomm')   !InTf!
+        function RPN_Comm_shm_comm(tag) result(comm) bind(C,name='F_RPN_Comm_shm_comm')   !InTf!
         import C_INT                                          !InTf!
         implicit none                                         !InTf!
           integer(C_INT), intent(IN), value :: tag            !InTf!   ! shared memory area tag (from shmget)
@@ -69,6 +69,14 @@
           integer(C_INT), intent(IN), value :: tag            !InTf!   ! shared memory area tag (from shmget)
           type(C_PTR) :: mem                                  !InTf!   ! pointer associated with tag
         end function RPN_Comm_shm_ptr                         !InTf!
+!InTf!
+        function RPN_Comm_shm_alloc(tag,size) result(mem) bind(C,name='RPN_Comm_shm_alloc')   !InTf!
+        import C_INT, C_PTR                                   !InTf!
+        implicit none                                         !InTf!
+          integer(C_INT), intent(IN), value :: tag            !InTf!   ! shared memory area tag (from shmget)
+          integer(C_INT), intent(IN), value :: size           !InTf!   ! size to allocate
+          type(C_PTR) :: mem                                  !InTf!   ! pointer associated with tag
+        end function RPN_Comm_shm_alloc                       !InTf!
 #endif
 
 #define MAX_SEGMENT_COMMS 16
@@ -94,10 +102,12 @@ static struct {
 static int last_shared_segment = -1;
 static struct {
   void *mem;       // address of shared memory segment
+  int *top;        // address of last allocated area
   int tag;         // shared memory segment tag
   int mode;        // BY_HOST/BY_NUMA/BY_SOCKET
   int slot;        // slot in communicator table 
-  int size;        // size of memory segment
+  int size;        // size of memory segment, in "int" units
+  int used;        // allocated space in segment (same units as size)
 } tag_table[MAX_SHARED_SEGMENTS];     // shared memory tag table
 
 static long long now = 0;
@@ -164,7 +174,7 @@ MPI_Comm RPN_Comm_shm_comm(int tag){   // get communicator associated with this 
          com_table[tag_table[slot].slot].com.node ;
 }
 // Fortran interface, translates fortran communicator into c communicator
-int RPN_Comm_shm_fcomm(int tag){
+int F_RPN_Comm_shm_comm(int tag){
   return MPI_Comm_c2f(RPN_Comm_shm_comm(tag));
 }
 
@@ -189,6 +199,18 @@ void *RPN_Comm_shm_ptr(int tag){   // get pointer associated with this shared me
   slot = tag_lookup(tag);
   if(slot <0 ) return (NULL);
   return tag_table[slot].mem ;
+}
+
+int *RPN_Comm_shm_alloc(int tag, int size){   // get pointer to new allocated space associated with this tag
+  int slot ;
+  int *current ;
+  slot = tag_lookup(tag);
+  if(slot <0 ) return (NULL);
+  current = (int *)tag_table[slot].top ;
+  if(tag_table[slot].used + size > tag_table[slot].size) return NULL;  // not enough space, error
+  tag_table[slot].used += size ;    // update used
+  tag_table[slot].top += size ;     // update top
+  return current ;                  // return previous top
 }
 
 // broadcast a slice of a shared memory segment
@@ -356,10 +378,12 @@ static int C_RPN_Comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size, int mode
 // update tag table, bump last_shared_segment
   last_shared_segment++ ;
   tag_table[last_shared_segment].mem  = ptr;
+  tag_table[last_shared_segment].top  = (int *) ptr;
   tag_table[last_shared_segment].tag  = id;
   tag_table[last_shared_segment].mode = mode;
   tag_table[last_shared_segment].slot = current_slot;
   tag_table[last_shared_segment].size = shm_size;
+  tag_table[last_shared_segment].used = 0;    // nothing "allocated" in segment yet
 // bump shared_segments_max_index if new entry
   shared_segments_max_index = (shared_segments_max_index < current_slot) ? current_slot  : shared_segments_max_index;
   return id;                                        /* return id of shared memory area */
