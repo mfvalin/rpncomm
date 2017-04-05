@@ -390,6 +390,7 @@ end subroutine RPN_COMM_io_dist_coll_test
 !====================================================================================
 !! integer, external :: RPN_COMM_shuf_ezdist  !InTfX!   ! best interface we can provide for the time being
 function RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_i, liste_o) result (status)
+! distribute global array(gni,gnj) into local arrays(mini:maxi,minj:maxj) using precomputed distribution pattern
 ! important notes:
 !      it is the caller's responsibility to ensure that liste_o is properly initialized to .false. 
 !      before calling the distribute function
@@ -428,7 +429,9 @@ function RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_i, 
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           .false.,.false.,status)
 end function RPN_COMM_shuf_ezdist
+!====================================================================================
 function RPN_COMM_shuf_ezdist_hxy(setno, grid_id, global, dnk, local, lnk, liste_i, liste_o, hx, hy) result (status)
+! distribute global array that has extra data (gni+2hx,gni+2hy) using distribution info from (gni,gnj) array
 ! important notes:
 !      it is the caller's responsibility to ensure that liste_o is properly initialized to .false. 
 !      before calling the distribute function
@@ -439,10 +442,10 @@ function RPN_COMM_shuf_ezdist_hxy(setno, grid_id, global, dnk, local, lnk, liste
   integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
   integer, intent(IN) :: dnk                       ! number of levels to distribute
   integer, intent(IN) :: lnk                       ! number of levels in the "local" array
-  integer, intent(IN) :: hx                        ! halo in the x direction
-  integer, intent(IN) :: hy                        ! halo in the y direction
-  integer, intent(IN), dimension(*)     :: global
-  integer, intent(OUT), dimension(*)    :: local
+  integer, intent(IN) :: hx                        ! halo in the x direction (automatic if <0)
+  integer, intent(IN) :: hy                        ! halo in the y direction (automatic if <0)
+  integer, intent(IN), dimension(*)     :: global  ! global array to be distributed
+  integer, intent(OUT), dimension(*)    :: local   ! local array ro receive data (including halo)
   integer, intent(IN), dimension(dnk)   :: liste_i ! needed only on IO Pes, list of levels to distribute
   logical, intent(INOUT), dimension(lnk):: liste_o ! liste_o(k) will be set to .true. if level k received
   integer :: status                                ! RPN_COMM_OK or RPN_COMM_ERROR
@@ -464,30 +467,25 @@ function RPN_COMM_shuf_ezdist_hxy(setno, grid_id, global, dnk, local, lnk, liste
 
   gni = gni + 2 * hx
   gnj = gnj + 2 * hy
-  if(pe_mex == 0) then
-    mini = mini + hx   ! if mini + hx > 1 , OUCH !!
+  if(pe_mex == 0) then      ! bump array bound by halo for first PE
+    mini = mini + hx
     maxi = maxi + hx
   endif
-!   if(pe_mex == pe_nx-1 .and. pe_mex .ne. 0) then
-!     mini = mini + hx
-!     maxi = maxi + hx
-!   endif
-  if(pe_mey == 0) then
-    minj = minj + hy   ! if minj + hy > 1 , OUCH !!
+  if(mini + hx > 1) return   ! OOPS,  halo is too large
+
+  if(pe_mey == 0) then      ! bump array bound by halo for first PE
+    minj = minj + hy
     maxj = maxj + hy
   endif
-!   if(pe_mey == pe_ny-1 .and. pe_mey .ne. 0) then
-!     minj = minj + hy
-!     maxj = maxj + hy
-!   endif
+  if(minj + hy > 1) return   ! OOPS, halo is too large
 
-  count_x(1) = count_x(1) + hx
-  count_x(pe_nx) = count_x(pe_nx) + hx
-  if(pe_nx > 1) start_x(2:pe_nx) = start_x(2:pe_nx) + hy
+  count_x(1) = count_x(1) + hx          ! first PE gets more data points
+  count_x(pe_nx) = count_x(pe_nx) + hx  ! and so does last PE
+  if(pe_nx > 1) start_x(2:pe_nx) = start_x(2:pe_nx) + hy  ! on all but 1st PE, bump starting point from global array by halo
 
-  count_y(1) = count_y(1) + hy
-  count_y(pe_ny) = count_y(pe_ny) + hy
-  if(pe_ny > 1) start_y(2:pe_ny) = start_y(2:pe_ny) + hy
+  count_y(1) = count_y(1) + hy          ! first PE gets more data points
+  count_y(pe_ny) = count_y(pe_ny) + hy  ! and so does last PE
+  if(pe_ny > 1) start_y(2:pe_ny) = start_y(2:pe_ny) + hy  ! on all but 1st PE, bump starting point from global array by halo
 
   call RPN_COMM_shuf_dist_hxy(setno,  &
                           global,gni,gnj,dnk,  &
@@ -536,74 +534,6 @@ function RPN_COMM_shuf_ezcoll(setno, grid_id, global, dnk, local, lnk, liste_o) 
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           status)
 end function RPN_COMM_shuf_ezcoll
-! ! same as RPN_COMM_shuf_ezcoll but with global halo
-! function RPN_COMM_shuf_ezcoll_hxy(setno, grid_id, global, dnk, local, lnk, liste_o, hx, hy) result (status)
-! ! important notes:
-! !      it is the caller's responsibility to ensure that liste_o is properly initialized to negative 
-! !      numbers before calling the collect function
-!   use rpn_comm
-!   implicit none
-! #include <RPN_COMM_interfaces_int.inc>
-!   integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
-!   integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
-!   integer, intent(IN) :: dnk                       ! number of levels to collect
-!   integer, intent(IN) :: lnk                       ! number of levels in the "local" array
-!   integer, intent(IN) :: hx                        ! halo in the x direction
-!   integer, intent(IN) :: hy                        ! halo in the y direction
-!   integer, intent(OUT), dimension(*)   :: global
-!   integer, intent(IN), dimension(*)    :: local
-!   integer, intent(OUT), dimension(dnk) :: liste_o  ! is set to k when 2D array level k has been received
-!   integer :: status                                ! RPN_COMM_OK or RPN_COMM_ERROR
-! !
-!   integer, dimension(pe_nx)    :: start_x ! PE (i-1,any) points start at start_x(i) in global space (X direction)
-!   integer, dimension(pe_nx)    :: count_x ! PE (i-1,any) contains count_x(i) points in the X direction
-!   integer, dimension(pe_ny)    :: start_y ! PE (any,j-1) points start at start_y(j) in global space (Y direction)
-!   integer, dimension(pe_ny)    :: count_y ! PE (any,j-1) contains count_y(j) points in the Y direction
-!   integer :: gni,gnj                      ! horizontal dimensions of the "global" array
-!   integer :: mini,maxi,minj,maxj          ! horizontal dimensions of the "local" array
-! 
-!   status = rpn_comm_get_2dgrid(grid_id,pe_nx,pe_ny,gni,gnj, mini,maxi,minj,maxj,start_x,count_x,start_y,count_y)
-! !   print *,'DEBUG: rpn_comm_get_2dgrid',mini,maxi,minj,maxj
-! !
-!   if(status .ne. RPN_COMM_OK) then
-!     status = RPN_COMM_ERROR
-!     return
-!   endif
-! 
-!   gni = gni + 2 * hx
-!   gnj = gnj + 2 * hy
-!   if(pe_mex == 0) then
-!     mini = mini + hx
-!     maxi = maxi + hx
-!   endif
-!   if(pe_mex == pe_nx-1) then
-!     mini = mini + hx
-!     maxi = maxi + hx
-!   endif
-!   if(pe_mey == 0) then
-!     minj = minj + hy
-!     maxj = maxj + hy
-!   endif
-!   if(pe_mey == pe_ny-1) then
-!     minj = minj + hy
-!     maxj = maxj + hy
-!   endif
-! 
-!   count_x(1) = count_x(1) + hx
-!   count_x(pe_nx) = count_x(pe_nx) + hx
-!   if(pe_nx > 1) start_x(2:pe_nx) = start_x(2:pe_nx) + hy
-! 
-!   count_y(1) = count_y(1) + hy
-!   count_y(pe_ny) = count_y(pe_ny) + hy
-!   if(pe_ny > 1) start_y(2:pe_ny) = start_y(2:pe_ny) + hy
-! 
-!   call RPN_COMM_shuf_coll(setno,  &
-!                           global,gni,gnj,dnk,  &
-!                           local,mini,maxi,minj,maxj,lnk,  &
-!                           liste_o,  &
-!                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
-!                           status)
-! end function RPN_COMM_shuf_ezcoll_hxy
 !====================================================================================
 !
 ! distribute dnk 2D arrays, destination is dnk of lnk 2D plane of local 3D array
@@ -663,6 +593,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
   logical, intent(OUT), dimension(lnk)  :: liste_o ! liste_o(k) will be set to .true. if level k received
   logical, intent(IN) :: periodx,periody           ! periodicity along X or Y ( periody MUST be .false. for this version)
   integer, intent(OUT) :: status                   ! RPN_COMM_OK or RPN_COMM_ERROR
+  ! set hx and hy to -1 to use automatic implied halo mode
   call   RPN_COMM_shuf_dist_hxy(setno,  &
                               global,gni,gnj,dnk,  &
                               local,mini,maxi,minj,maxj,lnk,  &
@@ -825,18 +756,18 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     lni = count_x(pe_mex)                     ! useful number of points on local tile
     lnj = count_y(pe_mey)
     ! =====================================================================================
-    ! on North PEs, maxj = lnj is OK ; on East PEs, maxi = lni is OK
+    ! on North PEs, maxj = lnj is OK ; on East PEs, maxi = lni is OK (non periodic assumed)
     ! =====================================================================================
-    maxi_min = lni+halox     ! all but East PEs where maxi == lni is OK
-    if(pe_mex == pe_nx - 1)  maxi_min = lni
-    maxj_min = lnj+haloy     ! all but North PEs where maxj == lnj is OK
-    if(pe_mey == pe_ny - 1)  maxj_min = lnj
-!   if(maxi < lni+halox .or. maxj < lnj+haloy) then   ! not necessary on North and East PEs
+    maxi_min = lni+halox     ! all but East PEs where maxi == lni is OK if not periodic
+    if(pe_mex == pe_nx - 1 .and. .not. periodx)  maxi_min = lni
+    maxj_min = lnj+haloy     ! all but North PEs where maxj == lnj is OK if not periodic
+    if(pe_mey == pe_ny - 1 .and. .not. periody)  maxj_min = lnj
     if(maxi < maxi_min .or. maxj < maxj_min) then
       print 101,"ERROR: upper bound of array too small to accomodate halo"
       print 101,"mini,maxi,lni,minj,maxj,lnj",mini,maxi,lni,minj,maxj,lnj
       return  ! OOPS, upper bound cannot accomodate halo
     endif
+
     do i = 1 , npes
       if(pe_mex == pe_x(i)) then
         on_column = .true.                       ! there is an IO PE on the column (and only one)

@@ -70,13 +70,13 @@
           type(C_PTR) :: mem                                  !InTf!   ! pointer associated with tag
         end function RPN_Comm_shm_ptr                         !InTf!
 !InTf!
-        function RPN_Comm_shm_alloc(tag,size) result(mem) bind(C,name='RPN_Comm_shm_alloc')   !InTf!
+        function RPN_Comm_shm_malloc(tag,size) result(mem) bind(C,name='RPN_Comm_shm_malloc')   !InTf!
         import C_INT, C_PTR                                   !InTf!
         implicit none                                         !InTf!
           integer(C_INT), intent(IN), value :: tag            !InTf!   ! shared memory area tag (from shmget)
           integer(C_INT), intent(IN), value :: size           !InTf!   ! size to allocate
           type(C_PTR) :: mem                                  !InTf!   ! pointer associated with tag
-        end function RPN_Comm_shm_alloc                       !InTf!
+        end function RPN_Comm_shm_malloc                       !InTf!
 #endif
 
 #define MAX_SEGMENT_COMMS 16
@@ -201,7 +201,7 @@ void *RPN_Comm_shm_ptr(int tag){   // get pointer associated with this shared me
   return tag_table[slot].mem ;
 }
 
-int *RPN_Comm_shm_alloc(int tag, int size){   // get pointer to new allocated space associated with this tag
+int *RPN_Comm_shm_malloc(int tag, int size){   // get pointer to new allocated space associated with this tag
   int slot ;
   int *current ;
   slot = tag_lookup(tag);
