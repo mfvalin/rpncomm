@@ -66,9 +66,9 @@ int at_MPI_Finalize(fptr callback);
  */
 
 int MPI_mgi_close(int channel);
-int MPI_mgi_init(void);
+int MPI_mgi_init(const char *alias);
 void MPI_mgi_closeall(void);
-int MPI_mgi_open(const char *channel_name);
+int MPI_mgi_open(const char *channel_name, char *mode);
 int MPI_mgi_read(int channel, unsigned char *data, unsigned char *dtyp, int nelm);
 int MPI_mgi_write(int channel, unsigned char *data, unsigned char *dtyp, int nelm);
 void *MPI_mgi_memptr(int channel);
@@ -224,6 +224,7 @@ printf("DEBUG %d: i = %d, master = '%s', aliases = '%s' , '%s', size = %d\n",
       mpi_channel_table[i].thispe    = -1 ;
       mpi_channel_table[i].otherpe   = -1 ;
     }
+    at_MPI_Finalize(MPI_mgi_closeall) ;// setup for at_MPI_Finalize (close everything at finalize time)
   }
 
   for(i=0 ; i<=last_mpi_channel ; i++) {
@@ -267,10 +268,11 @@ int MPI_mgi_close(int channel) // close a MPI channel (it is assumed that there 
   if(in_closeall == 0) return 0;                                    // wait for closeall to really close the books
 
 //   MPI_Barrier(mpi_channel_table[channel].local);
-
-  MPI_Win_free(&mpi_channel_table[channel].window);                 // free window communicator
-  free(mpi_channel_table[channel].winbuf);                          // free memory associated with window
-  mpi_channel_table[channel].winbuf = NULL;
+  if(mpi_channel_table[channel].winbuf){
+    MPI_Win_free(&mpi_channel_table[channel].window);               // free window communicator
+    free(mpi_channel_table[channel].winbuf);                        // free memory associated with window
+    mpi_channel_table[channel].winbuf = NULL;
+  }
 
 //   MPI_Barrier(mpi_channel_table[channel].local);
 
@@ -307,25 +309,34 @@ void MPI_mgi_closeall(void)  // close all channels if not already done
 //
 // secondary init, MUST BE CALLED ONLY BY A RANK 0 PROCESS
 //
-static int init_2_called = 0;
-void MPI_mgi_init_2(void)
-{
-  if(init_2_called) return ; // active only once, called by MPI_mgi_open
-  init_2_called = 1;
-  return ;
-}
+// static int init_2_called = 0;
+// void MPI_mgi_init_2(void)
+// {
+//   if(init_2_called) return ; // active only once, called by MPI_mgi_open
+//   init_2_called = 1;
+//   return ;
+// }
 
 //
 // this function MUST BE CALLED ONLY BY A RANK 0 PROCESS
 //
 // MGI_MPI_CFG=" prefix n : size1 aname_1 bname_1 : ... : aname_n bname_n "
-int MPI_mgi_init(void)
+int MPI_mgi_init(const char *alias)
 {
-  char *port_name;
-  char *cfg;
-  char prefix[257];
-  int i, status;
+//   char *port_name;
+//   char *cfg;
+//   char prefix[257];
+  int i, mpi_channel;
 
+  mpi_channel = -1 ;
+  for(i=0 ; i<last_mpi_channel ; i++){
+    if( (strcmp(mpi_channel_table[i].alias1,alias) == 0) || (strcmp(mpi_channel_table[i].alias2,alias) == 0) ){
+      mpi_channel = i ;
+      break ;
+    }
+  }
+  return(mpi_channel) ;
+#if defined(NO_LONGER_USED)
   cfg = getenv("MGI_MPI_CFG");
   if(cfg == NULL) return -1;    // no config found
   sscanf(cfg,"%256s%d",prefix,&last_mpi_channel);  // get name prefix and number of MPI channels
@@ -355,6 +366,7 @@ int MPI_mgi_init(void)
   at_MPI_Finalize(MPI_mgi_closeall) ;// setup for at_MPI_Finalize (close everything at finalize time)
 
   return (0);
+#endif
 }
 
 //
@@ -365,7 +377,7 @@ int MPI_mgi_init(void)
 // window_size  is in integer word units (32 bits)
 //
 // result       -1 in case of failure, otherwise channel number (>-0) for read/write/close calls
-int MPI_mgi_open(const char *alias)
+int MPI_mgi_open(const char *alias, char *mode)
 {
   char *port_name;
   char *channel_name ;
