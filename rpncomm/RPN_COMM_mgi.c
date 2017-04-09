@@ -641,8 +641,13 @@ int MPI_mgi_write(int channel, unsigned char *data, unsigned char *dtyp, int nel
 static int MPI_mgi_Unpublish_name(const char *service_name, MPI_Info info, const char *port_name)
 {
   char filename[4096];
+  char *mpi_mgi_home = getenv("MGI_MPI_HOME") ;
 
-  snprintf(filename,4096,"%s/%s/%s.channel",getenv("HOME"),".gossip/MPI",service_name);
+  if(mpi_mgi_home != NULL) {        // MPI channel files directory
+    snprintf(filename,4096,"%s/%s.channel",mpi_mgi_home,service_name);
+  }else{
+    snprintf(filename,4096,"%s/%s/%s.channel",getenv("HOME"),".gossip/MPI",service_name);
+  }
   unlink(filename);                                  // remove channel file
   MPI_Can_Publish_name(service_name,1) ;             // remove lock file
 
@@ -655,13 +660,18 @@ static int MPI_Can_Publish_name(const char *service_name, int test)
   char filename[4096];
   char filenew[4096];
   int status;
+  char *mpi_mgi_home = getenv("MGI_MPI_HOME") ;
 
-  snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip");
-  mkdir(filename,0755);
-  snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip/MPI");   // make sure that ~/.gossip/MPI directory exists
-  mkdir(filename,0755);
-
-  snprintf(filename,4096,"%s/%s/%s.lock",getenv("HOME"),".gossip/MPI",service_name);
+  if(mpi_mgi_home != NULL) {
+printf("DEBUG: would be publishing in %s\n",mpi_mgi_home);
+    snprintf(filename,4096,"%s/%s.lock",mpi_mgi_home,service_name);
+  }else{
+    snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip");
+    mkdir(filename,0755);
+    snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip/MPI");   // make sure that ~/.gossip/MPI directory exists
+    mkdir(filename,0755);
+    snprintf(filename,4096,"%s/%s/%s.lock",getenv("HOME"),".gossip/MPI",service_name);
+  }
   if(test == 0) {
     status = open(filename,O_WRONLY+O_CREAT+O_EXCL,00700);   // test mode, try to create lock file
 // printf("DEBUG %d: status from create '%s' = %d\n",debug_rank,filename,status);
@@ -675,22 +685,29 @@ static int MPI_Can_Publish_name(const char *service_name, int test)
 
 static int MPI_mgi_Publish_name(const char *service_name, MPI_Info info, const char *port_name)
 {
-  FILE *gossip;
+  FILE *mpi_gossip;
   char filename[4096];
   char filenew[4096];
+  char *mpi_mgi_home = getenv("MGI_MPI_HOME") ;
 
-  snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip");
-  mkdir(filename,0755);
-  snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip/MPI");
-  mkdir(filename,0755);
-  snprintf(filename,4096,"%s/%s/%s.new",getenv("HOME"),".gossip/MPI",service_name);
+  if(mpi_mgi_home != NULL) {        // MPI channel files directory
+printf("DEBUG: publishing in %s\n",mpi_mgi_home);
+    snprintf(filename,4096,"%s/%s.new",    mpi_mgi_home,service_name);
+    snprintf(filenew, 4096,"%s/%s.channel",mpi_mgi_home,service_name);
+  }else{                            //  default directory for MPI channel files
+    snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip");
+    mkdir(filename,0755);
+    snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip/MPI");
+    mkdir(filename,0755);
+    snprintf(filename,4096,"%s/%s/%s.new",    getenv("HOME"),".gossip/MPI",service_name);
+    snprintf(filenew, 4096,"%s/%s/%s.channel",getenv("HOME"),".gossip/MPI",service_name);
+  }
   unlink(filename);
-  snprintf(filenew,4096,"%s/%s/%s.channel",getenv("HOME"),".gossip/MPI",service_name);
   unlink(filenew);
 
-  gossip = fopen(filename,"w");
-  fprintf(gossip,"%s",port_name);
-  fclose(gossip);
+  mpi_gossip = fopen(filename,"w");
+  fprintf(mpi_gossip,"%s",port_name);
+  fclose(mpi_gossip);
 
   link(filename,filenew);
   unlink(filename);
@@ -702,8 +719,13 @@ static int MPI_mgi_Lookup_name(const char *service_name, MPI_Info info, char *po
   char filename[4096];
   int fd, nc;
   int wait=0;
+  char *mpi_mgi_home = getenv("MGI_MPI_HOME") ;
 
-  snprintf(filename,4096,"%s/%s/%s.channel",getenv("HOME"),".gossip/MPI",service_name);
+  if(mpi_mgi_home != NULL) {        // MPI channel files directory
+    snprintf(filename,4096,"%s/%s.channel",mpi_mgi_home,service_name);
+  }else{
+    snprintf(filename,4096,"%s/%s/%s.channel",getenv("HOME"),".gossip/MPI",service_name);
+  }
 printf("DEBUG %d: looking for '%s'\n",debug_rank,filename);
   while( (fd=open(filename,0)) < 0) { wait++ ; usleep(1000); }
   nc=read(fd,port_name,MPI_MAX_PORT_NAME);
@@ -747,7 +769,6 @@ printf("DEBUG %d: server is '%s'\n",rank,mpi_channel_table[0].port_name);
 printf("DEBUG %d: connected to server ;%s'\n",rank,mpi_channel_table[0].port_name);
   }
   MPI_Comm_rank(local, &localrank);
-//   MPI_mgi_Unpublish_name("mastername_0", MPI_INFO_NULL, "");
   
 #if defined(SERVER)
   printf("server rank %d of %d\n",rank+1,size);
@@ -761,6 +782,7 @@ printf("DEBUG %d: connected to server ;%s'\n",rank,mpi_channel_table[0].port_nam
 	       local, &mpistat);
   printf("localrank %d received %d\n",localrank,test_data);
   MPI_Barrier(MPI_COMM_WORLD);
+  MPI_mgi_Unpublish_name("mastername_0", MPI_INFO_NULL, "");
   PMPI_Finalize();
   return 0;
 }
