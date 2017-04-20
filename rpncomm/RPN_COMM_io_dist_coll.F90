@@ -397,10 +397,10 @@ function RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_i, 
   use rpn_comm
   implicit none
 #include <RPN_COMM_interfaces_int.inc>
-  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
-  integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
-  integer, intent(IN) :: dnk                       ! number of levels to distribute
-  integer, intent(IN) :: lnk                       ! number of levels in the "local" array
+  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set) (MUST be the same value on all PEs)
+  integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid) (MUST be the same value on all PEs)
+  integer, intent(IN) :: dnk                       ! number of levels to distribute (MUST be the same value on all PEs)
+  integer, intent(IN) :: lnk                       ! number of levels in the "local" array (MUST be the same value on all PEs)
   integer, intent(IN), dimension(*)     :: global
   integer, intent(OUT), dimension(*)    :: local
   integer, intent(IN), dimension(dnk)   :: liste_i ! needed only on IO Pes, list of levels to distribute
@@ -438,12 +438,12 @@ function RPN_COMM_shuf_ezdist_hxy(setno, grid_id, global, dnk, local, lnk, liste
   use rpn_comm
   implicit none
 #include <RPN_COMM_interfaces_int.inc>
-  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
-  integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
-  integer, intent(IN) :: dnk                       ! number of levels to distribute
-  integer, intent(IN) :: lnk                       ! number of levels in the "local" array
-  integer, intent(IN) :: hx                        ! halo in the x direction (automatic if <0)
-  integer, intent(IN) :: hy                        ! halo in the y direction (automatic if <0)
+  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set) (MUST be the same value on all PEs)
+  integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid) (MUST be the same value on all PEs)
+  integer, intent(IN) :: dnk                       ! number of levels to distribute (MUST be the same value on all PEs)
+  integer, intent(IN) :: lnk                       ! number of levels in the "local" array (MUST be the same value on all PEs)
+  integer, intent(IN) :: hx                        ! halo in the x direction (automatic if <0) (MUST be the same value on all PEs)
+  integer, intent(IN) :: hy                        ! halo in the y direction (automatic if <0) (MUST be the same value on all PEs)
   integer, intent(IN), dimension(*)     :: global  ! global array to be distributed
   integer, intent(OUT), dimension(*)    :: local   ! local array ro receive data (including halo)
   integer, intent(IN), dimension(dnk)   :: liste_i ! needed only on IO Pes, list of levels to distribute
@@ -503,10 +503,10 @@ function RPN_COMM_shuf_ezcoll(setno, grid_id, global, dnk, local, lnk, liste_o) 
   use rpn_comm
   implicit none
 #include <RPN_COMM_interfaces_int.inc>
-  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
-  integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
-  integer, intent(IN) :: dnk                       ! number of levels to collect
-  integer, intent(IN) :: lnk                       ! number of levels in the "local" array
+  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set) (MUST be the same value on all PEs)
+  integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid) (MUST be the same value on all PEs)
+  integer, intent(IN) :: dnk                       ! number of levels to collect (MUST be the same value on all PEs)
+  integer, intent(IN) :: lnk                       ! number of levels in the "local" array (MUST be the same value on all PEs)
   integer, intent(OUT), dimension(*)   :: global
   integer, intent(IN), dimension(*)    :: local
   integer, intent(OUT), dimension(dnk) :: liste_o  ! is set to k when 2D array level k has been received
@@ -579,9 +579,9 @@ subroutine RPN_COMM_shuf_dist(setno,  &
                               start_x,count_x,nx,start_y,count_y,ny,  &
                               periodx,periody,status)
   implicit none
-  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
-  integer, intent(IN) :: gni,gnj,dnk               ! dimensions of the "global" array
-  integer, intent(IN) :: mini,maxi,minj,maxj,lnk   ! dimensions of the "local" array
+  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set) (MUST be the same value on all PEs)
+  integer, intent(IN) :: gni,gnj,dnk               ! dimensions of the "global" array (MUST be the same value on all PEs)
+  integer, intent(IN) :: mini,maxi,minj,maxj,lnk   ! dimensions of the "local" array (MUST be the same value on all PEs)
   integer, intent(IN) :: nx,ny                     ! number of PEs along X and Y (MUST be the same as pe_nx and pe_ny from module rpn_comm)
   integer, intent(IN), dimension(gni,gnj,dnk) :: global
   integer, intent(OUT), dimension(mini:maxi,minj:maxj,lnk) :: local
@@ -611,9 +611,9 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
                               periodx,periody,hx,hy,status)
   use RPN_COMM_io_pe_tables
   implicit none
-  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
-  integer, intent(IN) :: gni,gnj,dnk               ! dimensions of the "global" array
-  integer, intent(IN) :: mini,maxi,minj,maxj,lnk   ! dimensions of the "local" array
+  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set) (MUST be the same value on all PEs)
+  integer, intent(IN) :: gni,gnj,dnk               ! dimensions of the "global" array (MUST be the same value on all PEs)
+  integer, intent(IN) :: mini,maxi,minj,maxj,lnk   ! dimensions of the "local" array (MUST be the same value on all PEs)
   integer, intent(IN) :: nx,ny                     ! number of PEs along X and Y (MUST be the same as pe_nx and pe_ny from module rpn_comm)
   integer, intent(IN), dimension(gni,gnj,dnk) :: global
   integer, intent(OUT), dimension(mini:maxi,minj:maxj,lnk) :: local
@@ -624,9 +624,10 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
   integer, intent(IN), dimension(dnk)   :: liste_i ! needed only on IO Pes, list of dnk levels to distribute
   logical, intent(OUT), dimension(lnk)  :: liste_o ! liste_o(k) will be set to .true. if level k received
   logical, intent(IN) :: periodx,periody           ! periodicity along X or Y ( periody MUST be .false. for this version)
-  integer, intent(IN) :: hx,hy                     ! halo width is forced if >=0
+  integer, intent(IN) :: hx,hy                     ! halo width is forced if >=0 (MUST be the same value on all PEs)
   integer, intent(OUT) :: status                   ! RPN_COMM_OK or RPN_COMM_ERROR
-  integer :: i, k, low, high, listeik, n
+  integer :: i, k, low, high, listeik, n, nerrors, ierr, nerrormax
+  integer, dimension(10) :: clist, clistmax        ! used to check that some arguments are consistent
 
 ! print 100,'DEBUG: RPN_COMM_shuf_dist',mini,maxi,minj,maxj,gni,gnj,dnk,nx,ny
 ! print 100,'          start_x,count_x',start_x,count_x
@@ -635,12 +636,23 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
 ! 100 format(A,1X,20I6)
 ! 101 format(A,1X,8Z17.16)
 
-! return
+! consistency / error check
   status = RPN_COMM_ERROR                     ! preset status to failure
-  if(setno < 1 .or. setno > iosets) return    ! setno out of bounds, OUCH !
-  if(io_set(setno)%ioset .ne. setno) return   ! IO set no longer valid, OUCH !
-  if(pe_nx .ne. nx .or. pe_ny .ne. ny) return ! wrong number of PEs in grid, OUCH !
-  if(periody) return                          ! not supported in this version
+  nerrors = 0
+  if(setno < 1 .or. setno > iosets)    nerrors = nerrors + 1 ! setno out of bounds, OUCH !
+  if(io_set(setno)%ioset .ne. setno)   nerrors = nerrors + 1 ! IO set no longer valid, OUCH !
+  if(pe_nx .ne. nx .or. pe_ny .ne. ny) nerrors = nerrors + 1 ! wrong number of PEs in grid, OUCH !
+  if(periody)                          nerrors = nerrors + 1 ! not supported in this version
+! check that arguments that MUST be identical on all PEs are identical
+  clist = [setno,gni,gnj,dnk,mini,maxi,minj,maxj,lnk,0]
+  if(periodx) clist(10) = 1
+  call MPI_allreduce(clist, clistmax, 10, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
+  do i = 1,10
+    if(clist(i) .ne. clistmax(i)) nerrors = nerrors + 1
+  enddo
+  call MPI_allreduce(nerrors, nerrormax, 1, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)  ! error somewhere ?
+  if(nerrormax > 0) return
+
 !
 ! distribute one 2D plane at a time, one group of IO PEs at a time
 ! in a group of IO PEs, no column has more than 1 IO PE, neither has any row
@@ -737,7 +749,7 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     integer, dimension(0:pe_ny-1) :: cy, dy
     real*8, dimension(0:6) :: t
     integer, dimension(0:6) :: it
-    integer :: maxi_min, maxj_min
+    integer :: maxi_min, maxj_min, nerrors, nerrormax
 
     on_column = .false.     ! precondition for failure in case a hasty exit is needed
     status = RPN_COMM_ERROR ! precondition for failure in case a hasty exit is needed
@@ -762,11 +774,14 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     if(pe_mex == pe_nx - 1 .and. .not. periodx)  maxi_min = lni
     maxj_min = lnj+haloy     ! all but North PEs where maxj == lnj is OK if not periodic
     if(pe_mey == pe_ny - 1 .and. .not. periody)  maxj_min = lnj
+    nerrors = 0
     if(maxi < maxi_min .or. maxj < maxj_min) then
       print 101,"ERROR: upper bound of array too small to accomodate halo"
       print 101,"mini,maxi,lni,minj,maxj,lnj",mini,maxi,lni,minj,maxj,lnj
-      return  ! OOPS, upper bound cannot accomodate halo
+      nerrors = nerrors + 1  ! OOPS, upper bound cannot accomodate halo
     endif
+    call MPI_allreduce(nerrors, nerrormax, 1, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
+    if(nerrormax > 0) return
 
     do i = 1 , npes
       if(pe_mex == pe_x(i)) then
@@ -789,16 +804,20 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     listofk = 0
     call mpi_allgather(kcol,1,MPI_INTEGER,listofk,1,MPI_INTEGER,pe_myrow,ierr)
     t(2) = RPN_COMM_wtime()
+    nerrors = 0
     if(maxval(listofk) > lnk ) then    ! attempt to store a level > lnk, OOPS
       print 101,"ERROR: 1 or more level to distribute > local nk, max level, local nk ",maxval(listofk),lnk
-      return
+      nerrors = nerrors + 1
     endif
 !print *,"DEBUG: listofk=",listofk
     if(maxval(listofk) <= 0) then   ! no contribution from any IO PE, job id done for this round
       print 101,"INFO: no work to do on this pass"
       status = RPN_COMM_OK
-      return
+      nerrors = nerrors + 1
     endif
+    call MPI_allreduce(nerrors, nerrormax, 1, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
+    if(nerrormax > 0) return
+
 !   maybe we should check instead if liste_o(listofk(i)) is already .true. which would point to a possible duplicate
     duplicate = .false.
     do i = 0 , pe_nx-1
@@ -989,29 +1008,45 @@ subroutine RPN_COMM_shuf_coll(setno,  &
   use RPN_COMM_io_pe_tables
   use RPN_COMM_io_dist_coll_mod
   implicit none
-  integer, intent(IN) :: setno,gni,gnj,dnk,mini,maxi,minj,maxj,nk,nx,ny
+  integer, intent(IN) :: setno,gni,gnj,dnk,mini,maxi,minj,maxj,nk,nx,ny  !  (MUST be the same value on all PEs)
   integer, intent(OUT), dimension(gni,gnj,dnk) :: global
   integer, intent(IN), dimension(mini:maxi,minj:maxj,nk) :: local
-  integer, intent(IN), dimension(1:nx)    :: start_x,count_x
-  integer, intent(IN), dimension(1:ny)    :: start_y,count_y
+  integer, intent(IN), dimension(1:nx)    :: start_x,count_x  !  (MUST be the same value on all PEs)
+  integer, intent(IN), dimension(1:ny)    :: start_y,count_y  !  (MUST be the same value on all PEs)
   integer, intent(OUT), dimension(dnk)  :: liste_o
   integer, intent(OUT) :: status
   integer :: iset, npass, setsize, igroup, groupsize
-  integer k0, k1, kn, low, high
+  integer k0, k1, kn, low, high, nerrors, nerrormax, i, ierr
+  integer, dimension(10) :: clist, clistmax
 !
-  status = RPN_COMM_ERROR
-  if(setno < 1 .or. setno > iosets) return    ! setno out of bounds
-  if(io_set(setno)%ioset .ne. setno) return   ! set no longer valid
-  if(pe_nx .ne. nx .or. pe_ny .ne. ny) return ! wrong number of PEs in grid
+! consistency / error check
+  status = RPN_COMM_ERROR                     ! preset status to failure
+  nerrors = 0
+  if(setno < 1 .or. setno > iosets)    nerrors = nerrors + 1 ! setno out of bounds, OUCH !
+  if(io_set(setno)%ioset .ne. setno)   nerrors = nerrors + 1 ! IO set no longer valid, OUCH !
+  if(pe_nx .ne. nx .or. pe_ny .ne. ny) nerrors = nerrors + 1 ! wrong number of PEs in grid, OUCH !
+! check that arguments that MUST be identical on all PEs are identical
+  clist = [setno,gni,gnj,dnk,mini,maxi,minj,maxj,nk,0]
+  call MPI_allreduce(clist, clistmax, 10, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
+  do i = 1,10
+    if(clist(i) .ne. clistmax(i)) nerrors = nerrors + 1
+  enddo
 !
-  if(io_set(setno)%me >= 0) liste_o = 0      ! this PE is a member of the IO set
-  setsize = io_set(setno)%npe
-  groupsize = io_set(setno)%groupsize
-  npass = (nk+setsize-1) / setsize
+  if(nerrors == 0) then
+    if(io_set(setno)%me >= 0) liste_o = 0      ! this PE is a member of the IO set
+    setsize = io_set(setno)%npe
+    groupsize = io_set(setno)%groupsize
+    npass = (nk+setsize-1) / setsize
+  else
+    npass = 0
+  endif
   if(dnk < npass) then   ! OUCH, cannot collect
     print *,"ERROR: cannot collect. setsize, groupsize,npass,dnk,nk",setsize, groupsize,npass,dnk,nk
-    return
+    nerrors = nerrors + 1
   endif
+  call MPI_allreduce(nerrors, nerrormax, 1, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)  ! error somewhere ?
+  if(nerrormax > 0) return
+
   k0 = 1
 !  print *,"DEBUG: npass=",npass
 !
