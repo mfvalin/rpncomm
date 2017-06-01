@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
@@ -69,10 +70,13 @@ int at_MPI_Finalize(fptr callback);
 
 int MPI_mgi_close(int channel);
 int MPI_mgi_init(const char *alias);
+int MPI_mgi_create(const char *alias, char mode, int cpl);
+int MPI_mgi_create_end(int cpl, MPI_Fint f_comm);
+int MPI_mgi_create_begin(int cpl, MPI_Fint f_comm);
 void MPI_mgi_closeall(void);
 int MPI_mgi_open(int mpi_channel, unsigned char *mode);
-int MPI_mgi_read(int channel, unsigned char *data, unsigned char *dtyp, int nelm);
-int MPI_mgi_write(int channel, unsigned char *data, unsigned char *dtyp, int nelm);
+int MPI_mgi_read(int channel, unsigned char *data, int nelm, unsigned char *dtyp);
+int MPI_mgi_write(int channel, unsigned char *data, int nelm, unsigned char *dtyp);
 void *MPI_mgi_memptr(int channel);
 static int MPI_Can_Publish_name(const char *service_name, int test);
 
@@ -104,7 +108,10 @@ if(DEBUG) printf("DEBUG: inserted callback %d\n",nf);
   return(0);
 }
 
+#define CHANNEL_IDLE 0
 #define CHANNEL_ACTIVE 1
+#define CHANNEL_STOPPED 2
+
 // r_control ... r_limit will be the image of control ... limit from remote memory arena
 typedef struct{
   int control;    // flags
@@ -123,10 +130,9 @@ typedef struct{
 } arena;
 
 typedef struct{
+  char alias[32];         // short channel name
   char *channel_name;     // full MPI channel name
   char *port_name;        // MPI port name (from MPI_Open_port)
-  char *alias1;           // logical name 1 associated to MPI channel channel_name
-  char *alias2;           // logical name 2 associated to MPI channel channel_name
   arena *winbuf;          // local one sided window memory address   (local memory arena)
   MPI_Win window;         // one sided MPI window communicator
   MPI_Comm global, local; // inter-communicator, intra-communicator, both expected to have same size membership (2 members) 
@@ -135,11 +141,10 @@ typedef struct{
   int winsize;            // window size in KBytes
   int thispe;             // my rank in intra-communicator for this channel
   int otherpe;            // rank of remote process in intra-communicator for this channel
-  short mode[2];          // read or write
-//   arena remote;           // copy of memory arena control parameters from remote end
+  char mode;              // read or write
 } MPI_mgi_channel ;
 
-#define MAXALIAS 32
+#define MAXALIAS 31
 #define MAX_CHANNELS 8
 static MPI_mgi_channel mpi_channel_table[MAX_CHANNELS];
 static int last_mpi_channel=-1;
@@ -161,21 +166,79 @@ int MPI_mgi_term() // close the books (we prefer to wait for MPI_Finalize in ord
 //   MPI_mgi_closeall() ;
 }
 
+// cpl  : -1 coupler process, 0 PE0 from application >0 PEn from application
+// comm used to cummunicate between PE0 and coupler process
+int MPI_mgi_create_begin(int cpl, MPI_Fint f_comm)  // call before any call to MPI_mgi_create
+{
+  MPI_Comm comm = MPI_Comm_f2c(f_comm);
+  return(0);
+}
+
+// cpl  : -1 coupler process, 0 PE0 from application >0 PEn from application
+// comm used to cummunicate between PE0 and coupler process
+int MPI_mgi_create_end(int cpl, MPI_Fint f_comm)  // call after last call to MPI_mgi_create
+{
+  int i, status;
+  int dispunit = sizeof(int);
+  MPI_Aint winsize;
+  char *memptr;
+  MPI_Comm comm = MPI_Comm_f2c(f_comm);
+
+  if(cpl > 0) return(0);  // nothing to do on normal nodes
+
+  for(i=0 ; i<=last_mpi_channel ; i++) {
+
+    if(mpi_channel_table[i].mode == 'U') continue ;  // we have nothing to do with this channel
+
+    if(cpl == 0){      // PE 0
+      if(mpi_channel_table[i].mode == 'R'){
+        // get shared memory segment tag from coupler process
+        // attach to it    mpi_channel_table[i].winbuf = ...
+      }
+      if(mpi_channel_table[i].mode == 'W'){
+        MPI_mgi_Lookup_name(mpi_channel_table[i].channel_name, MPI_INFO_NULL, mpi_channel_table[i].port_name);  // get port name published under name channel_name
+        status = MPI_Comm_connect(mpi_channel_table[i].port_name, MPI_INFO_NULL, 0, MPI_COMM_SELF,  &mpi_channel_table[i].global );// connect to port
+        MPI_Intercomm_merge(mpi_channel_table[i].global, 1, &mpi_channel_table[i].local);
+        MPI_Comm_rank(mpi_channel_table[i].local,&mpi_channel_table[i].thispe);
+        mpi_channel_table[i].otherpe = 1 - mpi_channel_table[i].thispe;
+        mpi_channel_table[i].winbuf = (arena *) malloc(sizeof(arena));
+        winsize = sizeof(arena);
+        status = MPI_Win_create(mpi_channel_table[i].winbuf, winsize, dispunit, MPI_INFO_NULL, mpi_channel_table[i].local, &mpi_channel_table[i].window);  // create window 
+      }
+    }else{             // coupler PE
+      if(mpi_channel_table[i].mode == 'R'){
+        // allocate mpi_channel_table[i].winsize sized shared memory segment
+        // mpi_channel_table[i].winbuf => shared memory segment
+        // mark segment for deletion
+        // send segment tag to PE0
+        status = MPI_Comm_accept(mpi_channel_table[i].port_name, MPI_INFO_NULL, 0, MPI_COMM_SELF,  &mpi_channel_table[i].global );
+        MPI_Intercomm_merge(mpi_channel_table[i].global, 0, &mpi_channel_table[i].local);
+        MPI_Comm_rank(mpi_channel_table[i].local,&mpi_channel_table[i].thispe);
+        mpi_channel_table[i].otherpe = 1 - mpi_channel_table[i].thispe;
+        winsize = sizeof(arena) + mpi_channel_table[i].winsize * dispunit;
+        status = MPI_Win_create(mpi_channel_table[i].winbuf, winsize, dispunit, MPI_INFO_NULL, mpi_channel_table[i].local, &mpi_channel_table[i].window);
+      }
+      if(mpi_channel_table[i].mode == 'W'){
+        continue ; // nothing to do for coupler in write mode
+      }
+    }
+  }
+}
+
 // create one channel (it is assumed that no mgi activity has started)
 // this channel will be opened as "alias"
 // application must call this routine once for each "alias" channel name it uses
+// mode : 'r' or 'w'
+// cpl  : -1 coupler process, 0 PE0 from application >0 PEn from application
 //
-// export MGI_MPI_CFG=" mastername n : size_1 aname_1 bname_1 : ... : size_n aname_n bname_n "
-//  aname_1 bname_1 ...  aname_n bname_n : pairs of channel aliases 
-//
-// the old mgi library had unidirectional channels, the MPI mgi channels are bidirectional
-// therefore applications a and b will use 2 aliases associated to the MPI master channel
-// (one for the a -> b channel and one for the b -> a channel)
+// export MGI_MPI_CFG=" mastername n : size_1 name_1 : ... : size_n name_n "
+//  mastername         : experiment name (MUST be unique at any given time)
+//  name_1 ...  name_n : channel names 
 //
 // return value : 0 if open + publish successful
 //                1 MPI channel already published via another alias
 //               -1 ERROR
-int MPI_mgi_create(const char *alias) 
+int MPI_mgi_create(const char *alias, char mode, int cpl) 
 {
   int status, status2 ;
   char *cfg ;
@@ -183,7 +246,7 @@ int MPI_mgi_create(const char *alias)
   char mastername[128] ;
   int i, ordinal ;
 
-  ordinal = -1 ;
+  if(cpl > 0) return(0);  // nothing to do on normal nodes
 
   if(last_mpi_channel == -1){     // initialize global channel table from environment variable MGI_MPI_CFG (do only once)
     cfg = getenv("MGI_MPI_CFG") ;
@@ -193,54 +256,52 @@ int MPI_mgi_create(const char *alias)
     last_mpi_channel--;
     for(i=0 ; i<=last_mpi_channel ; i++) {    // get size, alias1, alias2 for all channels, build channel name
       while(*cfg != ':') {                    // skip to : delimiter
-	if(*cfg == '\0') return(-1);          // premature termination of configuration string
-	cfg++;
+        if(*cfg == '\0') return(-1);          // premature termination of configuration string
+        cfg++;
       }
       cfg++;
+      sscanf(cfg,"%d%31s",&mpi_channel_table[i].winsize,mpi_channel_table[i].alias);  // get channel size and short name
 // if(DEBUG) printf("DEBUG: cfg = '%s'\n",cfg);
       mpi_channel_table[i].channel_name = (char *) malloc(257);
       memset(mpi_channel_table[i].channel_name,0,257);
-      snprintf(mpi_channel_table[i].channel_name,257,"%s_%d",mastername,i);
+      snprintf(mpi_channel_table[i].channel_name,257,"%s_%s",mastername,mpi_channel_table[i].alias);   // build full channel name
       mpi_channel_table[i].port_name = (char *) malloc(MPI_MAX_PORT_NAME+1);
       memset(mpi_channel_table[i].port_name,0,MPI_MAX_PORT_NAME+1);
 
-      mpi_channel_table[i].alias1 = (char *) malloc(33);          // alias1 for MPI channel
-      memset(mpi_channel_table[i].alias1,0,33);
-      mpi_channel_table[i].alias2 = (char *) malloc(33);          // alias2 for MPI channel
-      memset(mpi_channel_table[i].alias2,0,33);
-      sscanf(cfg,"%d%32s%32s",&mpi_channel_table[i].winsize,mpi_channel_table[i].alias1,mpi_channel_table[i].alias2);
-if(DEBUG) printf("DEBUG %d: i = %d, master = '%s', aliases = '%s' , '%s', size = %d\n",
+if(DEBUG) printf("DEBUG %d: i = %d, master = '%s', channel = '%s', size = %d\n",
        debug_rank,i,
        mpi_channel_table[i].channel_name,
-       mpi_channel_table[i].alias1,
-       mpi_channel_table[i].alias2,
+       mpi_channel_table[i].alias,
        mpi_channel_table[i].winsize);
-      mpi_channel_table[i].winbuf = NULL ;                        // window not created yet
-      mpi_channel_table[i].window = MPI_WIN_NULL ;
-      mpi_channel_table[i].global = MPI_COMM_NULL ;
-      mpi_channel_table[i].local  = MPI_COMM_NULL ;
+
+      mpi_channel_table[i].winbuf    = NULL ;                        // window not created yet
+      mpi_channel_table[i].window    = MPI_WIN_NULL ;
+      mpi_channel_table[i].global    = MPI_COMM_NULL ;
+      mpi_channel_table[i].local     = MPI_COMM_NULL ;
       mpi_channel_table[i].is_server = 0 ;
       mpi_channel_table[i].is_active = 0 ;
-//       mpi_channel_table[i].winsize   = 0 ;                          // window size associated with MPI channel
       mpi_channel_table[i].thispe    = -1 ;
       mpi_channel_table[i].otherpe   = -1 ;
-      mpi_channel_table[i].mode[0]   = 'U' ;
-      mpi_channel_table[i].mode[1]   = 'U' ;
-    }
+      mpi_channel_table[i].mode      = 'U' ;
+    }   // end for i
     at_MPI_Finalize(MPI_mgi_closeall) ;// setup for at_MPI_Finalize (close everything at finalize time)
   }
 
+  ordinal = -1 ;
   for(i=0 ; i<=last_mpi_channel ; i++) {
-    if( (strncmp(alias,mpi_channel_table[i].alias1,MAXALIAS) == 0) || (strncmp(alias,mpi_channel_table[i].alias2,MAXALIAS) == 0) ) {   // alias found
+    if( strncmp(alias,mpi_channel_table[i].alias,MAXALIAS) == 0 ) {   // alias found
+      mpi_channel_table[i].mode =  toupper(mode);
       ordinal = i ;
-      service_name = mpi_channel_table[i].channel_name ; // MPI channel name is 'prefix_ordinal'
+      service_name = mpi_channel_table[i].channel_name ; // MPI channel name is 'mastername_alias'
     }
   }
   if(ordinal < 0) return(-1) ;       // alias not found , OOPS 
+  if ( mpi_channel_table[ordinal].mode == 'W' ) return(0) ;  // nothing more to do in write mode
+  if ( cpl >= 0) return(0) ;  // nothing more to do for PE0
 
-  status2 = MPI_Can_Publish_name(service_name,0) ;    // is service_name already published (by me or partner)?
+  status2 = MPI_Can_Publish_name(service_name,0) ;    // is service_name already published 
 // if(DEBUG) printf("DEBUG: to be published by rank = %d, status2 = %d\n",debug_rank, status2);
-  if(status2 < 0) return(1);                          // yes
+  if(status2 < 0) return(1);                          // yes, OOPS
   
 // if(DEBUG) printf("DEBUG %d: opening port\n",debug_rank);
   status = MPI_Open_port(MPI_INFO_NULL, mpi_channel_table[ordinal].port_name);    // create port, get port name
@@ -251,8 +312,8 @@ if(DEBUG) printf("DEBUG %d: ordinal,server,status = %d %d %d,published port = '%
   }
   if(status != MPI_SUCCESS) {              // port creation or publication failed
     free(mpi_channel_table[ordinal].channel_name) ; mpi_channel_table[ordinal].channel_name = NULL ;
-    free(mpi_channel_table[ordinal].alias1)       ; mpi_channel_table[ordinal].alias1 = NULL ;
-    free(mpi_channel_table[ordinal].alias2)       ; mpi_channel_table[ordinal].alias2 = NULL ;
+//     free(mpi_channel_table[ordinal].alias1)       ; mpi_channel_table[ordinal].alias1 = NULL ;
+//     free(mpi_channel_table[ordinal].alias2)       ; mpi_channel_table[ordinal].alias2 = NULL ;
     free(mpi_channel_table[ordinal].port_name)    ; mpi_channel_table[ordinal].port_name = NULL ;
     return(-1) ; 
   }
@@ -261,10 +322,10 @@ if(DEBUG) printf("DEBUG %d: ordinal,server,status = %d %d %d,published port = '%
   return(0);  // everything O.K., port created and successfully published
 }
 
-int MPI_mgi_close(int mpi_channel) // close a MPI channel (it is assumed that there is no pending activity)
+int MPI_mgi_close(int channel) // close a MPI channel (it is assumed that there is no pending activity)
 {
   int status;
-  int channel = mpi_channel >> 1;  // convert pseudo channel to MPI channel
+//   int channel = mpi_channel ;  // convert pseudo channel to MPI channel
 
 // if(DEBUG) printf("DEBUG : closing channel %d\n",channel);
   if(channel >= MAX_CHANNELS || channel < 0) return -1;             // invalid channel number
@@ -272,7 +333,10 @@ int MPI_mgi_close(int mpi_channel) // close a MPI channel (it is assumed that th
   if(mpi_channel_table[channel].is_active == 0) return -1;          // channel never active or already closed
 
   mpi_channel_table[channel].is_active = -1;                        // mark channel as inactive but not totally closed
-if(DEBUG) printf("DEBUG : channel %d marked as inactive\n",mpi_channel);
+  //
+  // if i am writing, set remode control flag to CHANNEL_STOPPED with MPI_Put
+  //
+if(DEBUG) printf("DEBUG : channel %d marked as inactive\n",channel);
   if(in_closeall == 0) return 0;                                    // wait for closeall to really close the books
   mpi_channel_table[channel].is_active = 0;                         // mark channel as inactive and totally closed
 // if(DEBUG) printf("DEBUG : barrier on local, channel = %d\n",channel);
@@ -332,20 +396,21 @@ if(DEBUG) printf("DEBUG : exiting closeall\n");
 // -1 is returned upon error
 int MPI_mgi_init(const char *alias)
 {
-  int i, mpi_channel, bump;
+  int i; // , mpi_channel, bump;
 
-  mpi_channel = -1 ;
-  bump = -1;
+//   mpi_channel = -1 ;
+//   bump = -1;
   for(i=0 ; i<=last_mpi_channel ; i++){
 // if(DEBUG) printf("DEBUG: alias, alias1, alias2 = '%s'%s'%s'\n",alias,mpi_channel_table[i].alias1,mpi_channel_table[i].alias2);
-    if( strncmp(mpi_channel_table[i].alias1,alias,MAXALIAS) == 0 ) bump = 0 ;
-    if( strncmp(mpi_channel_table[i].alias2,alias,MAXALIAS) == 0 ) bump = 1 ;
-    if( bump != -1 ){
-      mpi_channel = i ;
-      break ;
-    }
+    if( strncmp(mpi_channel_table[i].alias,alias,MAXALIAS) == 0 ) return(i) ;
+//     if( strncmp(mpi_channel_table[i].alias2,alias,MAXALIAS) == 0 ) bump = 1 ;
+//     if( bump != -1 ){
+//       mpi_channel = i ;
+//       break ;
+//     }
   }
-  return( (bump < 0) ? bump : mpi_channel*2 + bump) ;   // return -1 if alias not found
+//   return( (bump < 0) ? bump : mpi_channel*2 + bump) ;   // return -1 if alias not found
+  return(-1);
 }
 
 //
@@ -360,7 +425,7 @@ int MPI_mgi_init(const char *alias)
 //
 // read(R)/write(W) mode is really for backwards compatibility, the MPI channel is really bi-directional
 // each alias subchannel is treated as uni-directional
-int MPI_mgi_open(int channel,unsigned char *mode)
+int MPI_mgi_open(int mpi_channel,unsigned char *mode)
 {
   char *port_name;
   char *channel_name ;
@@ -377,8 +442,7 @@ int MPI_mgi_open(int channel,unsigned char *mode)
   int otherpe, i ;
   int server ;
   int window_size ;
-  int mpi_channel = channel >> 1 ;      // get real MPI channel number
-  int bump ;
+//   int mpi_channel = channel;      // get MPI channel number
   int status ;
 
   if(mpi_channel < 0 || mpi_channel > last_mpi_channel ) return(-1) ;     // bad channel number
@@ -388,8 +452,7 @@ int MPI_mgi_open(int channel,unsigned char *mode)
     return(-1);
   }
 
-  bump = channel & 0x1 ;
-  mpi_channel_table[mpi_channel].mode[bump] = toupper(*mode);    // set mode for sub channel (backwards compatibility)
+  mpi_channel_table[mpi_channel].mode = toupper(*mode);    // set mode for sub channel (backwards compatibility)
   channel_name = mpi_channel_table[mpi_channel].channel_name ;   // true_name of MPI channel addresses as alias1 or alias2
   window_size  = mpi_channel_table[mpi_channel].winsize ;        // size in "int" units
   winsize      = dispunit * window_size ;                        // size in bytes
@@ -457,7 +520,7 @@ if(DEBUG) printf("DEBUG : remote window parameters %d %d %d %d %d\n",arenaptr->r
 }
 
 // read nelm data elements of type *dtyp (I/R/D/C) into data from pseudo_channel
-int MPI_mgi_read(int pseudo_channel,unsigned char *data, unsigned char *dtyp, int nelm){
+int MPI_mgi_read(int channel,unsigned char *data, int nelm, unsigned char *dtyp){
   MPI_Datatype mpitype;
   int nitems = nelm;
   int ntok;
@@ -472,8 +535,7 @@ int MPI_mgi_read(int pseudo_channel,unsigned char *data, unsigned char *dtyp, in
   size_t nbytes, nbytes1, nbytes2;
   unsigned char rtyp = '?';
   int nmeta, otherpe;
-  int channel = pseudo_channel >> 1 ;      // get real MPI channel number
-  int bump = pseudo_channel & 0x1 ;
+//   int channel = pseudo_channel ;      // get MPI channel number
   int *idata = (int *) data;
   MPI_Aint TargetDisp = 0;
   MPI_Win window;
@@ -482,7 +544,7 @@ int MPI_mgi_read(int pseudo_channel,unsigned char *data, unsigned char *dtyp, in
   if(channel > last_mpi_channel || channel < 0) return -1;          // invalid channel number
   if(mpi_channel_table[channel].channel_name == NULL) return -1;    // channel not/no longer active
   if(mpi_channel_table[channel].is_active != 1) return -1;          // channel not/no longer active
-//   if(mpi_channel_table[channel].mode[bump] != 'R') return -1;       // wrong direction
+  if(mpi_channel_table[channel].mode != 'R') return -1;             // wrong direction
 
   switch(*dtyp){    // tokens are 32 bit integers
     case 'R':       // 32 bit floating point data
@@ -575,7 +637,7 @@ if(DEBUG) printf("DEBUG : after read, in=%d, out=%d\n",in,out);
 }
 
 // write nelm data elements of type *dtyp (I/R/D/C) from data into pseudo_channel 
-int MPI_mgi_write(int pseudo_channel, unsigned char *data, unsigned char *dtyp, int nelm){
+int MPI_mgi_write(int channel, unsigned char *data, int nelm, unsigned char *dtyp){
   MPI_Datatype mpitype;
   int nitems = nelm;
   int ntok;
@@ -590,13 +652,12 @@ int MPI_mgi_write(int pseudo_channel, unsigned char *data, unsigned char *dtyp, 
   int meta;
   int *idata = (int *)data;
   int otherpe, status;
-  int channel = pseudo_channel >> 1 ;      // get real MPI channel number
-  int bump = pseudo_channel & 0x1 ;
+//   int channel = pseudo_channel ;      // get MPI channel number
 
   if(channel > last_mpi_channel || channel < 0) return -1;          // invalid channel number
   if(mpi_channel_table[channel].channel_name == NULL) return -1;    // channel not/no longer active
   if(mpi_channel_table[channel].is_active != 1) return -1;          // channel not/no longer active
-//   if(mpi_channel_table[channel].mode[bump] != 'W') return -1;       // wrong direction
+  if(mpi_channel_table[channel].mode != 'W') return -1;             // wrong direction
 
 if(DEBUG) printf("DEBUG : writing %d items of type %c from %p\n",nelm,*dtyp,data);
   switch(*dtyp){    // tokens are 32 bit integers
