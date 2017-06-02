@@ -71,8 +71,10 @@ int at_MPI_Finalize(fptr callback);
 int MPI_mgi_close(int channel);
 int MPI_mgi_init(const char *alias);
 int MPI_mgi_create(const char *alias, char mode, int cpl);
-int MPI_mgi_create_end(int cpl, MPI_Fint f_comm);
-int MPI_mgi_create_begin(int cpl, MPI_Fint f_comm);
+int MPI_mgi_create_endf(int cpl, MPI_Fint f_comm);
+int MPI_mgi_create_end(int cpl, MPI_Comm f_comm);
+int MPI_mgi_create_beginf(int cpl, MPI_Fint f_comm);
+int MPI_mgi_create_begin(int cpl, MPI_Comm f_comm);
 void MPI_mgi_closeall(void);
 int MPI_mgi_open(int mpi_channel, unsigned char *mode);
 int MPI_mgi_read(int channel, unsigned char *data, int nelm, unsigned char *dtyp);
@@ -168,21 +170,26 @@ int MPI_mgi_term() // close the books (we prefer to wait for MPI_Finalize in ord
 
 // cpl  : -1 coupler process, 0 PE0 from application >0 PEn from application
 // comm used to cummunicate between PE0 and coupler process
-int MPI_mgi_create_begin(int cpl, MPI_Fint f_comm)  // call before any call to MPI_mgi_create
+int MPI_mgi_create_begin(int cpl, MPI_Comm comm)  // call before any call to MPI_mgi_create
+{
+  return(0);
+}
+
+int MPI_mgi_create_begin_f(int cpl, MPI_Fint f_comm)  // call before any call to MPI_mgi_create
 {
   MPI_Comm comm = MPI_Comm_f2c(f_comm);
-  return(0);
+
+  return MPI_mgi_create_begin(cpl, comm);
 }
 
 // cpl  : -1 coupler process, 0 PE0 from application >0 PEn from application
 // comm used to cummunicate between PE0 and coupler process
-int MPI_mgi_create_end(int cpl, MPI_Fint f_comm)  // call after last call to MPI_mgi_create
+int MPI_mgi_create_end(int cpl, MPI_Comm f_comm)  // call after last call to MPI_mgi_create
 {
   int i, status;
   int dispunit = sizeof(int);
   MPI_Aint winsize;
   char *memptr;
-  MPI_Comm comm = MPI_Comm_f2c(f_comm);
 
   if(cpl > 0) return(0);  // nothing to do on normal nodes
 
@@ -225,6 +232,12 @@ int MPI_mgi_create_end(int cpl, MPI_Fint f_comm)  // call after last call to MPI
   }
 }
 
+int MPI_mgi_create_end_f(int cpl, MPI_Fint f_comm)  // call after last call to MPI_mgi_create
+{
+  MPI_Comm comm = MPI_Comm_f2c(f_comm);
+
+  return MPI_mgi_create_end(cpl, comm);
+}
 // create one channel (it is assumed that no mgi activity has started)
 // this channel will be opened as "alias"
 // application must call this routine once for each "alias" channel name it uses
