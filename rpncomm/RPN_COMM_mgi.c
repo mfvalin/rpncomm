@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/shm.h>
 #include <fcntl.h>
 #include <string.h>
 #include <malloc.h>
@@ -71,10 +72,10 @@ int at_MPI_Finalize(fptr callback);
 int MPI_mgi_close(int channel);
 int MPI_mgi_init(const char *alias);
 int MPI_mgi_create(const char *alias, char mode, int cpl);
-int MPI_mgi_create_endf(int cpl, MPI_Fint f_comm);
-int MPI_mgi_create_end(int cpl, MPI_Comm f_comm);
-int MPI_mgi_create_beginf(int cpl, MPI_Fint f_comm);
-int MPI_mgi_create_begin(int cpl, MPI_Comm f_comm);
+int MPI_mgi_create_endf(int cpl, MPI_Fint f_comm1, MPI_Fint f_comm2);
+int MPI_mgi_create_end(int cpl, MPI_Comm comm1, MPI_Comm comm2);
+int MPI_mgi_create_beginf(int cpl, MPI_Fint f_comm1, MPI_Fint f_comm2);
+int MPI_mgi_create_begin(int cpl, MPI_Comm comm1, MPI_Comm comm2);
 void MPI_mgi_closeall(void);
 int MPI_mgi_open(int mpi_channel, unsigned char *mode);
 int MPI_mgi_read(int channel, unsigned char *data, int nelm, unsigned char *dtyp);
@@ -170,26 +171,29 @@ int MPI_mgi_term() // close the books (we prefer to wait for MPI_Finalize in ord
 
 // cpl  : -1 coupler process, 0 PE0 from application >0 PEn from application
 // comm used to cummunicate between PE0 and coupler process
-int MPI_mgi_create_begin(int cpl, MPI_Comm comm)  // call before any call to MPI_mgi_create
+int MPI_mgi_create_begin(int cpl, MPI_Comm comm1, MPI_Comm comm2)  // call before any call to MPI_mgi_create
 {
   return(0);
 }
 
-int MPI_mgi_create_begin_f(int cpl, MPI_Fint f_comm)  // call before any call to MPI_mgi_create
+int MPI_mgi_create_begin_f(int cpl, MPI_Fint f_comm1, MPI_Fint f_comm2)  // call before any call to MPI_mgi_create
 {
-  MPI_Comm comm = MPI_Comm_f2c(f_comm);
+  MPI_Comm comm1 = MPI_Comm_f2c(f_comm1);
+  MPI_Comm comm2 = MPI_Comm_f2c(f_comm2);
 
-  return MPI_mgi_create_begin(cpl, comm);
+  return MPI_mgi_create_begin(cpl, comm1, comm2);
 }
 
 // cpl  : -1 coupler process, 0 PE0 from application >0 PEn from application
 // comm used to cummunicate between PE0 and coupler process
-int MPI_mgi_create_end(int cpl, MPI_Comm f_comm)  // call after last call to MPI_mgi_create
+int MPI_mgi_create_end(int cpl, MPI_Comm comm1, MPI_Comm comm2)  // call after last call to MPI_mgi_create
 {
-  int i, status;
+  int i, status, id;
   int dispunit = sizeof(int);
   MPI_Aint winsize;
   char *memptr;
+  struct shmid_ds shmbuf;
+  MPI_Status mpi_stat;
 
   if(cpl > 0) return(0);  // nothing to do on normal nodes
 
@@ -199,12 +203,12 @@ int MPI_mgi_create_end(int cpl, MPI_Comm f_comm)  // call after last call to MPI
 
     if(cpl == 0){      // PE 0
       if(mpi_channel_table[i].mode == 'R'){
-        // get shared memory segment tag from coupler process
-        // attach to it    mpi_channel_table[i].winbuf = ...
+        status = MPI_Recv(&id, 1, MPI_INTEGER, 0, 0, comm2, &mpi_stat);    // get shared memory segment id from coupler process
+        mpi_channel_table[i].winbuf = shmat(id,NULL,0);                    // attach to it, mpi_channel_table[i].winbuf => shared memory segment
       }
       if(mpi_channel_table[i].mode == 'W'){
         MPI_mgi_Lookup_name(mpi_channel_table[i].channel_name, MPI_INFO_NULL, mpi_channel_table[i].port_name);  // get port name published under name channel_name
-        status = MPI_Comm_connect(mpi_channel_table[i].port_name, MPI_INFO_NULL, 0, MPI_COMM_SELF,  &mpi_channel_table[i].global );// connect to port
+        status = MPI_Comm_connect(mpi_channel_table[i].port_name, MPI_INFO_NULL, 0, MPI_COMM_SELF,  &mpi_channel_table[i].global );   // connect to port
         MPI_Intercomm_merge(mpi_channel_table[i].global, 1, &mpi_channel_table[i].local);
         MPI_Comm_rank(mpi_channel_table[i].local,&mpi_channel_table[i].thispe);
         mpi_channel_table[i].otherpe = 1 - mpi_channel_table[i].thispe;
@@ -214,11 +218,11 @@ int MPI_mgi_create_end(int cpl, MPI_Comm f_comm)  // call after last call to MPI
       }
     }else{             // coupler PE
       if(mpi_channel_table[i].mode == 'R'){
-        // allocate mpi_channel_table[i].winsize sized shared memory segment
-        // mpi_channel_table[i].winbuf => shared memory segment
-        // mark segment for deletion
-        // send segment tag to PE0
-        status = MPI_Comm_accept(mpi_channel_table[i].port_name, MPI_INFO_NULL, 0, MPI_COMM_SELF,  &mpi_channel_table[i].global );
+        id = shmget(IPC_PRIVATE,mpi_channel_table[i].winsize,IPC_CREAT|S_IRUSR|S_IWUSR);  // allocate mpi_channel_table[i].winsize sized shared memory segment
+        mpi_channel_table[i].winbuf = shmat(id,NULL,0);                                   // mpi_channel_table[i].winbuf => shared memory segment
+        shmctl(id,IPC_RMID,&shmbuf);                                                      // mark segment for deletion
+        status = MPI_Send(&id, 1, MPI_INTEGER, 1, 0,  comm2);                             // send segment id to PE0
+        status = MPI_Comm_accept(mpi_channel_table[i].port_name, MPI_INFO_NULL, 0, MPI_COMM_SELF,  &mpi_channel_table[i].global );  // accept from port
         MPI_Intercomm_merge(mpi_channel_table[i].global, 0, &mpi_channel_table[i].local);
         MPI_Comm_rank(mpi_channel_table[i].local,&mpi_channel_table[i].thispe);
         mpi_channel_table[i].otherpe = 1 - mpi_channel_table[i].thispe;
@@ -232,11 +236,12 @@ int MPI_mgi_create_end(int cpl, MPI_Comm f_comm)  // call after last call to MPI
   }
 }
 
-int MPI_mgi_create_end_f(int cpl, MPI_Fint f_comm)  // call after last call to MPI_mgi_create
+int MPI_mgi_create_end_f(int cpl, MPI_Fint f_comm1, MPI_Fint f_comm2)  // call after last call to MPI_mgi_create
 {
-  MPI_Comm comm = MPI_Comm_f2c(f_comm);
+  MPI_Comm comm1 = MPI_Comm_f2c(f_comm1);
+  MPI_Comm comm2 = MPI_Comm_f2c(f_comm2);
 
-  return MPI_mgi_create_end(cpl, comm);
+  return MPI_mgi_create_end(cpl, comm1, comm2);
 }
 // create one channel (it is assumed that no mgi activity has started)
 // this channel will be opened as "alias"
