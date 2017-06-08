@@ -77,19 +77,20 @@ int MPI_mgi_create_end(int cpl, MPI_Comm comm1, MPI_Comm comm2);
 int MPI_mgi_create_beginf(int cpl, MPI_Fint f_comm1, MPI_Fint f_comm2);
 int MPI_mgi_create_begin(int cpl, MPI_Comm comm1, MPI_Comm comm2);
 void MPI_mgi_closeall(void);
+void MPI_mgi_term(void);
 int MPI_mgi_open(int mpi_channel, unsigned char *mode);
 int MPI_mgi_read(int channel, unsigned char *data, int nelm, unsigned char *dtyp);
 int MPI_mgi_write(int channel, unsigned char *data, int nelm, unsigned char *dtyp);
 void *MPI_mgi_memptr(int channel);
 static int MPI_Can_Publish_name(const char *service_name, int test);
 
-#if defined(WITH_MGI)
+#if defined(WITH_FORTRAN_MGI)
 ftnword f77_name (mgi_init) (char *channel_name, F2Cl lname);
 ftnword f77_name (mgi_open) (ftnword *f_chan, char *mode, F2Cl lmode);
 ftnword f77_name (mgi_read) (ftnword *f_chan, void *data, ftnword *f_nelm, char *dtype, F2Cl ltype);
 ftnword f77_name (mgi_write) (ftnword *f_chan, void *data, ftnword *f_nelm, char *dtype, F2Cl ltype);
 ftnword f77_name (mgi_clos) (ftnword *f_chan);
-ftnword f77_name (mgi_term) ();
+ftnword f77_name (mgi_term) (void);
 #endif
 
 static int in_closeall = 0 ;
@@ -99,7 +100,7 @@ static int debug_rank = -1;          // normally only needed for self test mode
 
 int MPI_Finalize(){                  // interceptor, there are things we may want to do at MPI_Finalize time
   while (nf >= 0) {
-if(DEBUG) printf("DEBUG: custom MPI_Finalize, nf = %d\n", nf);
+if(DEBUG) printf("DEBUG %d: custom MPI_Finalize, nf = %d\n",debug_rank, nf);
     (*table[nf--])() ; // call registered routines to be called at mpi_finalize in reverse order
   }
   return PMPI_Finalize();            // now call the real MPI finalize routine
@@ -107,7 +108,7 @@ if(DEBUG) printf("DEBUG: custom MPI_Finalize, nf = %d\n", nf);
 int at_MPI_Finalize(fptr callback){
   if(nf >= MAX_AT_TABLE-1) return -1;
   table[++nf] = callback;
-if(DEBUG) printf("DEBUG: inserted callback %d\n",nf);
+if(DEBUG) printf("DEBUG %d: inserted callback %d\n",debug_rank,nf);
   return(0);
 }
 
@@ -145,6 +146,9 @@ typedef struct{
   int thispe;             // my rank in intra-communicator for this channel
   int otherpe;            // rank of remote process in intra-communicator for this channel
   char mode;              // read or write
+  char allocmem;          // 1 if allocated with malloc, 0 if node shared memory
+  char pe0;               // 1 if PE0 of application, 0 otherwise
+  char cpl;               // 1 if coupler PE, 0 otherwise
 } MPI_mgi_channel ;
 
 #define MAXALIAS 31
@@ -166,6 +170,7 @@ int MPI_mgi_timeout(int new_timeout){
 
 int MPI_mgi_term() // close the books (we prefer to wait for MPI_Finalize in order to avoid undue wait for close)
 {
+//   if i am a PE0, push arena->control = CHANNEL_STOPPED to all remotes (lazy way would be set my own to CHANNEL_STOPPED)
 //   MPI_mgi_closeall() ;
 }
 
@@ -194,32 +199,41 @@ int MPI_mgi_create_end(int cpl, MPI_Comm comm1, MPI_Comm comm2)  // call after l
   char *memptr;
   struct shmid_ds shmbuf;
   MPI_Status mpi_stat;
+  char mode;
 
   if(cpl > 0) return(0);  // nothing to do on normal nodes
 
   for(i=0 ; i<=last_mpi_channel ; i++) {
 
-    if(mpi_channel_table[i].mode == 'U') continue ;  // we have nothing to do with this channel
+    mode = mpi_channel_table[i].mode;
+    if(mode != 'r' && mode != 'R' && mode != 'w' && mode != 'W' ) continue ;  // we have nothing to do with this channel
 
     if(cpl == 0){      // PE 0
       if(mpi_channel_table[i].mode == 'R'){
         status = MPI_Recv(&id, 1, MPI_INTEGER, 0, 0, comm2, &mpi_stat);    // get shared memory segment id from coupler process
         mpi_channel_table[i].winbuf = shmat(id,NULL,0);                    // attach to it, mpi_channel_table[i].winbuf => shared memory segment
+        mpi_channel_table[i].window = MPI_WIN_NULL;
+// if(DEBUG) printf("DEBUG %d: PE0 attached to id=%d, address=%p, '%s'\n",debug_rank,id,mpi_channel_table[i].winbuf,mpi_channel_table[i].alias);
       }
       if(mpi_channel_table[i].mode == 'W'){
+        mpi_channel_table[i].is_active = 1;
         MPI_mgi_Lookup_name(mpi_channel_table[i].channel_name, MPI_INFO_NULL, mpi_channel_table[i].port_name);  // get port name published under name channel_name
         status = MPI_Comm_connect(mpi_channel_table[i].port_name, MPI_INFO_NULL, 0, MPI_COMM_SELF,  &mpi_channel_table[i].global );   // connect to port
         MPI_Intercomm_merge(mpi_channel_table[i].global, 1, &mpi_channel_table[i].local);
         MPI_Comm_rank(mpi_channel_table[i].local,&mpi_channel_table[i].thispe);
         mpi_channel_table[i].otherpe = 1 - mpi_channel_table[i].thispe;
         mpi_channel_table[i].winbuf = (arena *) malloc(sizeof(arena));
+        mpi_channel_table[i].allocmem = 1;
         winsize = sizeof(arena);
         status = MPI_Win_create(mpi_channel_table[i].winbuf, winsize, dispunit, MPI_INFO_NULL, mpi_channel_table[i].local, &mpi_channel_table[i].window);  // create window 
+// if(DEBUG) printf("DEBUG %d: PE0 short window buffer at %p '%s'\n",debug_rank,mpi_channel_table[i].winbuf,mpi_channel_table[i].alias);
       }
     }else{             // coupler PE
       if(mpi_channel_table[i].mode == 'R'){
+        mpi_channel_table[i].is_active = 1;
         id = shmget(IPC_PRIVATE,mpi_channel_table[i].winsize,IPC_CREAT|S_IRUSR|S_IWUSR);  // allocate mpi_channel_table[i].winsize sized shared memory segment
         mpi_channel_table[i].winbuf = shmat(id,NULL,0);                                   // mpi_channel_table[i].winbuf => shared memory segment
+// if(DEBUG) printf("DEBUG %d: CPL created id=%d, address=%p '%s'\n",debug_rank,id,mpi_channel_table[i].winbuf,mpi_channel_table[i].alias);
         shmctl(id,IPC_RMID,&shmbuf);                                                      // mark segment for deletion
         status = MPI_Send(&id, 1, MPI_INTEGER, 1, 0,  comm2);                             // send segment id to PE0
         status = MPI_Comm_accept(mpi_channel_table[i].port_name, MPI_INFO_NULL, 0, MPI_COMM_SELF,  &mpi_channel_table[i].global );  // accept from port
@@ -230,6 +244,8 @@ int MPI_mgi_create_end(int cpl, MPI_Comm comm1, MPI_Comm comm2)  // call after l
         status = MPI_Win_create(mpi_channel_table[i].winbuf, winsize, dispunit, MPI_INFO_NULL, mpi_channel_table[i].local, &mpi_channel_table[i].window);
       }
       if(mpi_channel_table[i].mode == 'W'){
+        mpi_channel_table[i].window = MPI_WIN_NULL;
+        mpi_channel_table[i].winbuf = NULL;
         continue ; // nothing to do for coupler in write mode
       }
     }
@@ -264,7 +280,8 @@ int MPI_mgi_create(const char *alias, char mode, int cpl)
   char mastername[128] ;
   int i, ordinal ;
 
-  if(cpl > 0) return(0);  // nothing to do on normal nodes
+  if(cpl > 0) return(0);      // nothing to do on normal nodes
+  if(mode != 'r' && mode != 'R' && mode != 'w' && mode != 'W' ) return(0) ; // neither read nor write, nothing to do
 
   if(last_mpi_channel == -1){     // initialize global channel table from environment variable MGI_MPI_CFG (do only once)
     cfg = getenv("MGI_MPI_CFG") ;
@@ -286,11 +303,11 @@ int MPI_mgi_create(const char *alias, char mode, int cpl)
       mpi_channel_table[i].port_name = (char *) malloc(MPI_MAX_PORT_NAME+1);
       memset(mpi_channel_table[i].port_name,0,MPI_MAX_PORT_NAME+1);
 
-if(DEBUG) printf("DEBUG %d: i = %d, master = '%s', channel = '%s', size = %d\n",
-       debug_rank,i,
-       mpi_channel_table[i].channel_name,
-       mpi_channel_table[i].alias,
-       mpi_channel_table[i].winsize);
+// if(DEBUG) printf("DEBUG %d: i = %d, master = '%s', channel = '%s', size = %d\n",
+//        debug_rank,i,
+//        mpi_channel_table[i].channel_name,
+//        mpi_channel_table[i].alias,
+//        mpi_channel_table[i].winsize);
 
       mpi_channel_table[i].winbuf    = NULL ;                        // window not created yet
       mpi_channel_table[i].window    = MPI_WIN_NULL ;
@@ -301,6 +318,9 @@ if(DEBUG) printf("DEBUG %d: i = %d, master = '%s', channel = '%s', size = %d\n",
       mpi_channel_table[i].thispe    = -1 ;
       mpi_channel_table[i].otherpe   = -1 ;
       mpi_channel_table[i].mode      = 'U' ;
+      mpi_channel_table[i].allocmem  = 0;
+      mpi_channel_table[i].pe0       = 0;
+      mpi_channel_table[i].cpl       = 0;
     }   // end for i
     at_MPI_Finalize(MPI_mgi_closeall) ;// setup for at_MPI_Finalize (close everything at finalize time)
   }
@@ -313,12 +333,15 @@ if(DEBUG) printf("DEBUG %d: i = %d, master = '%s', channel = '%s', size = %d\n",
       service_name = mpi_channel_table[i].channel_name ; // MPI channel name is 'mastername_alias'
     }
   }
+// if(DEBUG) printf("DEBUG %d: channel '%s', mode '%c', ordinal = %d\n",debug_rank,alias,mode,ordinal);
   if(ordinal < 0) return(-1) ;       // alias not found , OOPS 
+  if(cpl == 0) mpi_channel_table[i].pe0 = 1;    // PE0 from application
+  if(cpl == -1) mpi_channel_table[i].cpl = 1;   // this is a coupler PE
   if ( mpi_channel_table[ordinal].mode == 'W' ) return(0) ;  // nothing more to do in write mode
-  if ( cpl >= 0) return(0) ;  // nothing more to do for PE0
+  if ( cpl >= 0) return(0) ;  // nothing more to do for PE0 -> PEn
 
   status2 = MPI_Can_Publish_name(service_name,0) ;    // is service_name already published 
-// if(DEBUG) printf("DEBUG: to be published by rank = %d, status2 = %d\n",debug_rank, status2);
+// if(DEBUG) printf("DEBUG %d: to be published , status2 = %d\n",debug_rank, status2);
   if(status2 < 0) return(1);                          // yes, OOPS
   
 // if(DEBUG) printf("DEBUG %d: opening port\n",debug_rank);
@@ -345,34 +368,44 @@ int MPI_mgi_close(int channel) // close a MPI channel (it is assumed that there 
   int status;
 //   int channel = mpi_channel ;  // convert pseudo channel to MPI channel
 
-// if(DEBUG) printf("DEBUG : closing channel %d\n",channel);
+// if(DEBUG) printf("DEBUG %d: closing channel %d '%s'\n",debug_rank,channel,mpi_channel_table[channel].alias);
   if(channel >= MAX_CHANNELS || channel < 0) return -1;             // invalid channel number
   if(mpi_channel_table[channel].channel_name == NULL) return -1;    // channel not/no longer active
   if(mpi_channel_table[channel].is_active == 0) return -1;          // channel never active or already closed
 
   mpi_channel_table[channel].is_active = -1;                        // mark channel as inactive but not totally closed
   //
-  // if i am writing, set remode control flag to CHANNEL_STOPPED with MPI_Put
+  // if i am writing (PE0), set remode control flag to CHANNEL_STOPPED with MPI_Put (should have been done by mgi_term)
+  // if i am reading (CPL), it is an ERROR if arena->control if CHANNEL_ACTIVE (would actually be stuck in waiting loop)
   //
-if(DEBUG) printf("DEBUG : channel %d marked as inactive\n",channel);
+if(DEBUG) printf("DEBUG %d: channel %d marked as inactive\n",debug_rank,channel);
   if(in_closeall == 0) return 0;                                    // wait for closeall to really close the books
   mpi_channel_table[channel].is_active = 0;                         // mark channel as inactive and totally closed
-// if(DEBUG) printf("DEBUG : barrier on local, channel = %d\n",channel);
+  if(mpi_channel_table[channel].window == MPI_WIN_NULL) {
+if(DEBUG) printf("DEBUG %d: no window on channel = %d '%s'\n",debug_rank,channel,mpi_channel_table[channel].alias);
+    return 0;   // no window = no communicator
+  }
+// if(DEBUG) printf("DEBUG %d: barrier on local, channel = %d '%s'\n",debug_rank,channel,mpi_channel_table[channel].alias);
   MPI_Barrier(mpi_channel_table[channel].local);
-  if(mpi_channel_table[channel].winbuf){
-// if(DEBUG) printf("DEBUG : freeing window, channel = %d, win = %p\n",channel,mpi_channel_table[channel].window);
+  if(mpi_channel_table[channel].window != MPI_WIN_NULL){
+// if(DEBUG) printf("DEBUG %d: freeing window, channel = %d, win = %p\n",debug_rank,channel,mpi_channel_table[channel].winbuf);
     status = MPI_Win_free(&mpi_channel_table[channel].window);               // free window communicator
-if(DEBUG) printf("DEBUG : freed window, channel = %d, status = %d, win = %p\n",channel,status,mpi_channel_table[channel].window);
-    status = MPI_Free_mem(mpi_channel_table[channel].winbuf);                        // free memory associated with window
-if(DEBUG) printf("DEBUG : freed window memory, channel = %d, status = %d\n",channel,status);
+    mpi_channel_table[channel].window = MPI_WIN_NULL;
+if(DEBUG) printf("DEBUG %d: freed window, channel = %d, status = %d, win = %p\n",debug_rank,channel,status,mpi_channel_table[channel].winbuf);
+     if(mpi_channel_table[channel].allocmem) {
+// if(DEBUG) printf("DEBUG %d: freing window memory, channel = %d, status = %d\n",debug_rank,channel,status);
+       free(mpi_channel_table[channel].winbuf);
+//     status = MPI_Free_mem(mpi_channel_table[channel].winbuf);                        // free memory associated with window
+if(DEBUG) printf("DEBUG %d: freed window memory, channel = %d, status = %d\n",debug_rank,channel,status);
+     }
     mpi_channel_table[channel].winbuf = NULL;
   }
 
   MPI_Barrier(mpi_channel_table[channel].local);
 
-if(DEBUG) printf("DEBUG : disconnecting local, channel = %d\n",channel);
+// if(DEBUG) printf("DEBUG %d: disconnecting local, channel = %d\n",debug_rank,channel);
   MPI_Comm_disconnect( &mpi_channel_table[channel].local );         // disconnect intra-communicator
-if(DEBUG) printf("DEBUG : disconnecting global, channel = %d\n",channel);
+// if(DEBUG) printf("DEBUG %d: disconnecting global, channel = %d\n",debug_rank,channel);
   MPI_Comm_disconnect( &mpi_channel_table[channel].global );        // disconnect iner-communicator
 
   if(mpi_channel_table[channel].is_server) {                        // on server, unpublish and close port
@@ -388,20 +421,20 @@ if(DEBUG) printf("DEBUG : disconnecting global, channel = %d\n",channel);
   mpi_channel_table[channel].is_server =  0;                        // invalidate server flag
   mpi_channel_table[channel].thispe    = -1;                        // invalidate ranks
   mpi_channel_table[channel].otherpe   = -1;
-if(DEBUG) printf("DEBUG : closed channel %d\n",channel);
+if(DEBUG) printf("DEBUG %d: closed channel %d\n",debug_rank,channel);
   return 0;
 }
 
 void MPI_mgi_closeall(void)  // close all channels if not already done
 {
   int i;
-if(DEBUG) printf("DEBUG : entering closeall\n");
+// if(DEBUG) printf("DEBUG %d: entering closeall\n",debug_rank);
   if(closeall_done) return ;  // already done
   in_closeall = 1 ;
-  for(i=0 ; i<=last_mpi_channel ; i++) MPI_mgi_close(i<<1);
+  for(i=0 ; i<=last_mpi_channel ; i++) MPI_mgi_close(i);
   in_closeall = 0 ;
   closeall_done = 1 ;
-if(DEBUG) printf("DEBUG : exiting closeall\n");
+// if(DEBUG) printf("DEBUG %d: exiting closeall\n",debug_rank);
 }
 
 //
@@ -778,7 +811,11 @@ static int MPI_mgi_Unpublish_name(const char *service_name, MPI_Info info, const
   char *mpi_mgi_home = getenv("MGI_MPI_HOME") ;
 
   if(mpi_mgi_home != NULL) {        // MPI channel files directory
-    snprintf(filename,4096,"%s/%s.channel",mpi_mgi_home,service_name);
+    if( mpi_mgi_home[0] == '/' ){
+      snprintf(filename,4096,"%s/%s.channel",mpi_mgi_home,service_name);
+    }else{
+      snprintf(filename,4096,"%s/%s/%s.channel",getenv("HOME"),mpi_mgi_home,service_name);
+    }
   }else{
     snprintf(filename,4096,"%s/%s/%s.channel",getenv("HOME"),".gossip/MPI",service_name);
   }
@@ -797,8 +834,11 @@ static int MPI_Can_Publish_name(const char *service_name, int test)
   char *mpi_mgi_home = getenv("MGI_MPI_HOME") ;
 
   if(mpi_mgi_home != NULL) {
-if(DEBUG & (test ==0)) printf("DEBUG: would be publishing in %s\n",mpi_mgi_home);
-    snprintf(filename,4096,"%s/%s.lock",mpi_mgi_home,service_name);
+    if( mpi_mgi_home[0] == '/' ){
+      snprintf(filename,4096,"%s/%s.lock",mpi_mgi_home,service_name);
+    }else{
+      snprintf(filename,4096,"%s/%s/%s.lock",getenv("HOME"),mpi_mgi_home,service_name);
+    }
   }else{
     snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip");
     mkdir(filename,0755);
@@ -806,6 +846,7 @@ if(DEBUG & (test ==0)) printf("DEBUG: would be publishing in %s\n",mpi_mgi_home)
     mkdir(filename,0755);
     snprintf(filename,4096,"%s/%s/%s.lock",getenv("HOME"),".gossip/MPI",service_name);
   }
+// if(DEBUG & (test ==0)) printf("DEBUG: would be publishing in %s\n",filename);
   if(test == 0) {
     status = open(filename,O_WRONLY+O_CREAT+O_EXCL,00700);   // test mode, try to create lock file
 // if(DEBUG) printf("DEBUG %d: status from create '%s' = %d\n",debug_rank,filename,status);
@@ -825,10 +866,16 @@ static int MPI_mgi_Publish_name(const char *service_name, MPI_Info info, const c
   char *mpi_mgi_home = getenv("MGI_MPI_HOME") ;
 
   if(mpi_mgi_home != NULL) {        // MPI channel files directory
-if(DEBUG) printf("DEBUG: publishing in %s\n",mpi_mgi_home);
-    snprintf(filename,4096,"%s/%s.new",    mpi_mgi_home,service_name);
-    snprintf(filenew, 4096,"%s/%s.channel",mpi_mgi_home,service_name);
+    if( mpi_mgi_home[0] == '/' ){
+      snprintf(filename,4096,"%s/%s.new",    mpi_mgi_home,service_name);
+      snprintf(filenew, 4096,"%s/%s.channel",mpi_mgi_home,service_name);
+    }else{
+      snprintf(filename,4096,"%s/%s/%s.new",    getenv("HOME"),mpi_mgi_home,service_name);
+      snprintf(filenew, 4096,"%s/%s/%s.channel",getenv("HOME"),mpi_mgi_home,service_name);
+    }
+if(DEBUG) printf("DEBUG %d: publishing in %s\n",debug_rank,filenew);
   }else{                            //  default directory for MPI channel files
+if(DEBUG) printf("DEBUG %d: publishing in %s, MGI_MPI_HOME='%s'\n",".gossip/MPI",debug_rank,mpi_mgi_home);
     snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip");
     mkdir(filename,0755);
     snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip/MPI");
@@ -856,7 +903,11 @@ static int MPI_mgi_Lookup_name(const char *service_name, MPI_Info info, char *po
   char *mpi_mgi_home = getenv("MGI_MPI_HOME") ;
 
   if(mpi_mgi_home != NULL) {        // MPI channel files directory
-    snprintf(filename,4096,"%s/%s.channel",mpi_mgi_home,service_name);
+    if( mpi_mgi_home[0] == '/' ){
+      snprintf(filename,4096,"%s/%s.channel",mpi_mgi_home,service_name);   // absolute path
+    }else{
+      snprintf(filename,4096,"%s/%s/%s.channel",getenv("HOME"),mpi_mgi_home,service_name);  // path relative to home
+    }
   }else{
     snprintf(filename,4096,"%s/%s/%s.channel",getenv("HOME"),".gossip/MPI",service_name);
   }
@@ -869,7 +920,68 @@ if(DEBUG) printf("DEBUG %d: looking for '%s'\n",debug_rank,filename);
 
   return MPI_SUCCESS;
 }
+#if defined(COUPLED)
 
+static char *MGI_MPI_CFG="MGI_MPI_CFG=mgitest 4 : 1024 yin2opa : 256 opa2yin : 512 yan2opa : 784 opa2yan " ;
+static char *MGI_MPI_HOME="MGI_MPI_HOME=.gossip/MPI_TEST" ;
+
+int main(int argc, char **argv){
+  typedef struct{
+    char *name;
+    char mode;
+  } chdef;
+  int size, rank, color, status, i;
+  MPI_Comm comm_cpl;
+  char mode;
+#if defined(YIN)
+  chdef ch0 = {"yin2opa" , 'w'};
+  chdef ch1 = {"opa2yin" , 'r'};
+  chdef ch2 = {"yan2opa" , ' '};
+  chdef ch3 = {"opa2yan" , ' '};
+#endif
+#if defined(YAN)
+  chdef ch0 = {"yan2opa" , 'w'};
+  chdef ch1 = {"opa2yan" , 'r'};
+  chdef ch2 = {"yin2opa" , ' '};
+  chdef ch3 = {"opa2yin" , ' '};
+#endif
+#if defined(OPA)
+  chdef ch0 = {"yin2opa" , 'r'};
+  chdef ch1 = {"opa2yin" , 'w'};
+  chdef ch2 = {"yan2opa" , 'r'};
+  chdef ch3 = {"opa2yan" , 'w'};
+#endif
+
+  MPI_Init( &argc, &argv );
+  putenv(MGI_MPI_CFG);
+  putenv(MGI_MPI_HOME);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  if(size < 2) exit(1);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank); debug_rank = rank;
+
+//   MPI_Comm_split(MPI_COMM_WORLD, color, key, MPI_Comm *newcomm)
+  comm_cpl = MPI_COMM_WORLD ;
+
+  MPI_mgi_create_begin(rank - 1, MPI_COMM_WORLD, comm_cpl);
+  MPI_mgi_create(ch0.name, ch0.mode, rank - 1);
+  MPI_mgi_create(ch1.name, ch1.mode, rank - 1);
+  MPI_mgi_create(ch2.name, ch2.mode, rank - 1);
+  MPI_mgi_create(ch3.name, ch3.mode, rank - 1);
+  MPI_mgi_create_end(rank - 1, MPI_COMM_WORLD, comm_cpl);
+  printf("DEBUG %d:  channel creation done\n",debug_rank);
+
+  for(i=0 ; i<MAX_CHANNELS ; i++){
+    mode = mpi_channel_table[i].mode;
+    if(mode == 'r' || mode == 'R' || mode == 'w' || mode == 'W' ) {
+      mpi_channel_table[i].is_active = 1 ;
+      printf("DEBUG %d:  channel %d '%s' marked as active, mode ='%c'\n",debug_rank,i,mpi_channel_table[i].alias,mode);
+    }
+  }
+
+  MPI_Finalize();
+  return 0;
+}
+#endif
 #if defined(SELF_TEST)
 int main(int argc, char **argv){
   arena test_arena;
