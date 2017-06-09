@@ -77,7 +77,7 @@ int MPI_mgi_create_end(int cpl, MPI_Comm comm1, MPI_Comm comm2);
 int MPI_mgi_create_beginf(int cpl, MPI_Fint f_comm1, MPI_Fint f_comm2);
 int MPI_mgi_create_begin(int cpl, MPI_Comm comm1, MPI_Comm comm2);
 void MPI_mgi_closeall(void);
-void MPI_mgi_term(void);
+int MPI_mgi_term(void);
 int MPI_mgi_open(int mpi_channel, unsigned char *mode);
 int MPI_mgi_read(int channel, unsigned char *data, int nelm, unsigned char *dtyp);
 int MPI_mgi_write(int channel, unsigned char *data, int nelm, unsigned char *dtyp);
