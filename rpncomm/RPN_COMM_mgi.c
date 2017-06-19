@@ -875,7 +875,7 @@ static int MPI_mgi_Publish_name(const char *service_name, MPI_Info info, const c
     }
 if(DEBUG) printf("DEBUG %d: publishing in %s\n",debug_rank,filenew);
   }else{                            //  default directory for MPI channel files
-if(DEBUG) printf("DEBUG %d: publishing in %s, MGI_MPI_HOME='%s'\n",".gossip/MPI",debug_rank,mpi_mgi_home);
+if(DEBUG) printf("DEBUG %d: publishing in %s, MGI_MPI_HOME='%s'\n",debug_rank,".gossip/MPI",mpi_mgi_home);
     snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip");
     mkdir(filename,0755);
     snprintf(filename,4096,"%s/%s",getenv("HOME"),".gossip/MPI");
