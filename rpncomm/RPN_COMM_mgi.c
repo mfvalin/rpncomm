@@ -112,6 +112,7 @@ if(DEBUG) printf("DEBUG %d: inserted callback %d\n",debug_rank,nf);
   return(0);
 }
 
+#define CHANNEL_UNKNOWN -1
 #define CHANNEL_IDLE 0
 #define CHANNEL_ACTIVE 1
 #define CHANNEL_STOPPED 2
@@ -193,50 +194,88 @@ int MPI_mgi_create_begin_f(int cpl, MPI_Fint f_comm1, MPI_Fint f_comm2)  // call
 // comm used to cummunicate between PE0 and coupler process
 int MPI_mgi_create_end(int cpl, MPI_Comm comm1, MPI_Comm comm2)  // call after last call to MPI_mgi_create
 {
-  int i, status, id;
+  int i, status, id, data_length;
   int dispunit = sizeof(int);
   MPI_Aint winsize;
   char *memptr;
   struct shmid_ds shmbuf;
   MPI_Status mpi_stat;
   char mode;
+  arena *arenaptr;
+  int window_size;
 
-  if(cpl > 0) return(0);  // nothing to do on normal nodes
+//   if(cpl > 0) return(0);  // nothing to do on normal nodes
+  if(comm2 == MPI_COMM_NULL) return(0);  // nothing to do on normal nodes
 
   for(i=0 ; i<=last_mpi_channel ; i++) {
 
     mode = mpi_channel_table[i].mode;
     if(mode != 'r' && mode != 'R' && mode != 'w' && mode != 'W' ) continue ;  // we have nothing to do with this channel
 
-    if(cpl == 0){      // PE 0
+//     if(cpl == 0){      // PE 0
+    if(comm1 != MPI_COMM_NULL){      // PE 0
       if(mpi_channel_table[i].mode == 'R'){
+        mpi_channel_table[i].is_active = 1;
+if(DEBUG) printf("DEBUG %d: receiving shmid\n",debug_rank);
         status = MPI_Recv(&id, 1, MPI_INTEGER, 0, 0, comm2, &mpi_stat);    // get shared memory segment id from coupler process
+if(DEBUG) printf("DEBUG %d: received shmid\n",debug_rank);
         mpi_channel_table[i].winbuf = shmat(id,NULL,0);                    // attach to it, mpi_channel_table[i].winbuf => shared memory segment
-        mpi_channel_table[i].window = MPI_WIN_NULL;
-// if(DEBUG) printf("DEBUG %d: PE0 attached to id=%d, address=%p, '%s'\n",debug_rank,id,mpi_channel_table[i].winbuf,mpi_channel_table[i].alias);
+        mpi_channel_table[i].window = MPI_WIN_NULL;                        // no one sided window on PE0 if reading
+if(DEBUG) printf("DEBUG %d: PE0 attached to id=%d, address=%p, '%s'\n",debug_rank,id,mpi_channel_table[i].winbuf,mpi_channel_table[i].alias);
       }
       if(mpi_channel_table[i].mode == 'W'){
         mpi_channel_table[i].is_active = 1;
         MPI_mgi_Lookup_name(mpi_channel_table[i].channel_name, MPI_INFO_NULL, mpi_channel_table[i].port_name);  // get port name published under name channel_name
+if(DEBUG) printf("DEBUG %d: connecting to '%s'\n",debug_rank,mpi_channel_table[i].port_name);
         status = MPI_Comm_connect(mpi_channel_table[i].port_name, MPI_INFO_NULL, 0, MPI_COMM_SELF,  &mpi_channel_table[i].global );   // connect to port
+if(DEBUG) printf("DEBUG %d: connected to '%s'\n",debug_rank,mpi_channel_table[i].port_name);
         MPI_Intercomm_merge(mpi_channel_table[i].global, 1, &mpi_channel_table[i].local);
         MPI_Comm_rank(mpi_channel_table[i].local,&mpi_channel_table[i].thispe);
         mpi_channel_table[i].otherpe = 1 - mpi_channel_table[i].thispe;
         mpi_channel_table[i].winbuf = (arena *) malloc(sizeof(arena));
         mpi_channel_table[i].allocmem = 1;
+        arenaptr = mpi_channel_table[i].winbuf;            // local one-sided memory area
+        arenaptr->control = CHANNEL_UNKNOWN;
+        arenaptr->first   = -1;
+        arenaptr->in      = -1;
+        arenaptr->out     = -1;
+        arenaptr->limit   = -1;
+        arenaptr->r_control = CHANNEL_UNKNOWN;            // remote copy of one-sided memory area parameters
+        arenaptr->r_first   = -1;
+        arenaptr->r_in      = -1;
+        arenaptr->r_out     = -1;
+        arenaptr->r_limit   = -1;
+
         winsize = sizeof(arena);
         status = MPI_Win_create(mpi_channel_table[i].winbuf, winsize, dispunit, MPI_INFO_NULL, mpi_channel_table[i].local, &mpi_channel_table[i].window);  // create window 
-// if(DEBUG) printf("DEBUG %d: PE0 short window buffer at %p '%s'\n",debug_rank,mpi_channel_table[i].winbuf,mpi_channel_table[i].alias);
+if(DEBUG) printf("DEBUG %d: PE0 short window buffer at %p '%s'\n",debug_rank,mpi_channel_table[i].winbuf,mpi_channel_table[i].alias);
       }
     }else{             // coupler PE
       if(mpi_channel_table[i].mode == 'R'){
         mpi_channel_table[i].is_active = 1;
         id = shmget(IPC_PRIVATE,mpi_channel_table[i].winsize,IPC_CREAT|S_IRUSR|S_IWUSR);  // allocate mpi_channel_table[i].winsize sized shared memory segment
         mpi_channel_table[i].winbuf = shmat(id,NULL,0);                                   // mpi_channel_table[i].winbuf => shared memory segment
-// if(DEBUG) printf("DEBUG %d: CPL created id=%d, address=%p '%s'\n",debug_rank,id,mpi_channel_table[i].winbuf,mpi_channel_table[i].alias);
+if(DEBUG) printf("DEBUG %d: CPL created id=%d, address=%p '%s'\n",debug_rank,id,mpi_channel_table[i].winbuf,mpi_channel_table[i].alias);
         shmctl(id,IPC_RMID,&shmbuf);                                                      // mark segment for deletion
+        arenaptr = mpi_channel_table[i].winbuf;            // local one-sided memory area
+        data_length = &(arenaptr->data[0]) - &(arenaptr->control);   // offset of first data element with respect to arena
+        arenaptr->control = CHANNEL_ACTIVE;             // setup of own memory arena
+        arenaptr->first   = data_length;                // will use memptr[first] to memptr[limit-1]
+        arenaptr->in      = arenaptr->first;            // in = out = first, buffer starts empty
+        arenaptr->out     = arenaptr->in;
+        window_size       = mpi_channel_table[i].winsize / sizeof(int);
+        arenaptr->limit   = window_size - data_length;
+        arenaptr->r_control = CHANNEL_UNKNOWN;          // mark remote arena control block status as unknown
+        arenaptr->r_first   = -1;
+        arenaptr->r_in      = -1;
+        arenaptr->r_out     = -1;
+        arenaptr->r_limit   = -1;
+
+if(DEBUG) printf("DEBUG %d: sending shmid\n",debug_rank);
         status = MPI_Send(&id, 1, MPI_INTEGER, 1, 0,  comm2);                             // send segment id to PE0
+if(DEBUG) printf("DEBUG %d: sent shmid, accepting on '%s'\n",debug_rank,mpi_channel_table[i].port_name);
         status = MPI_Comm_accept(mpi_channel_table[i].port_name, MPI_INFO_NULL, 0, MPI_COMM_SELF,  &mpi_channel_table[i].global );  // accept from port
+if(DEBUG) printf("DEBUG %d: accepted on '%s'\n",debug_rank,mpi_channel_table[i].port_name);
         MPI_Intercomm_merge(mpi_channel_table[i].global, 0, &mpi_channel_table[i].local);
         MPI_Comm_rank(mpi_channel_table[i].local,&mpi_channel_table[i].thispe);
         mpi_channel_table[i].otherpe = 1 - mpi_channel_table[i].thispe;
@@ -296,6 +335,7 @@ int MPI_mgi_create(const char *alias, char mode, int cpl)
       }
       cfg++;
       sscanf(cfg,"%d%31s",&mpi_channel_table[i].winsize,mpi_channel_table[i].alias);  // get channel size and short name
+      mpi_channel_table[i].winsize *= 1024;  // size is in KBytes
 // if(DEBUG) printf("DEBUG: cfg = '%s'\n",cfg);
       mpi_channel_table[i].channel_name = (char *) malloc(257);
       memset(mpi_channel_table[i].channel_name,0,257);
@@ -453,7 +493,9 @@ int MPI_mgi_init(const char *alias)
 //   bump = -1;
   for(i=0 ; i<=last_mpi_channel ; i++){
 // if(DEBUG) printf("DEBUG: alias, alias1, alias2 = '%s'%s'%s'\n",alias,mpi_channel_table[i].alias1,mpi_channel_table[i].alias2);
-    if( strncmp(mpi_channel_table[i].alias,alias,MAXALIAS) == 0 ) return(i) ;
+    if( strncmp(mpi_channel_table[i].alias,alias,MAXALIAS) == 0 && mpi_channel_table[i].mode != 'U') {
+      return(i) ;
+    }
 //     if( strncmp(mpi_channel_table[i].alias2,alias,MAXALIAS) == 0 ) bump = 1 ;
 //     if( bump != -1 ){
 //       mpi_channel = i ;
@@ -477,6 +519,44 @@ int MPI_mgi_init(const char *alias)
 // read(R)/write(W) mode is really for backwards compatibility, the MPI channel is really bi-directional
 // each alias subchannel is treated as uni-directional
 int MPI_mgi_open(int mpi_channel,unsigned char *mode)
+{
+  MPI_Win window;
+  MPI_Comm local;
+  void *remote;
+  MPI_Aint TargetDisp;
+  int data_length ;
+  arena *arenaptr ;
+  int otherpe, i ;
+  int window_size ;
+
+  if(mpi_channel < 0 || mpi_channel > last_mpi_channel ) return(-1) ;     // bad channel number
+  if(toupper(*mode) != 'R' && toupper(*mode) != 'W') return(-1) ;         // bad mode
+  if(mpi_channel_table[mpi_channel].is_active != 1) {
+    printf("ERROR: MPI channel not initialized properly\n");
+    return(-1);
+  }
+  arenaptr = mpi_channel_table[mpi_channel].winbuf;
+if(DEBUG) printf("DEBUG %d: MPI_mgi_open : channel = %d, mode = '%c'\n",debug_rank,mpi_channel,*mode);
+  if(toupper(*mode) == 'W') return mpi_channel ;
+if(DEBUG) printf("DEBUG %d: local window parameters %d %d %d %d %d\n",debug_rank,arenaptr->control,arenaptr->first,arenaptr->in,arenaptr->out,arenaptr->limit);
+
+//   MPI_Barrier(mpi_channel_table[mpi_channel].local);    // sync with remote process, so that we are sure to get correct control ... limit values from it
+// if(DEBUG) printf("DEBUG : remote window parameters %d %d %d %d %d\n",arenaptr->r_control,arenaptr->r_first,arenaptr->r_in,arenaptr->r_out,arenaptr->r_limit);
+
+// get remote memory arena configuration from "otherpe" (later we will "put" remote in and "get" remote out)
+//   data_length = &(arenaptr->r_control) - &(arenaptr->control);
+//   TargetDisp = 0;        //  what we get is right at the beginning of memory area, length = data_length integers
+//   remote = &(arenaptr->r_control) ;
+//   MPI_Win_lock(MPI_LOCK_SHARED,otherpe,0,window);
+//   MPI_Get(remote, data_length, MPI_INTEGER, otherpe, TargetDisp, data_length, MPI_INTEGER, window); // get remote control ... limit
+//   MPI_Win_unlock(otherpe,window);
+
+// if(DEBUG) printf("DEBUG : remote window parameters %d %d %d %d %d\n",arenaptr->r_control,arenaptr->r_first,arenaptr->r_in,arenaptr->r_out,arenaptr->r_limit);
+//   MPI_Barrier(mpi_channel_table[mpi_channel].local);    // sync with remote process done
+
+  return mpi_channel ;                                                  // return mpi channel number;
+}
+int MPI_mgi_open_old(int mpi_channel,unsigned char *mode)
 {
   char *port_name;
   char *channel_name ;
@@ -698,6 +778,7 @@ int MPI_mgi_write(int channel, unsigned char *data, int nelm, unsigned char *dty
   int sleepcount = 0;
   int wait = 1000;
   arena *winbuf;
+  arena temparena;
   MPI_Win window;
   MPI_Aint TargetDisp = 0;
   int meta;
@@ -742,6 +823,16 @@ if(DEBUG) printf("DEBUG : writing %d items of type %c from %p\n",nelm,*dtyp,data
   otherpe = mpi_channel_table[channel].otherpe;
 // we may have to get remote out index to update r_out if not enough space
   while(1){      // wait until there is enough space in remote buffer to satisfy request (ntok + 1) data tokens
+    if(winbuf->r_control = CHANNEL_UNKNOWN){   // not initialized yet, get remote area parameters
+      MPI_Win_lock(MPI_LOCK_SHARED,otherpe,0,window);
+      MPI_Get(&temparena, 5, MPI_INTEGER, otherpe, 0, 5, MPI_INTEGER, window);   // get control info from remote server
+      MPI_Win_unlock(otherpe,window);
+      winbuf->r_control = temparena.control ;
+      winbuf->r_first   = temparena.first ;
+      winbuf->r_in      = temparena.in ;
+      winbuf->r_out     = temparena.out ;
+      winbuf->r_limit   = temparena.limit ;
+    }
     first  = winbuf->r_first;
     in     = winbuf->r_in;
     out    = winbuf->r_out;
@@ -930,20 +1021,24 @@ int main(int argc, char **argv){
     char *name;
     char mode;
   } chdef;
-  int size, rank, color, status, i;
-  MPI_Comm comm_cpl;
+  int size, rank, color, status, i, activeareas;
+  int i0, i1, i2, i3;
+  MPI_Comm comm_cpl, comm_grid;
   char mode;
+  arena *ptr;
+  int writbuffer[100];
+  int readbuffer[100];
 #if defined(YIN)
   chdef ch0 = {"yin2opa" , 'w'};
   chdef ch1 = {"opa2yin" , 'r'};
-  chdef ch2 = {"yan2opa" , ' '};
-  chdef ch3 = {"opa2yan" , ' '};
+  chdef ch2 = {"yan2opa" , 'U'};
+  chdef ch3 = {"opa2yan" , 'U'};
 #endif
 #if defined(YAN)
   chdef ch0 = {"yan2opa" , 'w'};
   chdef ch1 = {"opa2yan" , 'r'};
-  chdef ch2 = {"yin2opa" , ' '};
-  chdef ch3 = {"opa2yin" , ' '};
+  chdef ch2 = {"yin2opa" , 'U'};
+  chdef ch3 = {"opa2yin" , 'U'};
 #endif
 #if defined(OPA)
   chdef ch0 = {"yin2opa" , 'r'};
@@ -960,21 +1055,95 @@ int main(int argc, char **argv){
   MPI_Comm_rank(MPI_COMM_WORLD, &rank); debug_rank = rank;
 
 //   MPI_Comm_split(MPI_COMM_WORLD, color, key, MPI_Comm *newcomm)
-  comm_cpl = MPI_COMM_WORLD ;
+  color = (rank<2) ? 1 : 0;     // Coupler PE + PE0
+  MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_cpl);
+  if(color == 0) comm_cpl = MPI_COMM_NULL;
+//   comm_cpl = MPI_COMM_WORLD ;
+
+  color = (rank>0) ? 1 : 0;     // grid PEs
+  MPI_Comm_split(MPI_COMM_WORLD, color, rank, &comm_grid);
+  if(color == 0) comm_grid = MPI_COMM_NULL;
 
   MPI_mgi_create_begin(rank - 1, MPI_COMM_WORLD, comm_cpl);
   MPI_mgi_create(ch0.name, ch0.mode, rank - 1);
   MPI_mgi_create(ch1.name, ch1.mode, rank - 1);
   MPI_mgi_create(ch2.name, ch2.mode, rank - 1);
   MPI_mgi_create(ch3.name, ch3.mode, rank - 1);
-  MPI_mgi_create_end(rank - 1, MPI_COMM_WORLD, comm_cpl);
+  MPI_mgi_create_end(rank - 1, comm_grid, comm_cpl);
   printf("DEBUG %d:  channel creation done\n",debug_rank);
 
+  MPI_Barrier(MPI_COMM_WORLD); printf("DEBUG %d: Barrier 1\n",debug_rank);
+
+  if(rank == 1){   // PE0
+    i0 = MPI_mgi_init(ch0.name); printf("DEBUG %d: name = '%s', number = %d\n",debug_rank,ch0.name,i0);
+    if(i0 != -1) MPI_mgi_open(i0,&ch0.mode);
+    i1 = MPI_mgi_init(ch1.name); printf("DEBUG %d: name = '%s', number = %d\n",debug_rank,ch1.name,i1);
+    if(i1 != -1) MPI_mgi_open(i1,&ch1.mode);
+    i2 = MPI_mgi_init(ch2.name); printf("DEBUG %d: name = '%s', number = %d\n",debug_rank,ch2.name,i2);
+    if(i2 != -1) MPI_mgi_open(i2,&ch2.mode);
+    i3 = MPI_mgi_init(ch3.name); printf("DEBUG %d: name = '%s', number = %d\n",debug_rank,ch3.name,i3);
+    if(i3 != -1) MPI_mgi_open(i3,&ch3.mode);
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD); printf("DEBUG %d: Barrier 2\n",debug_rank);
+
+//   printf("DEBUG %d: MAX_CHANNELS = %d\n",debug_rank,MAX_CHANNELS);
   for(i=0 ; i<MAX_CHANNELS ; i++){
+//     printf("DEBUG %d: channel %d\n",debug_rank,i);
     mode = mpi_channel_table[i].mode;
     if(mode == 'r' || mode == 'R' || mode == 'w' || mode == 'W' ) {
       mpi_channel_table[i].is_active = 1 ;
+      if(mode == 'r' || mode == 'R'){
+        ptr = mpi_channel_table[i].winbuf;
+        ptr->control = CHANNEL_ACTIVE;
+        printf("DEBUG %d: read channel %d activated\n",debug_rank,i);
+      }
       printf("DEBUG %d:  channel %d '%s' marked as active, mode ='%c'\n",debug_rank,i,mpi_channel_table[i].alias,mode);
+    }
+  }
+  if(rank == 0){   // Coupler PE
+//     sleep(1);
+    printf("DEBUG %d:  Coupler waiiiiiiiiiting\n",debug_rank);
+    while(1){
+      activeareas = 0;
+      for(i=0 ; i<MAX_CHANNELS ; i++){
+        mode = mpi_channel_table[i].mode;
+        if(mode == 'r' || mode == 'R'){
+          ptr = mpi_channel_table[i].winbuf;
+          if(ptr->control == CHANNEL_ACTIVE) activeareas++;
+          MPI_Win_lock(MPI_LOCK_SHARED,mpi_channel_table[i].thispe,0,mpi_channel_table[i].window);  // active loop for "passive" :-) one sided
+          MPI_Win_unlock(mpi_channel_table[i].thispe,mpi_channel_table[i].window);
+        }
+      }
+      printf("DEBUG %d:  Coupler waiting on %d channel(s)\n",debug_rank,activeareas);
+      if(activeareas == 0) break;
+      sleep(1);
+    }
+  }
+  if(rank == 1){   // PE0
+    for(i=0 ; i<100 ; i++) writbuffer[i] = i;
+    for(i=0 ; i<100 ; i++) readbuffer[i] = 9999;
+    printf("DEBUG %d:  PE0 sleeeeeeeeping\n",debug_rank);
+    for(i=0 ; i<MAX_CHANNELS ; i++){
+      mode = mpi_channel_table[i].mode;
+      if(mode == 'w' || mode == 'W'){
+        printf("DEBUG %d: writing into channel %s\n",debug_rank,mpi_channel_table[i].alias);
+      }
+    }
+    for(i=0 ; i<MAX_CHANNELS ; i++){
+      mode = mpi_channel_table[i].mode;
+      if(mode == 'r' || mode == 'R'){
+        printf("DEBUG %d: reading from channel %s\n",debug_rank,mpi_channel_table[i].alias);
+      }
+    }
+    sleep(10);
+    for(i=0 ; i<MAX_CHANNELS ; i++){
+      mode = mpi_channel_table[i].mode;
+      if(mode == 'r' || mode == 'R'){
+        ptr = mpi_channel_table[i].winbuf;
+        ptr->control = CHANNEL_STOPPED;
+        printf("DEBUG %d: read channel %d stopped\n",debug_rank,i);
+      }
     }
   }
 
