@@ -1,3 +1,5 @@
+#define IN_RPN_COMM_mpi_callbacks
+
 module RPN_COMM_init_callbacks
   use ISO_C_BINDING
   save
@@ -13,11 +15,12 @@ module RPN_COMM_init_callbacks
   end interface
 contains
 ! register callbacks (up to MAXFNS) to be called AFTER mpi_init
-  function at_mpi_init(fn,arg) bind(C,name='AtMpiInit') result(status)
+  function at_mpi_init(fn,arg) bind(C,name='AtMpiInit') result(status)   !InTf!
+!!  import :: C_FUNPTR, C_PTR, C_INT                                     !InTf!
     implicit none
-    type(C_FUNPTR), intent(IN) :: fn
-    type(C_PTR), intent(IN) :: arg
-    integer(C_INT) :: status
+    type(C_FUNPTR), intent(IN) :: fn                                     !InTf!
+    type(C_PTR), intent(IN) :: arg                                       !InTf!
+    integer(C_INT) :: status                                             !InTf!
 
     if(nf >= MAXFNS) then  ! OOPS, too many functions registered
       status = -1
@@ -27,7 +30,7 @@ contains
     funcs(nf) = fn
     args(nf) = arg
     status = MAXFNS - nf   ! return number of slots left to register functions
-  end function at_mpi_init
+  end function at_mpi_init                                               !InTf!
 end module RPN_COMM_init_callbacks
 
 module RPN_COMM_finalize_callbacks
@@ -45,11 +48,12 @@ module RPN_COMM_finalize_callbacks
   end interface
 contains
 ! register callbacks (up to MAXFNS) to be called BEFORE mpi_finalize
-  function at_mpi_finalize(fn,arg) bind(C,name='AtMpiFinalize') result(status)
+  function at_mpi_finalize(fn,arg) bind(C,name='AtMpiFinalize') result(status)   !InTf!
+!!  import :: C_FUNPTR, C_PTR, C_INT                                             !InTf!
     implicit none
-    type(C_FUNPTR), intent(IN) :: fn
-    type(C_PTR), intent(IN) :: arg
-    integer(C_INT) :: status
+    type(C_FUNPTR), intent(IN) :: fn                                             !InTf!
+    type(C_PTR), intent(IN) :: arg                                               !InTf!
+    integer(C_INT) :: status                                                     !InTf!
 
     if(nf >= MAXFNS) then  ! OOPS, too many functions registered
       status = -1
@@ -59,7 +63,7 @@ contains
     funcs(nf) = fn
     args(nf) = arg
     status = MAXFNS - nf   ! return number of slots left to register functions
-  end function at_mpi_finalize
+  end function at_mpi_finalize                                                   !InTf!
 end module RPN_COMM_finalize_callbacks
 
 subroutine mpi_init(ierr)        ! overloading MPI library init function wrapper
@@ -114,7 +118,7 @@ program test_init_mpi   ! et le petit test qui va avec
   use ISO_C_BINDING
   implicit none
   include 'mpif.h'
-  include 'RPN_COMM_at_mpi_callbacks.inc'
+  include 'RPN_COMM.inc'
   external :: my_sub, my_sub2
   integer :: ierr, i
   integer, dimension(10) :: my_arg, my_arg2, status1, status2
