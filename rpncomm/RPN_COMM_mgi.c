@@ -1073,7 +1073,7 @@ int main(int argc, char **argv){
   printf("DEBUG %d:  channel creation done\n",debug_rank);
 
   MPI_Barrier(MPI_COMM_WORLD); printf("DEBUG %d: Barrier 1\n",debug_rank);
-
+//==============================================================================
   if(rank == 1){   // PE0
     i0 = MPI_mgi_init(ch0.name); printf("DEBUG %d: name = '%s', number = %d\n",debug_rank,ch0.name,i0);
     if(i0 != -1) MPI_mgi_open(i0,&ch0.mode);
@@ -1084,14 +1084,14 @@ int main(int argc, char **argv){
     i3 = MPI_mgi_init(ch3.name); printf("DEBUG %d: name = '%s', number = %d\n",debug_rank,ch3.name,i3);
     if(i3 != -1) MPI_mgi_open(i3,&ch3.mode);
   }
-
+//==============================================================================
   MPI_Barrier(MPI_COMM_WORLD); printf("DEBUG %d: Barrier 2\n",debug_rank);
 
 //   printf("DEBUG %d: MAX_CHANNELS = %d\n",debug_rank,MAX_CHANNELS);
   for(i=0 ; i<MAX_CHANNELS ; i++){
 //     printf("DEBUG %d: channel %d\n",debug_rank,i);
     mode = mpi_channel_table[i].mode;
-    if(mode == 'r' || mode == 'R' || mode == 'w' || mode == 'W' ) {
+    if(mode == 'r' || mode == 'R' || mode == 'w' || mode == 'W' ) {  // only possible on PE0 or Coupler PE
       mpi_channel_table[i].is_active = 1 ;
       if(mode == 'r' || mode == 'R'){
         ptr = mpi_channel_table[i].winbuf;
@@ -1101,6 +1101,7 @@ int main(int argc, char **argv){
       printf("DEBUG %d:  channel %d '%s' marked as active, mode ='%c'\n",debug_rank,i,mpi_channel_table[i].alias,mode);
     }
   }
+//==============================================================================
   if(rank == 0){   // Coupler PE
 //     sleep(1);
     printf("DEBUG %d:  Coupler waiiiiiiiiiting\n",debug_rank);
@@ -1120,6 +1121,7 @@ int main(int argc, char **argv){
       sleep(1);
     }
   }
+//==============================================================================
   if(rank == 1){   // PE0
     for(i=0 ; i<100 ; i++) writbuffer[i] = i;
     for(i=0 ; i<100 ; i++) readbuffer[i] = 9999;
@@ -1146,7 +1148,7 @@ int main(int argc, char **argv){
       }
     }
   }
-
+//==============================================================================
   MPI_Finalize();
   return 0;
 }
