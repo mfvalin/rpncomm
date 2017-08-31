@@ -50,8 +50,9 @@ contains
     com_tab(12) = symtab(pe_blocmaster,RPN_COMM_BLOCMASTER)
     com_tab(13) = symtab(pe_bloc,RPN_COMM_BLOCK)
     com_tab(14) = symtab(MPI_COMM_WORLD,RPN_COMM_UNIVERSE)
-    max_com_index = 14
-    do i = 15,MAX_COMM_TAB+1
+    com_tab(15) = symtab(MPI_COMM_NULL,RPN_COMM_NULL)
+    max_com_index = 15
+    do i = 16,MAX_COMM_TAB+1
       com_tab(i) = symtab(MPI_COMM_NULL,"")
     enddo
 !print *,'DEBUG: com_tab initialized'
@@ -177,6 +178,10 @@ end module rpncomm_com
       endif
       if (trim(comm) == RPN_COMM_UNIVERSE) then
          RPN_COMM_comm=MPI_COMM_WORLD
+         return
+      endif
+      if (trim(comm) == RPN_COMM_NULL) then
+         RPN_COMM_comm=MPI_COMM_NULL
          return
       endif
 
