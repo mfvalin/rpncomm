@@ -48,12 +48,14 @@ contains
     com_tab( 9) = symtab(MPI_COMM_WORLD,RPN_COMM_UNIVERSE)
     com_tab(10) = symtab(pe_myrow,RPN_COMM_EW)
     com_tab(11) = symtab(pe_mycol,RPN_COMM_NS)         ! last immutable communicator
-    first_mutable = 12
-    com_tab(12) = symtab(pe_blocmaster,RPN_COMM_BLOCMASTER)  ! might get updated by RPN_COMM_bloc
-    com_tab(13) = symtab(pe_bloc,RPN_COMM_BLOCK)             ! might get updated by RPN_COMM_bloc
-    com_tab(14) = symtab(pe_defcomm,RPN_COMM_DEFAULT)  ; defcom_index = 14  ! might get updated by rpn_comm_defo
-    max_com_index = 14
-    do i = 15,MAX_COMM_TAB+1
+    com_tab(12) = symtab(MPI_COMM_NULL,RPN_COMM_NULL)
+    first_mutable = 13
+    com_tab(13) = symtab(pe_blocmaster,RPN_COMM_BLOCMASTER)  ! might get updated by RPN_COMM_bloc
+    com_tab(14) = symtab(pe_bloc,RPN_COMM_BLOCK)             ! might get updated by RPN_COMM_bloc
+    com_tab(15) = symtab(pe_defcomm,RPN_COMM_DEFAULT)        ! might get updated by rpn_comm_defo
+    defcom_index = 15
+    max_com_index = 15
+    do i = 16,MAX_COMM_TAB+1
       com_tab(i) = symtab(MPI_COMM_NULL,"")
     enddo
 !print *,'DEBUG: com_tab initialized'
@@ -179,6 +181,10 @@ end module rpncomm_com
       endif
       if (trim(comm) == RPN_COMM_UNIVERSE) then
          RPN_COMM_comm=MPI_COMM_WORLD
+         return
+      endif
+      if (trim(comm) == RPN_COMM_NULL) then
+         RPN_COMM_comm=MPI_COMM_NULL
          return
       endif
 
