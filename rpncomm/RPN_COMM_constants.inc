@@ -55,6 +55,7 @@
         character(len=*),parameter :: RPN_COMM_NS         = 'NS'
         character(len=*),parameter :: RPN_COMM_COLUMN     = 'NS'
         character(len=*),parameter :: RPN_COMM_UNIVERSE   = 'UNIVERSE'
+        character(len=*),parameter :: RPN_COMM_NULL       = 'RPN_COMM_NULL'
 !        character(len=*),parameter :: RPN_COMM_PE0        = 'PE_00'
 ! miscellaneous NULL/ANY constants
         character (len=32), parameter :: RPN_COMM_ANY_SOURCE =           &                                   
