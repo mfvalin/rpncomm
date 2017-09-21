@@ -8,19 +8,20 @@ program passive_one_sided_test
   integer :: nprocess, myrank, ierr, window, i, temp, j
   type(C_PTR) :: base_addr
   integer, dimension(:), pointer :: winarray
-  INTEGER(KIND=MPI_ADDRESS_KIND) TARGET_DISP
+  INTEGER(KIND=MPI_ADDRESS_KIND) TARGET_DISP, WIN_SIZE
   real*8 :: t1, t2, times(128)
   integer, external :: ifetch
 
   call mpi_init(ierr)
   call mpi_comm_size(MPI_COMM_WORLD,nprocess,ierr)
   call mpi_comm_rank(MPI_COMM_WORLD,myrank,ierr)
-  print *,"I am process",myrank+1,' of',nprocess
 
-  call mpi_win_allocate(1024, 1, MPI_INFO_NULL, MPI_COMM_WORLD, base_addr, window, ierr)
+  WIN_SIZE = 1024
+  call mpi_win_allocate(WIN_SIZE, 1, MPI_INFO_NULL, MPI_COMM_WORLD, base_addr, window, ierr)
   call c_f_pointer(base_addr,winarray,[256])
 
   call mpi_barrier(MPI_COMM_WORLD,ierr)
+  print *,"I am process",myrank+1,' of',nprocess
   do j = 1,2
   winarray(:) = -1
   if(myrank == 0) then
