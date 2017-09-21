@@ -1,4 +1,7 @@
 program passive_one_sided_test
+! needs export  MPICH_RMA_OVER_DMAPP=1 at runtime on Cray XC systems
+! MUST USE DMAPP on Cray XC systems
+! ftn  -o passive_mode_test_cray passive_mode_test.F90 ifetch.o  -Wl,--whole-archive,-ldmapp,--no-whole-archive
   use ISO_C_BINDING
   implicit none
   include 'mpif.h'
