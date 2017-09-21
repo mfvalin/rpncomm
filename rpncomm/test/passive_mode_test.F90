@@ -1,4 +1,5 @@
 program passive_one_sided_test
+! needs export  MPICH_RMA_OVER_DMAPP=1  on Cray XC systems
   use ISO_C_BINDING
   implicit none
   include 'mpif.h'
@@ -29,7 +30,7 @@ program passive_one_sided_test
     enddo
   else
     t1 = mpi_wtime()
-    print *,'in rank',myrank,'entering while'
+!     print *,'in rank',myrank,'entering while'
     do while(ifetch(winarray(1)) <= 0)
     enddo
     t2 = mpi_wtime()

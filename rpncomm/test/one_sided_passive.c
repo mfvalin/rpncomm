@@ -4,6 +4,9 @@
 #include <mpi.h>
 
 #define N 128
+
+// needs export  MPICH_RMA_OVER_DMAPP=1  on Cray XC systems
+
 int main( int argc, char **argv )
 {
     int buf[N];
