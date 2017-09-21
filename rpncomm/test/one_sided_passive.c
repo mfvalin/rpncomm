@@ -6,6 +6,8 @@
 #define N 128
 
 // needs export  MPICH_RMA_OVER_DMAPP=1  on Cray XC systems
+//  MUST USE DMAPP on Cray XC systems
+//  cc -o one_sided_passive one_sided_passive.c  -Wl,--whole-archive,-ldmapp,--no-whole-archive
 
 int main( int argc, char **argv )
 {
