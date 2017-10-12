@@ -17,22 +17,25 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
+!
 ! map of regions in array f 
 ! A, B, C, D external corner regions to get from neighbors
 ! 1, 2, 3, 4, 5, 6, 7, 8 regions from which neighbors get their external corners
+! array f has a useful size lni x lnj, with haloes along x (hx) and y (hy)
+!
 !           +---+---+                      +---+---+----(lnj+hy)
 !           | A | 1 |                      | 2 | B |
 !           +---+---+----------------------+---+---+----(lnj)
-!           | 8 |                              | 3 |
-!           +---+                              +---+----(lnj-hy+1)
+!           | 8 |                             /| 3 |
+!           +---+                            / +---+----(lnj-hy+1)
+!               |                    (lni.lnj) |
 !               |                              |
 !               |                              |
+!               |           array f            |
 !               |                              |
 !               |                              |
-!               |                              |
-!               |                              |
-!           +---+                              +---+----(hy)
-!           | 7 |                              | 4 |
+!           +---+ (1,1)                        +---+----(hy)
+!           | 7 |/                             | 4 |
 !           +---+---+----------------------+---+---+----(1)
 !           | D | 6 |                      | 5 | C |
 !           +---+---+----------------------+---+---+----(1-hy)
@@ -40,7 +43,184 @@
 !           |   |  (hx)             (lni-hx+1) |   |
 !           |  (1)                           (lni) |
 !         (1-hx)                                (lni+hx)
-subroutine RPN_COMM_progatate_boundary(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy)
+!
+#if defined(SELF_TEST)
+
+module rpn_comm
+#include <mpif.h>
+  integer, dimension(:,:), pointer :: pe_id
+  integer :: pe_mex, pe_mey, pe_grid, pe_nx, pe_ny
+  logical :: bnd_north, bnd_south, bnd_east, bnd_west
+end module rpn_comm
+
+program test
+  use rpn_comm
+  implicit none
+  integer :: NX=4
+  integer :: NY=3
+  integer :: NK=17
+  integer :: HX=2
+  integer :: HY=2
+  integer :: ierror, pe_me, siz, i, j, k, errors
+  integer, dimension(:,:,:), pointer :: f
+  character(len=128) :: argument
+  real*8 :: t1, t2
+  
+  call MPI_init(ierror)
+  argument = "0"
+  CALL GET_COMMAND_ARGUMENT(1 , argument)
+  read(argument,*) pe_nx
+
+  pe_grid = MPI_COMM_WORLD
+  call MPI_comm_size(pe_grid,siz,ierror)
+  call MPI_comm_rank(pe_grid,pe_me,ierror)
+  print *,'rank',pe_me+1,' of',siz
+  call MPI_barrier(MPI_COMM_WORLD,ierror)
+
+  allocate(f(1-HX:NX+HX,1-HY:NY+HY,NK))
+  pe_ny = siz / pe_nx
+  if(pe_nx * pe_ny .ne. siz) then
+    if(pe_me == 0) print *,'pe_nx * pe_ny .ne. siz',pe_nx,pe_ny,siz
+    goto 1
+  endif
+  if(pe_me == 0) print *,'pe_nx , pe_ny , siz',pe_nx,pe_ny,siz
+  pe_mex = mod(pe_me,pe_nx)
+  pe_mey = pe_me / pe_nx
+
+  bnd_north = (pe_mey == (pe_ny - 1))
+  bnd_south = (pe_mey == 0)
+  bnd_east  = (pe_mex == (pe_nx - 1))
+  bnd_west  = (pe_mex == 0)
+  allocate(pe_id(-1:pe_nx,-1:pe_ny))
+  pe_id = -1
+
+  k = 0
+  do j = 0,pe_ny-1
+  do i = 0,pe_nx-1
+    pe_id(i,j) = k
+    k = k + 1
+  enddo
+  enddo
+
+  if(pe_me == 0) then
+  do j = pe_ny,-1, -1
+    print *,pe_id(:,j)
+  enddo
+  endif
+  call MPI_barrier(MPI_COMM_WORLD,ierror)
+
+  f = 999999
+  do k = 1,nk
+    do j = 1-hy ,0
+    do i = 1 , nx
+      f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+    enddo
+    enddo
+    do j = 1 , ny
+    do i = 1-hx , nx+hx
+      f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+    enddo
+    enddo
+    do j = ny+1 , ny+hy
+    do i = 1 , nx
+      f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+    enddo
+    enddo
+    if(bnd_south .and. bnd_east) then
+      do j = 1-hy, 0
+      do i = nx+1, nx+hx
+        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+      enddo
+      enddo
+      do j = ny+1 , ny+hy
+      do i = 1-hx, 0
+        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+      enddo
+      enddo
+    endif
+    if(bnd_south .and. bnd_west) then
+      do j = 1-hy, 0
+      do i = 1-hx, 0
+        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+      enddo
+      enddo
+      do j = ny+1 , ny+hy
+      do i = nx+1, nx+hx
+        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+      enddo
+      enddo
+    endif
+    if(bnd_north .and. bnd_west) then
+      do j = ny+1 , ny+hy
+      do i = 1-hx, 0
+        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+      enddo
+      enddo
+      do j = 1-hy, 0
+      do i = nx+1, nx+hx
+        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+      enddo
+      enddo
+    endif
+    if(bnd_north .and. bnd_east) then
+      do j = ny+1 , ny+hy
+      do i = nx+1, nx+hx
+        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+      enddo
+      enddo
+      do j = 1-hy, 0
+      do i = 1-hx, 0
+        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+      enddo
+      enddo
+    endif
+    if(bnd_south .and. bnd_west) then
+    endif
+    if(bnd_south .and. bnd_east) then
+    endif
+  enddo
+  errors = 0
+
+  if(pe_mex == 1 .and. pe_mey == 0) then
+    print*,""
+    do j = ny+hy, 1-hy, -1
+      print 101,f(:,j,1)
+    enddo
+!     do j = ny+hy, ny+1, -1
+!       print *,f(1-hx:0,j,1),f(nx+1:nx+hx,j,1)
+!     enddo
+!     print*,""
+!     do j = 0, 1-hy, -1
+!       print *,f(1-hx:0,j,1),f(nx+1:nx+hx,j,1)
+!     enddo
+  endif
+  call MPI_barrier(MPI_COMM_WORLD,ierror)
+
+  t1 = MPI_wtime()
+  call RPN_COMM_propagate_boundary(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,1,hx,hy)
+  t2 = MPI_wtime()
+  print *,'time =',pe_me,nint((t2-t1)*1000000)
+
+  if(pe_mex == 1 .and. pe_mey == 0) then
+    print*,""
+    do j = ny+hy, 1-hy, -1
+      print 101,f(:,j,1)
+    enddo
+!     do j = ny+hy, ny+1, -1
+!       print *,f(1-hx:0,j,1),f(nx+1:nx+hx,j,1)
+!     enddo
+!     print*,""
+!     do j = 0, 1-hy, -1
+!       print *,f(1-hx:0,j,1),f(nx+1:nx+hx,j,1)
+!     enddo
+  endif
+1 continue
+  call MPI_finalize(ierror)
+101 format(15I8.6)
+end program
+#endif
+
+subroutine RPN_COMM_propagate_boundary(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy)
   use rpn_comm
   implicit none
   integer, intent(IN) :: minx,maxx,miny,maxy,lni,lnj,nk,hx,hy
@@ -81,41 +261,44 @@ subroutine RPN_COMM_progatate_boundary(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy)
   west=(bnd_west)
   westpe=pe_id(pe_mex-1,pe_mey)
   npts = hx * hy * nk
+print *,pe_mex,pe_mey,north,south,east,west,npts
+print *,northpe,southpe,eastpe,westpe
 
 ! post appropriate nonblocking receives
   if(north) then
     if(.not. east) then  ! get B from east
-      call irecv(tb, npts, MPI_INTEGER, eastpe, TAG, pe_grid, reqe1, ierror)
+      call  MPI_irecv(tb, npts, MPI_INTEGER, eastpe, TAG, pe_grid, reqe1, ierror)
     endif
     if(.not. west) then  ! get A from west
-      call irecv(ta, npts, MPI_INTEGER, westpe, TAG, pe_grid, reqw1, ierror)
+      call  MPI_irecv(ta, npts, MPI_INTEGER, westpe, TAG, pe_grid, reqw1, ierror)
     endif
   endif
   if(south) then
     if(.not. east) then  ! get C from east
-      call irecv(tc, npts, MPI_INTEGER, eastpe, TAG, pe_grid, reqe2, ierror)
+      call  MPI_irecv(tc, npts, MPI_INTEGER, eastpe, TAG, pe_grid, reqe2, ierror)
     endif
     if(.not. west) then  ! get D from west
-      call irecv(td, npts, MPI_INTEGER, westpe, TAG, pe_grid, reqw2, ierror)
+      call  MPI_irecv(td, npts, MPI_INTEGER, westpe, TAG, pe_grid, reqw2, ierror)
     endif
   endif
   if(east)  then
     if(.not. north) then  ! get B from north
-      call irecv(tb, npts, MPI_INTEGER, northpe, TAG, pe_grid, reqn1, ierror)
+      call  MPI_irecv(tb, npts, MPI_INTEGER, northpe, TAG, pe_grid, reqn1, ierror)
     endif
     if(.not. south) then  ! get C from south
-      call irecv(tc, npts, MPI_INTEGER, southpe, TAG, pe_grid, reqs1, ierror)
+      call  MPI_irecv(tc, npts, MPI_INTEGER, southpe, TAG, pe_grid, reqs1, ierror)
     endif
   endif
   if(west)  then
     if(.not. north) then  ! get A from north
-      call irecv(ta, npts, MPI_INTEGER, northpe, TAG, pe_grid, reqn2, ierror)
+      call  MPI_irecv(ta, npts, MPI_INTEGER, northpe, TAG, pe_grid, reqn2, ierror)
     endif
     if(.not. south) then  ! get D from south
-      call irecv(td, npts, MPI_INTEGER, southpe, TAG, pe_grid, reqs2, ierror)
+      call  MPI_irecv(td, npts, MPI_INTEGER, southpe, TAG, pe_grid, reqs2, ierror)
     endif
   endif
 ! extract and blocking send to appropriate destination
+temp = 0
   if(north) then
     if(.not. east) then  ! send 2 to east
       temp = Z2
@@ -174,10 +357,10 @@ subroutine RPN_COMM_progatate_boundary(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy)
     endif
     if(.not. west) then  ! wait for D from west
       CALL MPI_WAIT(reqw2, statw, ierror)
-      D = tc
+      D = td
     endif
   endif
-  if(west)  then
+  if(east)  then
     if(.not. north) then  ! wait for B from north
       CALL MPI_WAIT(reqn1, state, ierror)
       B = tb
@@ -187,7 +370,7 @@ subroutine RPN_COMM_progatate_boundary(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy)
       C = tc
     endif
   endif
-  if(east)  then
+  if(west)  then
     if(.not. north) then  ! wait for A from north
       CALL MPI_WAIT(reqn2, state, ierror)
       A = ta
