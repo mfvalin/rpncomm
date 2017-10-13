@@ -65,7 +65,7 @@ program test
   integer :: ierror, pe_me, siz, i, j, k, errors
   integer, dimension(:,:,:), pointer :: f
   character(len=128) :: argument
-  real*8 :: t1, t2
+  real*8 :: t1, t2, t3
   logical interior
   
   call MPI_init(ierror)
@@ -178,6 +178,8 @@ program test
   t1 = MPI_wtime()
   call RPN_COMM_propagate_boundary(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)
   t2 = MPI_wtime()
+  call MPI_barrier(MPI_COMM_WORLD,ierror)
+  t2 = MPI_wtime()
   errors = 0
   do k = 1 , nk
   do j = 1-hy , ny+hy
@@ -186,7 +188,7 @@ program test
   enddo
   enddo
   enddo
-  print *,'pe =',pe_me,'time =',nint((t2-t1)*1000000),' errors =',errors
+  print *,'pe =',pe_me,'time =',nint((t3-t1)*1000000),nint((t2-t1)*1000000),' errors =',errors
   if(pe_mex == 1 .and. pe_mey == 0) then
     print*,""
     do j = ny+hy, 1-hy, -1
