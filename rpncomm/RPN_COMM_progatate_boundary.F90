@@ -46,25 +46,27 @@
 !
 #if defined(SELF_TEST)
 
-module rpn_comm
+#define rpn_comm_test rpn_comm
+
+module rpn_comm_test
 #include <mpif.h>
   integer, dimension(:,:), pointer :: pe_id
   integer :: pe_mex, pe_mey, pe_grid, pe_nx, pe_ny
   logical :: bnd_north, bnd_south, bnd_east, bnd_west
 end module rpn_comm
-
 program test
   use rpn_comm
   implicit none
-  integer :: NX=4
-  integer :: NY=3
-  integer :: NK=17
+  integer :: NX=25
+  integer :: NY=15
+  integer :: NK=80
   integer :: HX=2
   integer :: HY=2
   integer :: ierror, pe_me, siz, i, j, k, errors
   integer, dimension(:,:,:), pointer :: f
   character(len=128) :: argument
   real*8 :: t1, t2
+  logical interior
   
   call MPI_init(ierror)
   argument = "0"
@@ -91,6 +93,7 @@ program test
   bnd_south = (pe_mey == 0)
   bnd_east  = (pe_mex == (pe_nx - 1))
   bnd_west  = (pe_mex == 0)
+  interior = .not. (bnd_west .or. bnd_east .or. bnd_south .or. bnd_north)
   allocate(pe_id(-1:pe_nx,-1:pe_ny))
   pe_id = -1
 
@@ -126,65 +129,41 @@ program test
       f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
     enddo
     enddo
-    if(bnd_south .and. bnd_east) then
-      do j = 1-hy, 0
-      do i = nx+1, nx+hx
-        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
-      enddo
-      enddo
-      do j = ny+1 , ny+hy
+
+    if( (bnd_north .and. bnd_west) .or. interior .or. (bnd_east .and. (.not. bnd_north)) .or.  (bnd_south .and. (.not. bnd_west)) ) then
+      do j = ny+1 , ny+hy ! section A
       do i = 1-hx, 0
         f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
       enddo
       enddo
     endif
-    if(bnd_south .and. bnd_west) then
-      do j = 1-hy, 0
-      do i = 1-hx, 0
+    if( (bnd_north .and. bnd_east) .or. interior .or. (bnd_west .and. (.not. bnd_north)) .or.  (bnd_south .and. (.not. bnd_east)) ) then
+      do j = ny+1 , ny+hy  ! section B
+      do i = nx+1 , nx+hx
         f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
       enddo
       enddo
-      do j = ny+1 , ny+hy
+    endif
+    if( (bnd_south .and. bnd_east) .or. interior .or. (bnd_west .and. (.not. bnd_south)) .or.  (bnd_north .and. (.not. bnd_east)) ) then
+      do j = 1-hy, 0  ! section C
       do i = nx+1, nx+hx
         f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
       enddo
       enddo
     endif
-    if(bnd_north .and. bnd_west) then
-      do j = ny+1 , ny+hy
+    if( (bnd_south .and. bnd_west) .or. interior .or. (bnd_north .and. (.not. bnd_west)) .or.  (bnd_east .and. (.not. bnd_south)) ) then
+      do j = 1-hy, 0   ! section D
       do i = 1-hx, 0
         f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
       enddo
       enddo
-      do j = 1-hy, 0
-      do i = nx+1, nx+hx
-        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
-      enddo
-      enddo
-    endif
-    if(bnd_north .and. bnd_east) then
-      do j = ny+1 , ny+hy
-      do i = nx+1, nx+hx
-        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
-      enddo
-      enddo
-      do j = 1-hy, 0
-      do i = 1-hx, 0
-        f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
-      enddo
-      enddo
-    endif
-    if(bnd_south .and. bnd_west) then
-    endif
-    if(bnd_south .and. bnd_east) then
     endif
   enddo
-  errors = 0
 
   if(pe_mex == 1 .and. pe_mey == 0) then
-    print*,""
+!     print*,""
     do j = ny+hy, 1-hy, -1
-      print 101,f(:,j,1)
+!       print 101,f(:,j,1)
     enddo
 !     do j = ny+hy, ny+1, -1
 !       print *,f(1-hx:0,j,1),f(nx+1:nx+hx,j,1)
@@ -197,14 +176,21 @@ program test
   call MPI_barrier(MPI_COMM_WORLD,ierror)
 
   t1 = MPI_wtime()
-  call RPN_COMM_propagate_boundary(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,1,hx,hy)
+  call RPN_COMM_propagate_boundary(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)
   t2 = MPI_wtime()
-  print *,'time =',pe_me,nint((t2-t1)*1000000)
-
+  errors = 0
+  do k = 1 , nk
+  do j = 1-hy , ny+hy
+  do i = 1-hx , nx+hx
+    if(f(i,j,k) .ne. (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)) errors = errors + 1
+  enddo
+  enddo
+  enddo
+  print *,'pe =',pe_me,'time =',nint((t2-t1)*1000000),' errors =',errors
   if(pe_mex == 1 .and. pe_mey == 0) then
     print*,""
     do j = ny+hy, 1-hy, -1
-      print 101,f(:,j,1)
+!       print 101,f(:,j,1)
     enddo
 !     do j = ny+hy, ny+1, -1
 !       print *,f(1-hx:0,j,1),f(nx+1:nx+hx,j,1)
@@ -261,8 +247,8 @@ subroutine RPN_COMM_propagate_boundary(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy)
   west=(bnd_west)
   westpe=pe_id(pe_mex-1,pe_mey)
   npts = hx * hy * nk
-print *,pe_mex,pe_mey,north,south,east,west,npts
-print *,northpe,southpe,eastpe,westpe
+! print *,pe_mex,pe_mey,north,south,east,west,npts
+! print *,northpe,southpe,eastpe,westpe
 
 ! post appropriate nonblocking receives
   if(north) then
