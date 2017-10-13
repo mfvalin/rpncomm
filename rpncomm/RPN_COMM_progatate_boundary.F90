@@ -179,7 +179,7 @@ program test
   call RPN_COMM_propagate_boundary(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)
   t2 = MPI_wtime()
   call MPI_barrier(MPI_COMM_WORLD,ierror)
-  t2 = MPI_wtime()
+  t3 = MPI_wtime()
   errors = 0
   do k = 1 , nk
   do j = 1-hy , ny+hy
