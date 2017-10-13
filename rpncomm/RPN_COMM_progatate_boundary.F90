@@ -176,7 +176,8 @@ program test
   call MPI_barrier(MPI_COMM_WORLD,ierror)
 
   t1 = MPI_wtime()
-  call RPN_COMM_propagate_boundary(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)
+!   call RPN_COMM_propagate_boundary(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)
+  call RPN_COMM_propagate_boundary_circular(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)
   t2 = MPI_wtime()
   call MPI_barrier(MPI_COMM_WORLD,ierror)
   t3 = MPI_wtime()
@@ -251,7 +252,8 @@ subroutine RPN_COMM_propagate_boundary(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy)
   npts = hx * hy * nk
 ! print *,pe_mex,pe_mey,north,south,east,west,npts
 ! print *,northpe,southpe,eastpe,westpe
-
+  if( .not. (north .or. south .or. east .or. west) ) return ! not on boundary, nothing to do
+  if(pe_nx == 1 .and. pe_ny ==1) return ! single tile, nothing to do
 ! post appropriate nonblocking receives
   if(north) then
     if(.not. east) then  ! get B from east
@@ -367,6 +369,113 @@ temp = 0
       CALL MPI_WAIT(reqs2, state, ierror)
       D = td
     endif
+  endif
+
+  return
+end subroutine
+
+subroutine RPN_COMM_propagate_boundary_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy)
+  use rpn_comm
+  implicit none
+  integer, intent(IN) :: minx,maxx,miny,maxy,lni,lnj,nk,hx,hy
+  integer, dimension(minx:maxx,miny:maxy,nk), intent(INOUT) :: f
+
+  logical :: north, south, east, west
+  integer :: northpe, southpe, eastpe, westpe, upstream, downstream
+  integer :: ierror
+  integer, dimension(MPI_STATUS_SIZE) :: status ! status for sendrecv
+  integer, dimension(hx,hy,nk) :: ta, tb, tc, td                    ! recv buffers
+  integer, dimension(hx,hy,nk) :: temp                              ! send buffer
+  integer :: npts
+
+#define Z1 f(1       :hx      ,lnj+1   :lnj+hy,:)
+#define Z2 f(lni-hx+1:lni     ,lnj+1   :lnj+hy,:)
+#define Z3 f(lni+1   :lni+hx  ,lnj-hy+1:lnj   ,:)
+#define Z4 f(lni+1   :lni+hx  ,1       :hy    ,:)
+#define Z5 f(lni-hx+1:lni     ,1-hy    :0     ,:)
+#define Z6 f(1       :hx      ,1-hy    :0     ,:)
+#define Z7 f(1-hx    :0       ,1       :hy    ,:)
+#define Z8 f(1-hx    :0       ,lnj-hy+1:lnj   ,:)
+
+#define A f(1-hx    :0       ,lnj+1   :lnj+hy,:)
+#define B f(lni+1   :lni+hx  ,lnj+1   :lnj+hy,:)
+#define C f(lni+1   :lni+hx  ,1-hy    :0     ,:)
+#define D f(1-hx    :0       ,1-hy    :0     ,:)
+
+#define TAG 0
+
+  north=(bnd_north)
+  northpe=pe_id(pe_mex,pe_mey+1)
+  south=(bnd_south)
+  southpe=pe_id(pe_mex,pe_mey-1)
+  east=(bnd_east)
+  eastpe=pe_id(pe_mex+1,pe_mey)
+  west=(bnd_west)
+  westpe=pe_id(pe_mex-1,pe_mey)
+  npts = hx * hy * nk
+
+  if( .not. (north .or. south .or. east .or. west) ) return ! not on boundary, nothing to do
+  if(pe_nx ==1 .or. pe_ny == 1) then
+    call RPN_COMM_propagate_boundary(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy)
+    return
+  endif
+! clockwise move, then counterclockwise move
+  if(north .and. east) then       ! get A send 4 : get C send 1
+    upstream   = westpe
+    downstream = southpe
+    call MPI_sendrecv(Z4, npts, MPI_INTEGER, downstream, TAG, ta, npts, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    A = ta
+    call MPI_sendrecv(Z1, npts, MPI_INTEGER, upstream  , TAG, tc, npts, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    C = tc
+  else if(north .and. west) then  ! get D send 2 : get B send 7
+    upstream   = southpe
+    downstream = eastpe
+    call MPI_sendrecv(Z2, npts, MPI_INTEGER, downstream, TAG, td, npts, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    D = td
+    call MPI_sendrecv(Z7, npts, MPI_INTEGER, upstream  , TAG, tb, npts, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    B = tb
+  else if(south .and. east) then  ! get B send 6 : get D send 3
+    upstream   = northpe
+    downstream = westpe
+    call MPI_sendrecv(Z6, npts, MPI_INTEGER, downstream, TAG, tb, npts, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    B = tb
+    call MPI_sendrecv(Z3, npts, MPI_INTEGER, upstream  , TAG, td, npts, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    D = td
+  else if(south .and. west) then  ! get C send 8 : get A send 5
+    upstream   = eastpe
+    downstream = northpe
+    call MPI_sendrecv(Z8, npts, MPI_INTEGER, downstream, TAG, tc, npts, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    C = tc
+    call MPI_sendrecv(Z5, npts, MPI_INTEGER, upstream  , TAG, ta, npts, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    A = ta
+  else if(north) then             ! get A send 2 : get B send 1
+    upstream   = westpe
+    downstream = eastpe
+    call MPI_sendrecv(Z2, npts, MPI_INTEGER, downstream, TAG, ta, npts, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    A = ta
+    call MPI_sendrecv(Z1, npts, MPI_INTEGER, upstream  , TAG, tb, npts, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    B = tb
+  else if(south) then             ! get C send 6 : get D send 5
+    upstream   = eastpe
+    downstream = westpe
+    call MPI_sendrecv(Z6, npts, MPI_INTEGER, downstream, TAG, tc, npts, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    C = tc
+    call MPI_sendrecv(Z5, npts, MPI_INTEGER, upstream  , TAG, td, npts, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    D = td
+  else if(east)  then             ! get B send 4 : get C send 3
+    upstream   = northpe
+    downstream = southpe
+    call MPI_sendrecv(Z4, npts, MPI_INTEGER, downstream, TAG, tb, npts, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    B = tb
+    call MPI_sendrecv(Z3, npts, MPI_INTEGER, upstream  , TAG, tc, npts, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    C = tc
+  else if(west)  then             ! get D send 8 : get A send 7
+    upstream   = southpe
+    downstream = northpe
+    call MPI_sendrecv(Z8, npts, MPI_INTEGER, downstream, TAG, td, npts, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    D = td
+    call MPI_sendrecv(Z7, npts, MPI_INTEGER, upstream  , TAG, ta, npts, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    A = ta
   endif
 
   return
