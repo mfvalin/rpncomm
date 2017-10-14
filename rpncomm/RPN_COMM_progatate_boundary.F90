@@ -152,9 +152,11 @@ program test
       print 101,f(:,j,1)
     enddo
   endif
-  call MPI_barrier(MPI_COMM_WORLD,ierror)
 
   call RPN_COMM_propagate_boundary_circular(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)  ! to prime the MPI pump
+  call RPN_COMM_propagate_boundary(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)  ! to prime the MPI pump
+
+  call MPI_barrier(MPI_COMM_WORLD,ierror)
   t1 = MPI_wtime()
   call RPN_COMM_propagate_boundary_circular(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)
 !   call RPN_COMM_propagate_boundary(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)
