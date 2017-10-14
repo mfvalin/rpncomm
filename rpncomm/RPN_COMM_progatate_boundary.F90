@@ -172,7 +172,7 @@ program test
   enddo
   enddo
   enddo
-  print *,'pe =',pe_me,'time =',nint((t3-t1)*1000000),nint((t2-t1)*1000000),' errors =',errors
+  print 100,'pe =',pe_me,' time =',nint((t3-t1)*1000000),nint((t2-t1)*1000000),' errors =',errors
   if(nx <= 5 .and. ny <= 3 .and. pe_nx*pe_ny <= 6) then
     print *," "
     do j = ny+hy, 1-hy, -1
@@ -181,6 +181,7 @@ program test
   endif
 1 continue
   call MPI_finalize(ierror)
+100 format(A4,I6.5,A7,2I6,A9,I6)
 101 format(15I8.6)
 end program
 #endif
