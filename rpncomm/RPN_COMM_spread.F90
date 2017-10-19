@@ -195,7 +195,7 @@ function RPN_COMM_spread_context(contxt,com,rootpe,pe,npts) result(status)      
     do i = 2, n_pes
       offset(i) = offset(i-1) + nlocal(i-1)   ! build offset table for mpi_scatterv from nlocal table
     enddo
-    offset(n_pes) = min(npts-1,offset(n_pes))  ! in case send count for last pe is 0, let's not overindex 
+    offset = min(npts-1,offset)  ! in case send count for last pe is 0, let's not overindex 
   endif
 
 2 call mpi_scatter(nlocal,1,MPI_INTEGER,context_entry%npoints,1,MPI_INTEGER,rootpe,comm,ierr) ! send local count to each PE
