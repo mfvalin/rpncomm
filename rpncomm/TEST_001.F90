@@ -53,7 +53,11 @@ subroutine rpn_comm_test_001
   endif
   if(IAND(test_to_perform,32)==32)then
     print *,'start shuffle distribution test'
-    call RPN_COMM_io_dist_coll_test(nparams,params)
+    if(params(1) > 0) then
+      call RPN_COMM_io_dist_coll_test(nparams,params)   ! standard decomposition test
+    else
+      call RPN_COMM_io_dist_coll_test_v(nparams,params) ! arbitrary decomposition test
+    endif
   endif
   if(IAND(test_to_perform,64)==64)then
     print *,'start 2D grid definition test'

@@ -82,6 +82,151 @@ function RPN_COMM_io_dist_coll_check(gni,gnj,halo_x,halo_y) result(status)
 
 101 format(A,20I5)
 end function RPN_COMM_io_dist_coll_check
+subroutine RPN_COMM_io_dist_coll_test_v(nparams,params)
+  use rpn_comm
+  implicit none
+#include <RPN_COMM_interfaces_int.inc>
+  integer, intent(IN) :: nparams
+  integer, intent(IN), dimension(nparams) :: params
+
+  integer :: i, j, k, i0, in, j0, jn
+  integer :: lni, lnj, gni, gnj, gnk, dnk, hx, hy, mini, maxi, minj, maxj
+  integer :: setno, me_io, n_io
+  integer :: iope_extras, extraptsx, extraptsy, n_io_pes, ierr
+  integer :: nerrors, expected, status
+  integer, dimension(pe_nx) :: start_x,count_x
+  integer, dimension(pe_ny) :: start_y,count_y
+  integer, dimension(:,:,:), pointer :: local, global
+  integer, dimension(:), allocatable :: liste_k
+  logical, dimension(:), allocatable  :: liste_o
+
+  dnk = 1
+  hx = 0
+  hy = 0
+  extraptsx = 2
+  extraptsy = 3
+  iope_extras = 0
+! export RPN_COMM_TEST_SHAPE="npex npey"
+! export RPN_COMM_TEST_CFG="32 nparams dnk [hx hy extraptsx extraptsy iope_extras]"
+  if(nparams < 6) then
+    print *,'WARNING: not all parameters were supplied for this test (dnk MUST be present)'
+    print *,'       dnk hx hy extraptsx extraptsy iope_extras'
+    if(nparams < 1) return
+  endif
+  if(pe_me == 0 .and. nparams > 1) then
+    print 101,"CFG: nparams",nparams
+    print 101,"CFG: params",abs(params)
+  endif
+  dnk         = abs(params(1))   ! params(1) < 0 is used to get this test called rather than RPN_COMM_io_dist_coll_test
+  if(nparams >= 2) hx          = params(2)
+  if(nparams >= 3) hy          = params(3)
+  if(nparams >= 4) extraptsx   = params(4)
+  if(nparams >= 5) extraptsy   = params(5)
+  if(nparams >= 6) iope_extras = params(6)
+
+  lni = (pe_mex - 1) + extraptsx   ! tiles of increasing length along x
+  mini = 1 - hx
+  maxi = lni + hx
+  start_x(0) = 1
+  count_x(0) = extraptsx
+  do i = 1, pe_nx-1
+    count_x(i) = extraptsx + i
+    start_x(i) = start_x(i-1)  + count_x(i-1)
+  enddo
+  gni = start_x(pe_nx-1) + count_x(pe_nx-1) - 1
+
+  lnj = (pe_mey - 1) + extraptsy   ! tiles of increasing length along y
+  minj = 1 - hy
+  maxj = lnj + hy
+  start_y(0) = 1
+  count_y(0) = extraptsy
+  do j = 1, pe_ny-1
+    count_y(j) = extraptsy + j
+    start_y(j) = start_y(j-1) + count_y(j-1)
+  enddo
+  gnj = start_y(pe_ny-1) + count_y(pe_ny-1) - 1
+
+  n_io_pes = min(pe_nx,pe_ny)+iope_extras
+  gnk = dnk * n_io_pes
+
+! create IO PE set
+  if(pe_me == 0) then
+    print *,'IO PE number of PEs =',min( n_io_pes , gnk)
+    print *,'pe_nx,pe_ny,iope_extra,gnk',pe_nx,pe_ny,iope_extras,gnk
+  endif
+!  setno = RPN_COMM_create_io_set( min( min(pe_nx,pe_ny)+iope_extra , gnk) ,0)  ! make sure not to overflow gnk
+  setno = RPN_COMM_create_io_set( n_io_pes , 0)  ! may overflow gnk
+  if(setno <= 0) then
+    print *,'ERROR: IO PE set creation error, quitting',setno
+    return
+  else
+    print *,'INFO: IO PE set created :',setno
+  endif
+  me_io = RPN_COMM_is_io_pe(setno)     ! me in IO_set
+  n_io = RPN_COMM_io_pe_size(setno)    ! IO_set population
+
+  call RPN_COMM_BARRIER('GRID',ierr)
+  do i = 0, pe_nx*pe_ny -1
+    if(pe_me == i) then
+      print 101,"pe_mex,pe_mey,dnk,gni,gnj,gnk,mini,lni,maxi,minj,lnj,maxj",  &
+                 pe_mex,pe_mey,dnk,gni,gnj,gnk,mini,lni,maxi,minj,lnj,maxj
+    endif
+    call RPN_COMM_BARRIER('GRID',ierr)
+  enddo
+return
+  allocate(liste_o(gnk))
+  liste_o = .false.
+  allocate(liste_k(dnk))
+  liste_k = 0
+
+  allocate(local(mini:maxi,minj:maxj,gnk))  ! needed on all PEs
+  local = 0
+
+  if(me_io .ne. -1) then      ! IO PE, initialize global array to distribute
+    allocate(global(gni,gnj,dnk))           ! only needed on IO PEs
+    print *,"I am a busy IO pe!",me_io+1,' of',n_io
+    do k = 1, dnk
+      liste_k(k) = 1 + me_io*dnk + k     !  levels 1 -> nio*dnk
+      do j = 1, gnj
+      do i = 1, gni
+        global(i,j,k) = i*1000000 + j*1000 + me_io*dnk + k
+      enddo
+      enddo
+    enddo
+  else
+    allocate(global(1,1,1))
+    print *,"I am a relaxed  NON-IO pe !"
+  endif
+
+  call RPN_COMM_shuf_dist_hxy(setno,  &
+                             global,gni,gnj,dnk,  &
+                             local,mini,maxi,minj,maxj,gnk,  &
+                             liste_k,liste_o,  &
+                             start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
+                             .false.,.false.,hx,hy,status)
+
+  nerrors = 0
+  i0 = mini
+  if(pe_mex == 0) i0 = 1           ! no west halo expected on the wes border
+  in = maxi
+  if(pe_mex == pe_nx-1) in = lni   ! no east halo expected on the east border
+  j0 = minj
+  if(pe_mey == 0) j0 = 1           ! no south halo expected on the south border
+  jn = maxj
+  if(pe_mey == pe_ny-1) jn = lnj   ! no north halo expected on the north border
+  do k = 1, gnk
+    do j = j0, jn
+      do i = i0, in
+        expected = i*1000000 + j*1000 * k
+        if(local(i,j,k) .ne. expected) nerrors = nerrors + 1
+      enddo
+    enddo
+  enddo
+
+  return
+101 format(A,20I5)
+end subroutine RPN_COMM_io_dist_coll_test_v
+
 subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   use rpn_comm
   implicit none
@@ -741,15 +886,19 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     integer, intent(OUT) :: status
     logical :: on_column, error, eff_periodx, duplicate
     integer :: root, ybase, kcol, ierr, halox, haloy, lni, lnj, size2d
-    integer, dimension(0:pe_nx-1) :: listofk
+    integer, dimension(0:pe_nx-1) :: listofk, listmaxi
+    integer, dimension(2) :: slot
+    integer, dimension(2,0:pe_nx-1) :: slots
     integer :: i, j, k, i0, in, ioff, lni0
     integer, dimension(:,:), pointer :: fullrow
     integer, dimension(:,:,:), pointer :: local_1
+    integer, dimension(:),   pointer :: local_a1
+    integer, dimension(:,:), pointer :: local_a2
     integer, dimension(0:pe_nx-1) :: cxs, dxs, cxr, dxr
     integer, dimension(0:pe_ny-1) :: cy, dy
     real*8, dimension(0:6) :: t
     integer, dimension(0:6) :: it
-    integer :: maxi_min, maxj_min, nerrors, nerrormax
+    integer :: maxi_min, maxj_min, nerrors, nerrormax, local_start, local_end
 
     on_column = .false.     ! precondition for failure in case a hasty exit is needed
     status = RPN_COMM_ERROR ! precondition for failure in case a hasty exit is needed
@@ -775,10 +924,10 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     maxj_min = lnj+haloy     ! all but North PEs where maxj == lnj is OK if not periodic
     if(pe_mey == pe_ny - 1 .and. .not. periody)  maxj_min = lnj
     nerrors = 0
-    if(maxi < maxi_min .or. maxj < maxj_min) then
-      print 101,"ERROR: upper bound of array too small to accomodate halo"
-      print 101,"mini,maxi,lni,minj,maxj,lnj",mini,maxi,lni,minj,maxj,lnj
-      nerrors = nerrors + 1  ! OOPS, upper bound cannot accomodate halo
+    if(maxi < maxi_min .or. maxj < maxj_min .or. mini > 1-halox .or. minj > 1-haloy) then
+      print 101,"ERROR: upper or lower bound of array cannot accomodate halo"
+      print 101,"mini,maxi,lni,minj,maxj,lnj,halox,haloy",mini,maxi,lni,minj,maxj,lnj,halox,haloy
+      nerrors = nerrors + 1  ! OOPS, upper or lower bound cannot accomodate halo
     endif
     call MPI_allreduce(nerrors, nerrormax, 1, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
     if(nerrormax > 0) return
@@ -802,7 +951,12 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
 !   if IO PE on column has nothing to contribute, 0 should get transmitted
 !
     listofk = 0
-    call mpi_allgather(kcol,1,MPI_INTEGER,listofk,1,MPI_INTEGER,pe_myrow,ierr)
+!     call mpi_allgather(kcol,1,MPI_INTEGER,listofk,1,MPI_INTEGER,pe_myrow,ierr)
+    slot(1) = kcol
+    slot(2) = maxi
+    call mpi_allgather(slot,2,MPI_INTEGER,slots,2,MPI_INTEGER,pe_myrow,ierr)
+    listofk(:)  = slots(1,:)
+    listmaxi(:) = slots(2,:)  ! list of maxi values (might not be the same on all PEs PEs)
     t(2) = RPN_COMM_wtime()
     nerrors = 0
     if(maxval(listofk) > lnk ) then    ! attempt to store a level > lnk, OOPS
@@ -872,24 +1026,37 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
 !     we may now process reshaping and halo along x periodicity condition
 !
       allocate(local_1(mini:maxi,minj:maxj,pe_nx))    ! reshape for distribution along x
+      allocate(local_a1(sum(listmaxi-mini+1)*(maxj-minj+1)*pe_nx))
       lni0 = count_x(0)
+      local_start = 1
       do k = 1 , pe_nx
+        local_end = local_start + (listmaxi(k)-mini+1) * (maxj-minj+1) - 1
+        local_a2(mini:maxi,minj:maxj) => local_a1(local_start:local_end)
         i0 = mini
         in = maxi
+!         in = listmaxi(k)
         if(k == 1) i0 = 1                        ! lower bound along x of west PE
         if(k == pe_nx) in = count_x(pe_nx-1)     ! upper boung along x of east PE
         ioff = start_x(k-1) - 1                  ! offset along x in global space for PE no k-1 along x
         do j = minj , maxj
           local_1(  :  ,j,k) = 0
+!           if(k == 1 .or. k == pe_nx) local_a2(  :  ,j) = 0
           local_1(i0:in,j,k) = fullrow(i0+ioff:in+ioff,j)
+!           local_a2(i0:in,j) = fullrow(i0+ioff:in+ioff,j)
           if(eff_periodx .and. (k == 1)) &
                  local_1(    1-halox:0    ,j,k) = fullrow(gni-halox+1:gni,j)   ! west halo from global east
+!           if(eff_periodx .and. (k == 1)) &
+!                  local_a2(    1-halox:0    ,j) = fullrow(gni-halox+1:gni,j)   ! west halo from global east
           if(eff_periodx .and. (k == pe_nx)) &
                  local_1(lni0+1:lni0+halox,j,k) = fullrow(1:halox,j)           ! east halo from global west
+!           if(eff_periodx .and. (k == pe_nx)) &
+!                  local_a2(lni0+1:lni0+halox,j) = fullrow(1:halox,j)           ! east halo from global west
         enddo
+        local_start = local_end + 1
       enddo
                     ! send sizes and displacements for the final alltoallv
       cxs = size2d  ! a full 2D local slice will be sent to all PEs on row
+!       cxs = (listmaxi-mini+1)*(maxj-minj+1)
       dxs(0) = 0
       do i = 1 , pe_nx-1
         dxs(i) = dxs(i-1) + cxs(i-1)
@@ -904,6 +1071,7 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     else                           ! we are not on a column where there is an IO PE
       allocate(fullrow(1,1))
       allocate(local_1(1,1,1))
+      allocate(local_a1(1))
       cxs = 0                      ! nothing to send from here, size = displacement = 0
       dxs = 0
     endif
