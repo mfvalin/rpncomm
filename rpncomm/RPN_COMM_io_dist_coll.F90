@@ -96,7 +96,7 @@ subroutine RPN_COMM_io_dist_coll_test_v(nparams,params)
   integer :: nerrors, expected, status
   integer, dimension(pe_nx) :: start_x,count_x
   integer, dimension(pe_ny) :: start_y,count_y
-  integer, dimension(:,:,:), pointer :: local, global
+  integer, dimension(:,:,:), pointer :: local, global, expect
   integer, dimension(:), allocatable :: liste_k
   logical, dimension(:), allocatable  :: liste_o
 
@@ -124,29 +124,30 @@ subroutine RPN_COMM_io_dist_coll_test_v(nparams,params)
   if(nparams >= 5) extraptsy   = params(5)
   if(nparams >= 6) iope_extras = params(6)
 
-  lni = (pe_mex - 1) + extraptsx   ! tiles of increasing length along x
+  lni = (pe_mex) + extraptsx   ! tiles of increasing length along x
   mini = 1 - hx
   maxi = lni + hx
-  start_x(0) = 1
-  count_x(0) = extraptsx
-  do i = 1, pe_nx-1
-    count_x(i) = extraptsx + i
+  start_x(1) = 1
+  count_x(1) = extraptsx
+  do i = 2, pe_nx
+    count_x(i) = extraptsx + i -1
     start_x(i) = start_x(i-1)  + count_x(i-1)
   enddo
-  gni = start_x(pe_nx-1) + count_x(pe_nx-1) - 1
+  gni = start_x(pe_nx) + count_x(pe_nx) - 1
 
-  lnj = (pe_mey - 1) + extraptsy   ! tiles of increasing length along y
+  lnj = (pe_mey) + extraptsy   ! tiles of increasing length along y
   minj = 1 - hy
   maxj = lnj + hy
-  start_y(0) = 1
-  count_y(0) = extraptsy
-  do j = 1, pe_ny-1
-    count_y(j) = extraptsy + j
+  start_y(1) = 1
+  count_y(1) = extraptsy
+  do j = 2, pe_ny
+    count_y(j) = extraptsy + j - 1
     start_y(j) = start_y(j-1) + count_y(j-1)
   enddo
-  gnj = start_y(pe_ny-1) + count_y(pe_ny-1) - 1
+  gnj = start_y(pe_ny) + count_y(pe_ny) - 1
 
-  n_io_pes = min(pe_nx,pe_ny)+iope_extras
+!   n_io_pes = min(pe_nx,pe_ny)+iope_extras
+  n_io_pes = 1
   gnk = dnk * n_io_pes
 
 ! create IO PE set
@@ -173,24 +174,26 @@ subroutine RPN_COMM_io_dist_coll_test_v(nparams,params)
     endif
     call RPN_COMM_BARRIER('GRID',ierr)
   enddo
-return
+! return
   allocate(liste_o(gnk))
   liste_o = .false.
   allocate(liste_k(dnk))
   liste_k = 0
 
   allocate(local(mini:maxi,minj:maxj,gnk))  ! needed on all PEs
-  local = 0
+  allocate(expect(mini:maxi,minj:maxj,gnk))  ! needed on all PEs
+  local = 999999999
 
   if(me_io .ne. -1) then      ! IO PE, initialize global array to distribute
     allocate(global(gni,gnj,dnk))           ! only needed on IO PEs
     print *,"I am a busy IO pe!",me_io+1,' of',n_io
     do k = 1, dnk
-      liste_k(k) = 1 + me_io*dnk + k     !  levels 1 -> nio*dnk
+      liste_k(k) = 0 + me_io*dnk + k     !  levels 1 -> nio*dnk
+      print *,"DEBUG: Ktag = ",liste_k(k)
       do j = 1, gnj
-      do i = 1, gni
-        global(i,j,k) = i*1000000 + j*1000 + me_io*dnk + k
-      enddo
+        do i = 1, gni
+          global(i,j,k) = i*1000000 + j*1000 + me_io*dnk + k
+        enddo
       enddo
     enddo
   else
@@ -217,14 +220,25 @@ return
   do k = 1, gnk
     do j = j0, jn
       do i = i0, in
-        expected = i*1000000 + j*1000 * k
+        expected = i*1000000 + j*1000 + k
+        expect(i,j,k) = expected
         if(local(i,j,k) .ne. expected) nerrors = nerrors + 1
       enddo
     enddo
   enddo
+  print 101,"number of errors, npts = ",nerrors,gnk*(in-i0+1)*(jn-j0+1)
+!   if(pe_mex == 0 .and. pe_mey == 0) then
+    do k = gnk,1,-1
+      print *," "
+      do j = jn,j0,-1
+        print 102,' ',local(i0:in,j,k),expect(i0:in,j,k)
+      enddo
+    enddo
+!   endif
 
   return
 101 format(A,20I5)
+102 format(A,20I10.9)
 end subroutine RPN_COMM_io_dist_coll_test_v
 
 subroutine RPN_COMM_io_dist_coll_test(nparams,params)
@@ -778,7 +792,7 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
 ! print 100,'          start_x,count_x',start_x,count_x
 ! print 100,'          start_y,count_y',start_y,count_y
 ! print 101,'             local,global',loc(local),loc(global)
-! 100 format(A,1X,20I6)
+100 format(A,1X,20I6)
 ! 101 format(A,1X,8Z17.16)
 
 ! consistency / error check
@@ -789,7 +803,8 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
   if(pe_nx .ne. nx .or. pe_ny .ne. ny) nerrors = nerrors + 1 ! wrong number of PEs in grid, OUCH !
   if(periody)                          nerrors = nerrors + 1 ! not supported in this version
 ! check that arguments that MUST be identical on all PEs are identical
-  clist = [setno,gni,gnj,dnk,mini,maxi,minj,maxj,lnk,0]
+!   clist = [setno,gni,gnj,dnk,mini,maxi,minj,maxj,lnk,0]
+  clist = [setno,gni,gnj,dnk,mini,0,minj,0,lnk,0]
   if(periodx) clist(10) = 1
   call MPI_allreduce(clist, clistmax, 10, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
   do i = 1,10
@@ -802,6 +817,7 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
 ! distribute one 2D plane at a time, one group of IO PEs at a time
 ! in a group of IO PEs, no column has more than 1 IO PE, neither has any row
 !
+! print 100,'DEBUG: dnk =',dnk
   do k= 1 , dnk                         ! loop over 2D planes to distribute
     do i= 1 , io_set(setno)%ngroups     ! loop over groups in this set of IO PEs
       low = 1 + (i-1) * io_set(setno)%groupsize      ! index of first PE in goup
@@ -925,8 +941,9 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     if(pe_mey == pe_ny - 1 .and. .not. periody)  maxj_min = lnj
     nerrors = 0
     if(maxi < maxi_min .or. maxj < maxj_min .or. mini > 1-halox .or. minj > 1-haloy) then
-      print 101,"ERROR: upper or lower bound of array cannot accomodate halo"
-      print 101,"mini,maxi,lni,minj,maxj,lnj,halox,haloy",mini,maxi,lni,minj,maxj,lnj,halox,haloy
+      print 101,"ERROR: upper or lower bound of array cannot accomodate halo, pe_mex=",pe_mex
+      print 101,"mini,maxi_min,maxi,lni,minj,maxj_min,maxj,lnj,halox,haloy",mini,maxi_min,maxi,lni,minj,maxj_min,maxj,lnj,halox,haloy
+      print 101,'DEBUG: count_x =',count_x
       nerrors = nerrors + 1  ! OOPS, upper or lower bound cannot accomodate halo
     endif
     call MPI_allreduce(nerrors, nerrormax, 1, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
@@ -959,11 +976,13 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     listmaxi(:) = slots(2,:)  ! list of maxi values (might not be the same on all PEs PEs)
     t(2) = RPN_COMM_wtime()
     nerrors = 0
+    print 101,"DEBUG: lnk, gk, listofk ",lnk,gk,listofk
     if(maxval(listofk) > lnk ) then    ! attempt to store a level > lnk, OOPS
-      print 101,"ERROR: 1 or more level to distribute > local nk, max level, local nk ",maxval(listofk),lnk
+      print 101,"ERROR: 1 or more level to distribute > local nk, max level, local nk",maxval(listofk),lnk
       nerrors = nerrors + 1
     endif
 !print *,"DEBUG: listofk=",listofk
+print *,"DEBUG: listmaxi=",listmaxi
     if(maxval(listofk) <= 0) then   ! no contribution from any IO PE, job id done for this round
       print 101,"INFO: no work to do on this pass"
       status = RPN_COMM_OK
@@ -996,9 +1015,11 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
 !
     if(any(dy < 0) .or. any(cy+dy > gnj)) then
       print 101,"ERROR(RPN_COMM_shuf_dist_1): problem with distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
+      print 101,"ERROR: dy =",dy
+      print 101,"ERROR: start_y =",start_y
       return
     else
-     print 101,"INFO(RPN_COMM_shuf_dist_1): distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
+      print 101,"INFO(RPN_COMM_shuf_dist_1): distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
     endif
 !
     cy = cy * gni                               ! multiply by row length
@@ -1033,30 +1054,30 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
         local_end = local_start + (listmaxi(k)-mini+1) * (maxj-minj+1) - 1
         local_a2(mini:maxi,minj:maxj) => local_a1(local_start:local_end)
         i0 = mini
-        in = maxi
-!         in = listmaxi(k)
+!         in = maxi
+        in = listmaxi(k)   !===================================
         if(k == 1) i0 = 1                        ! lower bound along x of west PE
         if(k == pe_nx) in = count_x(pe_nx-1)     ! upper boung along x of east PE
         ioff = start_x(k-1) - 1                  ! offset along x in global space for PE no k-1 along x
         do j = minj , maxj
           local_1(  :  ,j,k) = 0
-!           if(k == 1 .or. k == pe_nx) local_a2(  :  ,j) = 0
+          if(k == 1 .or. k == pe_nx) local_a2(  :  ,j) = 0    !===================================
           local_1(i0:in,j,k) = fullrow(i0+ioff:in+ioff,j)
-!           local_a2(i0:in,j) = fullrow(i0+ioff:in+ioff,j)
+          local_a2(i0:in,j) = fullrow(i0+ioff:in+ioff,j)    !===================================
           if(eff_periodx .and. (k == 1)) &
                  local_1(    1-halox:0    ,j,k) = fullrow(gni-halox+1:gni,j)   ! west halo from global east
-!           if(eff_periodx .and. (k == 1)) &
-!                  local_a2(    1-halox:0    ,j) = fullrow(gni-halox+1:gni,j)   ! west halo from global east
+          if(eff_periodx .and. (k == 1)) &
+                 local_a2(    1-halox:0    ,j) = fullrow(gni-halox+1:gni,j)   ! west halo from global east    !===================================
           if(eff_periodx .and. (k == pe_nx)) &
                  local_1(lni0+1:lni0+halox,j,k) = fullrow(1:halox,j)           ! east halo from global west
-!           if(eff_periodx .and. (k == pe_nx)) &
-!                  local_a2(lni0+1:lni0+halox,j) = fullrow(1:halox,j)           ! east halo from global west
+          if(eff_periodx .and. (k == pe_nx)) &
+                 local_a2(lni0+1:lni0+halox,j) = fullrow(1:halox,j)           ! east halo from global west    !===================================
         enddo
         local_start = local_end + 1
       enddo
                     ! send sizes and displacements for the final alltoallv
-      cxs = size2d  ! a full 2D local slice will be sent to all PEs on row
-!       cxs = (listmaxi-mini+1)*(maxj-minj+1)
+!       cxs = size2d  ! a full 2D local slice will be sent to all PEs on row
+      cxs = (listmaxi-mini+1)*(maxj-minj+1)    !===================================
       dxs(0) = 0
       do i = 1 , pe_nx-1
         dxs(i) = dxs(i-1) + cxs(i-1)
@@ -1101,7 +1122,10 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
 !  enddo
 !enddo
     t(5) = RPN_COMM_wtime()
-    call mpi_alltoallv(local_1, cxs, dxs, MPI_INTEGER,  &
+!     call mpi_alltoallv(local_1, cxs, dxs, MPI_INTEGER,  &
+!                        local,   cxr, dxr, MPI_INTEGER,  &
+!                        pe_myrow, ierr)
+    call mpi_alltoallv(local_a1, cxs, dxs, MPI_INTEGER,  &
                        local,   cxr, dxr, MPI_INTEGER,  &
                        pe_myrow, ierr)
 !
