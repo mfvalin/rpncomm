@@ -94,8 +94,8 @@ subroutine RPN_COMM_io_dist_coll_test_v(nparams,params)
   integer :: setno, me_io, n_io
   integer :: iope_extras, extraptsx, extraptsy, n_io_pes, ierr
   integer :: nerrors, expected, status
-  integer, dimension(pe_nx) :: start_x,count_x
-  integer, dimension(pe_ny) :: start_y,count_y
+  integer, dimension(0:pe_nx-1) :: start_x,count_x
+  integer, dimension(0:pe_ny-1) :: start_y,count_y
   integer, dimension(:,:,:), pointer :: local, global, expect
   integer, dimension(:), allocatable :: liste_k
   logical, dimension(:), allocatable  :: liste_o
@@ -127,27 +127,27 @@ subroutine RPN_COMM_io_dist_coll_test_v(nparams,params)
   lni = (pe_mex) + extraptsx   ! tiles of increasing length along x
   mini = 1 - hx
   maxi = lni + hx
-  start_x(1) = 1
-  count_x(1) = extraptsx
-  do i = 2, pe_nx
-    count_x(i) = extraptsx + i -1
+  start_x(0) = 1
+  count_x(0) = extraptsx
+  do i = 1, pe_nx -1
+    count_x(i) = extraptsx + i
     start_x(i) = start_x(i-1)  + count_x(i-1)
   enddo
-  gni = start_x(pe_nx) + count_x(pe_nx) - 1
+  gni = start_x(pe_nx-1) + count_x(pe_nx-1) - 1
 
   lnj = (pe_mey) + extraptsy   ! tiles of increasing length along y
   minj = 1 - hy
   maxj = lnj + hy
-  start_y(1) = 1
-  count_y(1) = extraptsy
-  do j = 2, pe_ny
-    count_y(j) = extraptsy + j - 1
+  start_y(0) = 1
+  count_y(0) = extraptsy
+  do j = 1, pe_ny -1
+    count_y(j) = extraptsy + j
     start_y(j) = start_y(j-1) + count_y(j-1)
   enddo
-  gnj = start_y(pe_ny) + count_y(pe_ny) - 1
+  gnj = start_y(pe_ny-1) + count_y(pe_ny-1) - 1
 
-!   n_io_pes = min(pe_nx,pe_ny)+iope_extras
-  n_io_pes = 1
+  n_io_pes = min(pe_nx,pe_ny)+iope_extras
+!   n_io_pes = 1
   gnk = dnk * n_io_pes
 
 ! create IO PE set
@@ -189,7 +189,7 @@ subroutine RPN_COMM_io_dist_coll_test_v(nparams,params)
     print *,"I am a busy IO pe!",me_io+1,' of',n_io
     do k = 1, dnk
       liste_k(k) = 0 + me_io*dnk + k     !  levels 1 -> nio*dnk
-      print *,"DEBUG: Ktag = ",liste_k(k)
+!       print *,"DEBUG: Ktag = ",liste_k(k)
       do j = 1, gnj
         do i = 1, gni
           global(i,j,k) = i*1000000 + j*1000 + me_io*dnk + k
@@ -200,7 +200,8 @@ subroutine RPN_COMM_io_dist_coll_test_v(nparams,params)
     allocate(global(1,1,1))
     print *,"I am a relaxed  NON-IO pe !"
   endif
-
+! print 101,"DEBUG: count_x, start_x ", count_x, start_x
+! print 101,"DEBUG: count_y, start_y ", count_y, start_y
   call RPN_COMM_shuf_dist_hxy(setno,  &
                              global,gni,gnj,dnk,  &
                              local,mini,maxi,minj,maxj,gnk,  &
@@ -220,21 +221,19 @@ subroutine RPN_COMM_io_dist_coll_test_v(nparams,params)
   do k = 1, gnk
     do j = j0, jn
       do i = i0, in
-        expected = i*1000000 + j*1000 + k
+        expected = (i+start_x(pe_mex)-1)*1000000 + (j+start_y(pe_mey)-1)*1000 + k
         expect(i,j,k) = expected
         if(local(i,j,k) .ne. expected) nerrors = nerrors + 1
       enddo
     enddo
   enddo
   print 101,"number of errors, npts = ",nerrors,gnk*(in-i0+1)*(jn-j0+1)
-!   if(pe_mex == 0 .and. pe_mey == 0) then
-    do k = gnk,1,-1
-      print *," "
-      do j = jn,j0,-1
-        print 102,' ',local(i0:in,j,k),expect(i0:in,j,k)
-      enddo
-    enddo
-!   endif
+!   do k = gnk,1,-1
+!     print *," "
+!     do j = jn,j0,-1
+!       print 102,' ',local(i0:in,j,k),expect(i0:in,j,k)
+!     enddo
+!   enddo
 
   return
 101 format(A,20I5)
@@ -776,10 +775,10 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
   integer, intent(IN) :: nx,ny                     ! number of PEs along X and Y (MUST be the same as pe_nx and pe_ny from module rpn_comm)
   integer, intent(IN), dimension(gni,gnj,dnk) :: global
   integer, intent(OUT), dimension(mini:maxi,minj:maxj,lnk) :: local
-  integer, intent(IN), dimension(nx)    :: start_x ! PE (i-1,any) points start at start_x(i) in global space (X direction)
-  integer, intent(IN), dimension(nx)    :: count_x ! PE (i-1,any) contains count_x(i) points in the X direction
-  integer, intent(IN), dimension(ny)    :: start_y ! PE (any,j-1) points start at start_y(j) in global space (Y direction)
-  integer, intent(IN), dimension(ny)    :: count_y ! PE (any,j-1) contains count_y(j) points in the Y direction
+  integer, intent(IN), dimension(0:nx-1):: start_x ! PE (i,any) points start at start_x(i) in global space (X direction)
+  integer, intent(IN), dimension(0:nx-1):: count_x ! PE (i,any) contains count_x(i) points in the X direction
+  integer, intent(IN), dimension(0:ny-1):: start_y ! PE (any,j) points start at start_y(j) in global space (Y direction)
+  integer, intent(IN), dimension(0:ny-1):: count_y ! PE (any,j) contains count_y(j) points in the Y direction
   integer, intent(IN), dimension(dnk)   :: liste_i ! needed only on IO Pes, list of dnk levels to distribute
   logical, intent(OUT), dimension(lnk)  :: liste_o ! liste_o(k) will be set to .true. if level k received
   logical, intent(IN) :: periodx,periody           ! periodicity along X or Y ( periody MUST be .false. for this version)
@@ -905,7 +904,7 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     integer, dimension(0:pe_nx-1) :: listofk, listmaxi
     integer, dimension(2) :: slot
     integer, dimension(2,0:pe_nx-1) :: slots
-    integer :: i, j, k, i0, in, ioff, lni0
+    integer :: i, j, k, i0, in, ioff, lni0, ii0, iin
     integer, dimension(:,:), pointer :: fullrow
     integer, dimension(:,:,:), pointer :: local_1
     integer, dimension(:),   pointer :: local_a1
@@ -976,13 +975,13 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     listmaxi(:) = slots(2,:)  ! list of maxi values (might not be the same on all PEs PEs)
     t(2) = RPN_COMM_wtime()
     nerrors = 0
-    print 101,"DEBUG: lnk, gk, listofk ",lnk,gk,listofk
+!     print 101,"DEBUG: lnk, gk, listofk ",lnk,gk,listofk
     if(maxval(listofk) > lnk ) then    ! attempt to store a level > lnk, OOPS
       print 101,"ERROR: 1 or more level to distribute > local nk, max level, local nk",maxval(listofk),lnk
       nerrors = nerrors + 1
     endif
 !print *,"DEBUG: listofk=",listofk
-print *,"DEBUG: listmaxi=",listmaxi
+! print *,"DEBUG: listmaxi=",listmaxi
     if(maxval(listofk) <= 0) then   ! no contribution from any IO PE, job id done for this round
       print 101,"INFO: no work to do on this pass"
       status = RPN_COMM_OK
@@ -1018,8 +1017,9 @@ print *,"DEBUG: listmaxi=",listmaxi
       print 101,"ERROR: dy =",dy
       print 101,"ERROR: start_y =",start_y
       return
-    else
-      print 101,"INFO(RPN_COMM_shuf_dist_1): distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
+!     else
+!       print 101,"INFO(RPN_COMM_shuf_dist_1): distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
+!       print 101,"INFO: dy, cy, start_y ",dy,cy,start_y
     endif
 !
     cy = cy * gni                               ! multiply by row length
@@ -1037,39 +1037,45 @@ print *,"DEBUG: listmaxi=",listmaxi
                         fullrow(1,ybase),cy(pe_mey),MPI_INTEGER, &
                         root,pe_mycol,ierr)
       t(4) = RPN_COMM_wtime()
-!print *,'IN shuffle after scatter'
-!print *,"DEBUG: ======= fullrow for level",kcol
-!do j=maxj,minj,-1
-!  print 100,j,fullrow(:,j)
-!enddo
+! print *,'DEBUG: IN shuffle after scatter'
+! print *,"DEBUG: ======= fullrow for level",kcol
+! do j=maxj,minj,-1
+!  print 110,j,fullrow(:,j)
+! enddo
 !
 !     fullrow now contains what will be redistributed along x, haloy is accounted for
 !     we may now process reshaping and halo along x periodicity condition
 !
-      allocate(local_1(mini:maxi,minj:maxj,pe_nx))    ! reshape for distribution along x
-      allocate(local_a1(sum(listmaxi-mini+1)*(maxj-minj+1)*pe_nx))
+!       allocate(local_1(mini:maxi,minj:maxj,pe_nx))    ! reshape for distribution along x
+!       allocate(local_a1(sum(listmaxi-mini+1)*(maxj-minj+1)*pe_nx))
+      allocate(local_a1(sum(listmaxi-mini+1)*(maxj-minj+1)))
+! print *,"DEBUG: size of local_a1",sum(listmaxi-mini+1)*(maxj-minj+1)*pe_nx
       lni0 = count_x(0)
       local_start = 1
       do k = 1 , pe_nx
-        local_end = local_start + (listmaxi(k)-mini+1) * (maxj-minj+1) - 1
-        local_a2(mini:maxi,minj:maxj) => local_a1(local_start:local_end)
-        i0 = mini
+        ii0 = mini
+        i0 = ii0
 !         in = maxi
-        in = listmaxi(k)   !===================================
+        iin = listmaxi(k-1)   !===================================
+!         iin = maxi
+        in = iin
         if(k == 1) i0 = 1                        ! lower bound along x of west PE
         if(k == pe_nx) in = count_x(pe_nx-1)     ! upper boung along x of east PE
+        local_end = local_start + (iin-ii0+1) * (maxj-minj+1) - 1
+        local_a2(ii0:iin,minj:maxj) => local_a1(local_start:local_end)
         ioff = start_x(k-1) - 1                  ! offset along x in global space for PE no k-1 along x
+! print 101,"DEBUG: ii0, iin, i0, in, minj, maxj, local_start, local_end, ioff, listmaxi(k)",ii0, iin, i0, in, minj, maxj, local_start, local_end, ioff, listmaxi(k-1)
         do j = minj , maxj
-          local_1(  :  ,j,k) = 0
+!           local_1(  :  ,j,k) = 0
           if(k == 1 .or. k == pe_nx) local_a2(  :  ,j) = 0    !===================================
-          local_1(i0:in,j,k) = fullrow(i0+ioff:in+ioff,j)
+!           local_1(i0:in,j,k) = fullrow(i0+ioff:in+ioff,j)
           local_a2(i0:in,j) = fullrow(i0+ioff:in+ioff,j)    !===================================
-          if(eff_periodx .and. (k == 1)) &
-                 local_1(    1-halox:0    ,j,k) = fullrow(gni-halox+1:gni,j)   ! west halo from global east
+!           if(eff_periodx .and. (k == 1)) &
+!                  local_1(    1-halox:0    ,j,k) = fullrow(gni-halox+1:gni,j)   ! west halo from global east
           if(eff_periodx .and. (k == 1)) &
                  local_a2(    1-halox:0    ,j) = fullrow(gni-halox+1:gni,j)   ! west halo from global east    !===================================
-          if(eff_periodx .and. (k == pe_nx)) &
-                 local_1(lni0+1:lni0+halox,j,k) = fullrow(1:halox,j)           ! east halo from global west
+!           if(eff_periodx .and. (k == pe_nx)) &
+!                  local_1(lni0+1:lni0+halox,j,k) = fullrow(1:halox,j)           ! east halo from global west
           if(eff_periodx .and. (k == pe_nx)) &
                  local_a2(lni0+1:lni0+halox,j) = fullrow(1:halox,j)           ! east halo from global west    !===================================
         enddo
@@ -1153,6 +1159,7 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
        if(listofk(i) > 0) liste_o(listofk(i)) = .true.
     enddo
 100 format(I3,20I6.5)
+110 format(I3,20I10.9)
 101 format(A,20I5)
 111 format(A,20I9)
   end subroutine RPN_COMM_shuf_dist_2
