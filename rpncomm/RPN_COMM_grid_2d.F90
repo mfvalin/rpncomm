@@ -99,6 +99,70 @@ contains
 
 end module rpn_comm_grids
 
+function rpn_comm_create_2dgrid_v(gni,gnj,mini,maxi,minj,maxj,cntx,nx,cnty,ny) result (grid_id)  !InTf!
+!
+! create a 2D grid rpn_comm grid descriptor for an arbitrary cartesian grid decomposition
+!
+! gni, gnj                : dimensions of global grid           global_grid(gni,gnj)
+! mini, maxi, minj, maxj  : storage dimensions of local grid    local_grid(mini:maxi,minj:maxj)
+! cntx(pex)               : useful dimension along x for pe numbered pex-1(origin 0) along x
+! cnty(pex)               : useful dimension along y for pe numbered pey-1(origin 0) along y
+! nx, ny                  : dimensions of cntx, cnty (MUST be the same as pe_nx and pe_ny)
+!
+! the functions returns a positive grid identifier if successful, RPN_COMM_ERROR if unsuccessful
+! the number of PEs along x and y is taken from waht was determined by rpn_comm_init...
+!
+  use rpn_comm
+  use rpn_comm_grids
+  implicit none
+  integer, intent(IN) :: gni, gnj, mini, maxi, minj, maxj, nx, ny      !InTf!
+  integer, intent(IN), dimension(nx) :: cntx                           !InTf!
+  integer, intent(IN), dimension(ny) :: cnty                           !InTf!
+  integer :: grid_id                                                   !InTf!
+
+  integer :: ix, i, j, lni, lnj
+
+  grid_id = RPN_COMM_ERROR
+
+  if(nx .ne. pe_nx .or. ny .ne. pe_ny) then   ! OOPS, bad dimensions
+    return
+  endif
+
+  lni = cntx(pe_mex - 1)            ! pe_mex starts at 0, cntx is indexed from 1
+  lnj = cnty(pe_mey - 1)            ! pe_mey starts at 0, cnty is indexed from 1
+  if( 1-mini > maxi-lni) return     ! halo x problem (halo x is assumed to be 1-mini)
+  if( 1-minj > maxj-lnj) return     ! halo y problem (halo y is assumed to be 1-minj)
+
+  ix = init_new_grid(pe_nx,pe_ny)
+  if(ix <= 0) return                ! id <= 0 is an error
+
+
+  gt(ix)%gni     = gni
+  gt(ix)%gnj     = gnj
+  gt(ix)%mini    = mini             ! local value
+  gt(ix)%maxi    = maxi             ! local value
+  gt(ix)%minj    = minj             ! local value
+  gt(ix)%maxj    = maxj             ! local value
+
+  gt(ix)%count_i(1:pe_nx) = cntx(1:pe_nx)
+  gt(ix)%start_i(1) = 1                           ! (origin 1 for start_i)
+  do i = 2 , pe_nx
+    gt(ix)%start_i(i) = gt(ix)%start_i(i-1) + gt(ix)%count_i(i-1)
+  enddo
+  gt(ix)%lni =  lni
+
+  gt(ix)%count_j(1:pe_ny) = cnty(1:pe_ny)
+  gt(ix)%start_j(1) = 1                           ! (origin 1 for start_j)
+  do j = 2 , pe_ny
+    gt(ix)%start_j(j) = gt(ix)%start_j(j-1) + gt(ix)%count_j(j-1)
+  enddo
+  gt(ix)%lnj = lnj
+
+  gt(ix)%grid_id = ieor(ix , RPN_COMM_MAGIC)
+  grid_id = gt(ix)%grid_id
+
+end function rpn_comm_create_2dgrid_v                                    !InTf!
+
 function rpn_comm_create_2dgrid(gni,gnj,mini,maxi,minj,maxj) result (grid_id)  !InTf!
 !
 ! create a 2D grid rpn_comm grid descriptor
