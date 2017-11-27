@@ -111,6 +111,8 @@ function rpn_comm_create_2dgrid_v(gni,gnj,mini,maxi,minj,maxj,cntx,nx,cnty,ny) r
 !
 ! the functions returns a positive grid identifier if successful, RPN_COMM_ERROR if unsuccessful
 ! the number of PEs along x and y is taken from waht was determined by rpn_comm_init...
+! cntx(1) <= 0            : calculate count_i according to internal distribution rules
+! cnty(1) <= 0            : calculate count_j according to internal distribution rules
 !
   use rpn_comm
   use rpn_comm_grids
@@ -128,14 +130,23 @@ function rpn_comm_create_2dgrid_v(gni,gnj,mini,maxi,minj,maxj,cntx,nx,cnty,ny) r
     return
   endif
 
-  lni = cntx(pe_mex - 1)            ! pe_mex starts at 0, cntx is indexed from 1
-  lnj = cnty(pe_mey - 1)            ! pe_mey starts at 0, cnty is indexed from 1
+  if(cntx(1) > 0) then
+    lni = cntx(pe_mex - 1)            ! pe_mex starts at 0, cntx is indexed from 1
+  else
+    lni = (gni + pe_nx -1) / pe_nx    ! max lni, automatic dimensions
+    if(gni - lni * (pe_nx - 1) <= 0) return  ! bad distribution
+  endif
+  if(cnty(1) > 0) then
+    lnj = cnty(pe_mey - 1)            ! pe_mey starts at 0, cnty is indexed from 1
+  else
+    lnj = (gnj + pe_ny -1) / pe_ny    ! max lnj, automatic dimensions
+    if(gnj - lnj * (pe_ny - 1) <= 0) return   ! bad distribution
+  endif
   if( 1-mini > maxi-lni) return     ! halo x problem (halo x is assumed to be 1-mini)
   if( 1-minj > maxj-lnj) return     ! halo y problem (halo y is assumed to be 1-minj)
 
   ix = init_new_grid(pe_nx,pe_ny)
   if(ix <= 0) return                ! id <= 0 is an error
-
 
   gt(ix)%gni     = gni
   gt(ix)%gnj     = gnj
@@ -144,14 +155,24 @@ function rpn_comm_create_2dgrid_v(gni,gnj,mini,maxi,minj,maxj,cntx,nx,cnty,ny) r
   gt(ix)%minj    = minj             ! local value
   gt(ix)%maxj    = maxj             ! local value
 
-  gt(ix)%count_i(1:pe_nx) = cntx(1:pe_nx)
+  if(cntx(1) > 0) then
+    gt(ix)%count_i(1:pe_nx) = cntx(1:pe_nx)
+  else                              ! compute according to distribution rules 
+    gt(ix)%count_i(1:pe_nx-1) = lni
+    gt(ix)%count_i(pe_nx)     = gni - lni * (pe_nx - 1)
+  endif
   gt(ix)%start_i(1) = 1                           ! (origin 1 for start_i)
   do i = 2 , pe_nx
     gt(ix)%start_i(i) = gt(ix)%start_i(i-1) + gt(ix)%count_i(i-1)
   enddo
   gt(ix)%lni =  lni
 
-  gt(ix)%count_j(1:pe_ny) = cnty(1:pe_ny)
+  if(cnty(1) > 0) then
+    gt(ix)%count_j(1:pe_ny) = cnty(1:pe_ny)
+  else                              ! compute according to distribution rules 
+    gt(ix)%count_j(1:pe_ny-1) = lnj
+    gt(ix)%count_j(pe_ny)     = gnj - lnj * (pe_ny - 1)
+  endif
   gt(ix)%start_j(1) = 1                           ! (origin 1 for start_j)
   do j = 2 , pe_ny
     gt(ix)%start_j(j) = gt(ix)%start_j(j-1) + gt(ix)%count_j(j-1)
