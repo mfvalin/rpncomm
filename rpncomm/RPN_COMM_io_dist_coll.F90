@@ -786,6 +786,7 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
   integer, intent(OUT) :: status                   ! RPN_COMM_OK or RPN_COMM_ERROR
   integer :: i, k, low, high, listeik, n, nerrors, ierr, nerrormax
   integer, dimension(10) :: clist, clistmax        ! used to check that some arguments are consistent
+  integer :: lni, lnj, halox, haloy, maxi_min, maxj_min
 
 ! print 100,'DEBUG: RPN_COMM_shuf_dist',mini,maxi,minj,maxj,gni,gnj,dnk,nx,ny
 ! print 100,'          start_x,count_x',start_x,count_x
@@ -801,16 +802,48 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
   if(io_set(setno)%ioset .ne. setno)   nerrors = nerrors + 1 ! IO set no longer valid, OUCH !
   if(pe_nx .ne. nx .or. pe_ny .ne. ny) nerrors = nerrors + 1 ! wrong number of PEs in grid, OUCH !
   if(periody)                          nerrors = nerrors + 1 ! not supported in this version
-! check that arguments that MUST be identical on all PEs are identical
+
+  ! =====================================================================================
+  ! on North PEs, maxj = lnj is OK ; on East PEs, maxi = lni is OK (non periodic assumed)
+  ! =====================================================================================
+  lni = count_x(pe_mex)                     ! useful number of points on local tile
+  lnj = count_y(pe_mey)
+  haloy = 1 - minj          ! halos are implicitly specified by lower bound of x and y dimensions
+  if(hy >=0) haloy = hy
+  if(pe_ny == 1) haloy = 0  ! no halo along y in this case
+  halox = 1 - mini
+  if(hx >= 0) halox = hx
+  maxi_min = lni+halox     ! all but East PEs where maxi == lni is OK if not periodic
+  if(pe_mex == pe_nx - 1 .and. .not. periodx)  maxi_min = lni
+  maxj_min = lnj+haloy     ! all but North PEs where maxj == lnj is OK if not periodic
+  if(pe_mey == pe_ny - 1 .and. .not. periody)  maxj_min = lnj
+  if(maxi < maxi_min .or. maxj < maxj_min .or. mini > 1-halox .or. minj > 1-haloy) then
+    print 201,"ERROR: upper or lower bound of array cannot accomodate halo, pe_mex=",pe_mex
+    print 201,"mini,maxi_min,maxi,lni,minj,maxj_min,maxj,lnj,halox,haloy",mini,maxi_min,maxi,lni,minj,maxj_min,maxj,lnj,halox,haloy
+!     print 201,'DEBUG: count_x =',count_x
+    nerrors = nerrors + 1  ! OOPS, upper or lower bound cannot accomodate halo
+201 format(A,20I5)
+  endif
+
+! check that arguments that MUST be identical along x and/or y are identical
 !   clist = [setno,gni,gnj,dnk,mini,maxi,minj,maxj,lnk,0]
-  clist = [setno,gni,gnj,dnk,mini,0,minj,0,lnk,0]
-  if(periodx) clist(10) = 1
-  call MPI_allreduce(clist, clistmax, 10, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
-  do i = 1,10
+!   clist = [setno,gni,gnj,dnk,mini,0,minj,0,lnk,0]
+  clist = [setno,dnk,lnk,gni,gnj,0,mini,minj,maxi,maxj]
+  if(periodx) clist(6) = 1
+!   call MPI_allreduce(clist, clistmax, 10, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
+  call MPI_allreduce(clist, clistmax, 10, MPI_INTEGER, MPI_MAX, pe_myrow, ierr)   ! check along x
+  if(clist(10) .ne. clistmax(10)) nerrors = nerrors + 1                           ! along x, only maxi may be non identical
+  call MPI_allreduce(clist, clistmax, 10, MPI_INTEGER, MPI_MAX, pe_mycol, ierr)   ! check along y
+  if(clist(9) .ne. clistmax(9)) nerrors = nerrors + 1                             ! along y, only maxj may be non identical
+  do i = 1,8
     if(clist(i) .ne. clistmax(i)) nerrors = nerrors + 1
   enddo
+
   call MPI_allreduce(nerrors, nerrormax, 1, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)  ! error somewhere ?
-  if(nerrormax > 0) return
+  if(nerrormax > 0) then
+    print *,"ERROR: (RPN_COMM_shuf_dist_hxy), dimension mismatches detected"
+    return
+  endif
 
 !
 ! distribute one 2D plane at a time, one group of IO PEs at a time
@@ -938,15 +971,16 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     if(pe_mex == pe_nx - 1 .and. .not. periodx)  maxi_min = lni
     maxj_min = lnj+haloy     ! all but North PEs where maxj == lnj is OK if not periodic
     if(pe_mey == pe_ny - 1 .and. .not. periody)  maxj_min = lnj
-    nerrors = 0
-    if(maxi < maxi_min .or. maxj < maxj_min .or. mini > 1-halox .or. minj > 1-haloy) then
-      print 101,"ERROR: upper or lower bound of array cannot accomodate halo, pe_mex=",pe_mex
-      print 101,"mini,maxi_min,maxi,lni,minj,maxj_min,maxj,lnj,halox,haloy",mini,maxi_min,maxi,lni,minj,maxj_min,maxj,lnj,halox,haloy
-      print 101,'DEBUG: count_x =',count_x
-      nerrors = nerrors + 1  ! OOPS, upper or lower bound cannot accomodate halo
-    endif
-    call MPI_allreduce(nerrors, nerrormax, 1, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
-    if(nerrormax > 0) return
+!====== this check is now done in calling routine =====
+!     nerrors = 0
+!     if(maxi < maxi_min .or. maxj < maxj_min .or. mini > 1-halox .or. minj > 1-haloy) then
+!       print 101,"ERROR: upper or lower bound of array cannot accomodate halo, pe_mex=",pe_mex
+!       print 101,"mini,maxi_min,maxi,lni,minj,maxj_min,maxj,lnj,halox,haloy",mini,maxi_min,maxi,lni,minj,maxj_min,maxj,lnj,halox,haloy
+!       print 101,'DEBUG: count_x =',count_x
+!       nerrors = nerrors + 1  ! OOPS, upper or lower bound cannot accomodate halo
+!     endif
+!     call MPI_allreduce(nerrors, nerrormax, 1, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
+!     if(nerrormax > 0) return
 
     do i = 1 , npes
       if(pe_mex == pe_x(i)) then
