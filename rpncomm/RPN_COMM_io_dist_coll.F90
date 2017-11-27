@@ -939,19 +939,19 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     integer, dimension(2,0:pe_nx-1) :: slots
     integer :: i, j, k, i0, in, ioff, lni0, ii0, iin
     integer, dimension(:,:), pointer :: fullrow
-    integer, dimension(:,:,:), pointer :: local_1
+!     integer, dimension(:,:,:), pointer :: local_1
     integer, dimension(:),   pointer :: local_a1
     integer, dimension(:,:), pointer :: local_a2
     integer, dimension(0:pe_nx-1) :: cxs, dxs, cxr, dxr
     integer, dimension(0:pe_ny-1) :: cy, dy
     real*8, dimension(0:6) :: t
     integer, dimension(0:6) :: it
-    integer :: maxi_min, maxj_min, nerrors, nerrormax, local_start, local_end
+    integer :: nerrors, nerrormax, local_start, local_end
 
     on_column = .false.     ! precondition for failure in case a hasty exit is needed
     status = RPN_COMM_ERROR ! precondition for failure in case a hasty exit is needed
     nullify(fullrow)
-    nullify(local_1)
+!     nullify(local_1)
 !
     root = -1 
     kcol = -1
@@ -964,14 +964,14 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     eff_periodx = periodx .and. (halox > 0)   ! global along x periodic adjustment needed
     lni = count_x(pe_mex)                     ! useful number of points on local tile
     lnj = count_y(pe_mey)
-    ! =====================================================================================
-    ! on North PEs, maxj = lnj is OK ; on East PEs, maxi = lni is OK (non periodic assumed)
-    ! =====================================================================================
-    maxi_min = lni+halox     ! all but East PEs where maxi == lni is OK if not periodic
-    if(pe_mex == pe_nx - 1 .and. .not. periodx)  maxi_min = lni
-    maxj_min = lnj+haloy     ! all but North PEs where maxj == lnj is OK if not periodic
-    if(pe_mey == pe_ny - 1 .and. .not. periody)  maxj_min = lnj
 !====== this check is now done in calling routine =====
+!     ! =====================================================================================
+!     ! on North PEs, maxj = lnj is OK ; on East PEs, maxi = lni is OK (non periodic assumed)
+!     ! =====================================================================================
+!     maxi_min = lni+halox     ! all but East PEs where maxi == lni is OK if not periodic
+!     if(pe_mex == pe_nx - 1 .and. .not. periodx)  maxi_min = lni
+!     maxj_min = lnj+haloy     ! all but North PEs where maxj == lnj is OK if not periodic
+!     if(pe_mey == pe_ny - 1 .and. .not. periody)  maxj_min = lnj
 !     nerrors = 0
 !     if(maxi < maxi_min .or. maxj < maxj_min .or. mini > 1-halox .or. minj > 1-haloy) then
 !       print 101,"ERROR: upper or lower bound of array cannot accomodate halo, pe_mex=",pe_mex
@@ -982,7 +982,7 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
 !     call MPI_allreduce(nerrors, nerrormax, 1, MPI_INTEGER, MPI_MAX, pe_indomm, ierr)
 !     if(nerrormax > 0) return
 
-    do i = 1 , npes
+    do i = 1 , npes                              ! loop over IO PEs
       if(pe_mex == pe_x(i)) then
         on_column = .true.                       ! there is an IO PE on the column (and only one)
         root = pe_y(i)                           ! y coordinate of IO PE, will be the root for scatterv
@@ -1006,7 +1006,7 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
     slot(2) = maxi
     call mpi_allgather(slot,2,MPI_INTEGER,slots,2,MPI_INTEGER,pe_myrow,ierr)
     listofk(:)  = slots(1,:)
-    listmaxi(:) = slots(2,:)  ! list of maxi values (might not be the same on all PEs PEs)
+    listmaxi(:) = slots(2,:)  ! list of maxi values (might not be the same on all PEs in row)
     t(2) = RPN_COMM_wtime()
     nerrors = 0
 !     print 101,"DEBUG: lnk, gk, listofk ",lnk,gk,listofk
@@ -1081,7 +1081,6 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
 !     we may now process reshaping and halo along x periodicity condition
 !
 !       allocate(local_1(mini:maxi,minj:maxj,pe_nx))    ! reshape for distribution along x
-!       allocate(local_a1(sum(listmaxi-mini+1)*(maxj-minj+1)*pe_nx))
       allocate(local_a1(sum(listmaxi-mini+1)*(maxj-minj+1)))
 ! print *,"DEBUG: size of local_a1",sum(listmaxi-mini+1)*(maxj-minj+1)*pe_nx
       lni0 = count_x(0)
@@ -1131,7 +1130,7 @@ subroutine RPN_COMM_shuf_dist_hxy(setno,  &
 !enddo
     else                           ! we are not on a column where there is an IO PE
       allocate(fullrow(1,1))
-      allocate(local_1(1,1,1))
+!       allocate(local_1(1,1,1))
       allocate(local_a1(1))
       cxs = 0                      ! nothing to send from here, size = displacement = 0
       dxs = 0
@@ -1187,7 +1186,8 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
 !enddo
 !print *,"DEBUG: exiting dist_1"
     if(associated(fullrow)) deallocate(fullrow)
-    if(associated(local_1)) deallocate(local_1)
+!     if(associated(local_1)) deallocate(local_1)
+    if(associated(local_a1)) deallocate(local_a1)
     status = RPN_COMM_OK   ! success at last !
     do i = 0 , pe_nx-1     ! mark 2D array at position listofk(i) as received
        if(listofk(i) > 0) liste_o(listofk(i)) = .true.
