@@ -335,6 +335,172 @@ temp = 0
   return
 end subroutine
 
+! map of regions in array f for propagate_pilot
+! A, B, C, D, E, F, G, H  inside boxes
+! 1, 2, 3, 4, 5, 6, 7, 8  outside boxes
+! array f has a useful size lni x lnj, with haloes along x (hx) and y (hy)
+! horizontal boxes : pilx x hy
+! vertical boxes   : hx x pily
+! (hx, hy normally much smaller than pilx, pily)
+!
+!                                                          hx
+!               <---  pilx --->                          <--->
+!    lnj+hy---->+-------------+            +-------------+     ^
+!               |      2      |            |       3     |     | hy
+!    lnj--->+---+---+---------+------------+---------+---+---+ v
+!           |   |   |    B    |      ^     |     C   |   |   |
+!           |   +---+---------+      |     +---------+---+   |         
+!           | 1 |   |                |               |   | 4 |
+!           |   | A |                |               | D |   |
+!           |   |   |                |               |   |   |
+!           |   |   |                |               |   |   |
+!           +---+---+                |               +---+---+
+!               |          array f   |                   |
+!               |                    |                   |
+!               |<-------------------------lni---------->|
+!               |                    |                   |
+!           +---+---+                |               +---+---+  ^
+!           |   |   |                |               |   |   |  |
+!           |   |   |               lnj              |   |   |  |
+!           |   | H |                |               | E |   |  | pily
+!           | 8 |   |                |               |   | 5 |  |
+!           |   +---+---------+      |     +---------+---+   |  |
+!           |   |   |    G    |      v     |     F   |   |   |  |
+!    1 ---->+---+---+--------------------------------+---+---+  v
+!               |      7      |            |       6     |   ^
+!    1-hy------>+-------------+            +-------------+   |
+!           ^   ^                                        ^  lni+hx
+!           |   |                                        |
+!           |   1                                       lni
+!           |
+!           |
+!         1-hx                                   
+!                                                   
+!                                                            
+!
+#define F1 f(1-hx       :0          ,lnj+1-pily :lnj      ,:)
+#define F2 f(1          :pilx       ,lnj+1      :lnj+hy   ,:)
+#define F3 f(lni+1-pilx :lni        ,lnj+1      :lnj+hy   ,:)
+#define F4 f(lni+1      :lni+hx     ,lnj+1-pily :lnj      ,:)
+#define F5 f(lni+1      :lni+hx     ,1          :pily     ,:)
+#define F6 f(lni+1-pilx :lni        ,1-hy       :0        ,:)
+#define F7 f(1          :pilx       ,1-hy       :0        ,:)
+#define F8 f(1-hx       :0          ,1          :pily     ,:)
+
+#define FA f(1          :hx         ,lnj+1-pily :lnj      ,:)
+#define FB f(1          :pilx       ,lnj+1-hy   :lnj      ,:)
+#define FC f(lni+1-pilx :lni        ,lnj+1-hy   :lnj      ,:)
+#define FD f(lni+1-hx   :lni        ,lnj+1-pily :lnj      ,:)
+#define FE f(lni+1-hx   :lni        ,1          :pily     ,:)
+#define FF f(lni+1-pilx :lni        ,1          :hy       ,:)
+#define FG f(1          :pilx       ,1          :hy       ,:)
+#define FH f(1          :hx         ,1          :pily     ,:)
+
+subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pilx,pily,hx,hy)
+  use rpn_comm
+  implicit none
+  integer, intent(IN) :: minx,maxx,miny,maxy,nk   ! dimensions of array f
+  integer, dimension(minx:maxx,miny:maxy,nk), intent(INOUT) :: f
+  integer, intent(IN) :: lni, lnj                 ! number of private points in array f
+  integer, intent(IN) :: hx, hy                   ! useful horizontal halo around f
+  integer, intent(IN) :: pilx, pily               ! pilot zone thickness
+
+  integer :: northpe, southpe, eastpe, westpe, upstream, downstream
+  integer :: ierror
+  integer, dimension(MPI_STATUS_SIZE) :: status ! status for sendrecv
+  integer, dimension(hx,pily,nk) :: tv, tv2
+  integer, dimension(pilx,hy,nk) :: th, th2
+  integer :: nhor, nvrt
+
+  if( .not. (bnd_north .or. bnd_south .or. bnd_east .or. bnd_west) ) return ! not on boundary, nothing to do
+  if(pe_nx == 1 .and. pe_ny ==1) return                     ! one tile only, nothing to do
+
+  northpe=pe_id(pe_mex,pe_mey+1)
+  southpe=pe_id(pe_mex,pe_mey-1)
+  eastpe=pe_id(pe_mex+1,pe_mey)
+  westpe=pe_id(pe_mex-1,pe_mey)
+  nhor = pilx * hy * nk  ! size of horizontal boxes (tb, tc, tf, tg, t2, t3, t6, t7)
+  nvrt = pily * hx * nk  ! size of vertical boxes (ta, td, te, th, t1, t4, t5, t8)
+
+! clockwise move, followed by counterclockwise move (upstream/downstream defined by clockwise move)
+! get from upstream send downstream , then get from downstream send upstream
+  if(bnd_north .and. bnd_west) then       ! get 7 send D : get 4 send G
+    upstream   = westpe
+    downstream = southpe
+    tv = FD
+    call MPI_sendrecv(tv, nvrt, MPI_INTEGER, downstream, TAG, th, nhor, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    F7 = th
+    th = FG
+    call MPI_sendrecv(th, nhor, MPI_INTEGER, upstream  , TAG, tv, nvrt, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    F4 = tv
+  else if(bnd_north .and. bnd_east) then  ! get 1 send F : get 6 send A
+    upstream   = southpe
+    downstream = eastpe
+    th = FF
+    call MPI_sendrecv(th, nhor, MPI_INTEGER, downstream, TAG, tv, nvrt, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    F1 = tv
+    tv = FA
+    call MPI_sendrecv(tv, nvrt, MPI_INTEGER, upstream  , TAG, th, nhor, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    F6 = th
+  else if(bnd_south .and. bnd_west) then  ! get 5 send B : get 2 send E
+    upstream   = northpe
+    downstream = westpe
+    th = FB
+    call MPI_sendrecv(th, nhor, MPI_INTEGER, downstream, TAG, tv, nvrt, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    F5 = tv
+    tv = FE
+    call MPI_sendrecv(tv, nvrt, MPI_INTEGER, upstream  , TAG, th, nhor, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    F2 = th
+  else if(bnd_south .and. bnd_east) then  ! get 3 send H : get 8 send C
+    upstream   = eastpe
+    downstream = northpe
+    tv = FH
+    call MPI_sendrecv(tv, nvrt, MPI_INTEGER, downstream, TAG, th, nhor, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    F3 = th
+    th = FC
+    call MPI_sendrecv(th, nhor, MPI_INTEGER, upstream  , TAG, tv, nvrt, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    F8 = tv
+  else if(bnd_north) then             ! get 1 send D : get 4 send A
+    upstream   = westpe
+    downstream = eastpe
+    tv = FD
+    call MPI_sendrecv(tv, nvrt, MPI_INTEGER, downstream, TAG, tv2, nvrt, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    F1 = tv2
+    tv = FA
+    call MPI_sendrecv(tv, nvrt, MPI_INTEGER, upstream  , TAG, tv2, nvrt, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    F4 = tv2
+  else if(bnd_south) then             ! get 5 send H : get 8 send E
+    upstream   = eastpe
+    downstream = westpe
+    tv = FH
+    call MPI_sendrecv(tv, nvrt, MPI_INTEGER, downstream, TAG, tv2, nvrt, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    F5 = tv2
+    tv = FE
+    call MPI_sendrecv(tv, nvrt, MPI_INTEGER, upstream  , TAG, tv2, nvrt, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    F8 = tv2
+  else if(bnd_east)  then             ! get 3 send F : get 6 send C
+    upstream   = northpe
+    downstream = southpe
+    th = FF
+    call MPI_sendrecv(th, nhor, MPI_INTEGER, downstream, TAG, th2, nhor, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    F3 = th2
+    th = FC
+    call MPI_sendrecv(th, nhor, MPI_INTEGER, upstream  , TAG, th2, nhor, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    F6 = th2
+  else if(bnd_west)  then             ! get 7 send B : get 2 send G
+    upstream   = southpe
+    downstream = northpe
+    th = FB
+    call MPI_sendrecv(th, nhor, MPI_INTEGER, downstream, TAG, th2, nhor, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+    F7 = th2
+    th = FG
+    call MPI_sendrecv(th, nhor, MPI_INTEGER, upstream  , TAG, th2, nhor, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
+    F2 = th2
+  endif
+
+  return
+end subroutine RPN_COMM_propagate_pilot_circular
+
 subroutine RPN_COMM_propagate_boundary_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy)
   use rpn_comm
   implicit none
