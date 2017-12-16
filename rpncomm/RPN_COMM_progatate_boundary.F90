@@ -386,6 +386,10 @@ end subroutine
 #define F6 f(lni+1-pilx :lni        ,1-hy       :0        ,:)
 #define F7 f(1          :pilx       ,1-hy       :0        ,:)
 #define F8 f(1-hx       :0          ,1          :pily     ,:)
+#define F23 f(1         :lni        ,lnj+1      :lnj+hy   ,:)
+#define F76 f(1         :lni        ,1-hy       :0        ,:)
+#define F81 f(1-hx      :0          ,1          :lnj      ,:)
+#define F54 f(lni+1     :lni+hx     ,1          :lnj      ,:)
 
 #define FA f(1          :hx         ,lnj+1-pily :lnj      ,:)
 #define FB f(1          :pilx       ,lnj+1-hy   :lnj      ,:)
@@ -395,6 +399,10 @@ end subroutine
 #define FF f(lni+1-pilx :lni        ,1          :hy       ,:)
 #define FG f(1          :pilx       ,1          :hy       ,:)
 #define FH f(1          :hx         ,1          :pily     ,:)
+#define FBC f(1         :lni        ,lnj+1-hy   :lnj      ,:)
+#define FGF f(1         :lni        ,1          :hy       ,:)
+#define FHA f(1         :hx         ,1          :lnj      ,:)
+#define FED f(lni+1-hx  :lni        ,1          :lnj      ,:)
 
 subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pilx,pily,hx,hy)
   use rpn_comm
@@ -410,6 +418,8 @@ subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pi
   integer, dimension(MPI_STATUS_SIZE) :: status ! status for sendrecv
   integer, dimension(hx,pily,nk) :: tv, tv2
   integer, dimension(pilx,hy,nk) :: th, th2
+  integer, dimension(1:lni,hy,nk) :: row, row2  ! for F23 and F76 transfers
+  integer, dimension(hx,1:lnj,nk) :: col, col2  ! for FHA and FED transfers
   integer :: nhor, nvrt
 
   if( .not. (bnd_north .or. bnd_south .or. bnd_east .or. bnd_west) ) return ! not on boundary, nothing to do
@@ -419,11 +429,60 @@ subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pi
   southpe=pe_id(pe_mex,pe_mey-1)
   eastpe=pe_id(pe_mex+1,pe_mey)
   westpe=pe_id(pe_mex-1,pe_mey)
-  nhor = pilx * hy * nk  ! size of horizontal boxes (tb, tc, tf, tg, t2, t3, t6, t7)
-  nvrt = pily * hx * nk  ! size of vertical boxes (ta, td, te, th, t1, t4, t5, t8)
 
 ! clockwise move, followed by counterclockwise move (upstream/downstream defined by clockwise move)
 ! get from upstream send downstream , then get from downstream send upstream
+  if(pe_nx == 1) then   ! north->south single column, exchange rows
+    downstream = southpe
+    upstream = northpe
+    nhor = lni * hy * nk  ! size of horizontal boxes
+    if(bnd_north) then           ! send GF, get 76
+      row = FGF
+      call mpi_send(row, nhor, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
+      call mpi_recv(row, nhor, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
+      F76 = row
+    else if(bnd_south) then      ! get 23, send BC
+      call mpi_recv(row, nhor, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
+      F23 = row
+      row = FBC
+      call mpi_send(row, nhor, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
+    else                         ! get 23 send GF, get 76 send BC
+      row = FGF
+      call MPI_sendrecv(row, nhor, MPI_INTEGER, downstream, TAG, row2, nhor, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+      F23 = row2
+      row = FBC
+      call MPI_sendrecv(row, nhor, MPI_INTEGER, downstream, TAG, row2, nhor, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+      F76 = row2
+    endif
+    return
+  endif
+  if(pe_ny == 1) then   ! west->east single row of PEs, exchange columns
+    downstream = eastpe
+    upstream = westpe
+    nvrt = lnj * hx * nk  ! size of vertical boxes
+    if(bnd_west) then            ! send ED, get 54
+      col = FED
+      call mpi_send(col, nvrt, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
+      call mpi_recv(col, nvrt, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
+      F54 = col
+    else if(bnd_east) then       ! get 81 send HA
+      call mpi_recv(col, nvrt, MPI_INTEGER, upstream, TAG, pe_grid, ierror)
+      F81 = col
+      col = FHA
+      call mpi_send(col, nvrt, MPI_INTEGER, upstream, TAG, pe_grid, ierror)
+    else                         ! get 81 send ED, get 54 send HA
+      col = FED
+      call MPI_sendrecv(col, nvrt, MPI_INTEGER, downstream, TAG, col2, nvrt, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+      F81 = col2
+      col = FHA
+      call MPI_sendrecv(col, nvrt, MPI_INTEGER, downstream, TAG, col2, nvrt, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+      F54 = col2
+    endif
+    return
+  endif
+  ! usual case, pe_nx > 1 and pe_ny > 1
+  nhor = pilx * hy * nk  ! size of horizontal boxes (tb, tc, tf, tg, t2, t3, t6, t7)
+  nvrt = pily * hx * nk  ! size of vertical boxes (ta, td, te, th, t1, t4, t5, t8)
   if(bnd_north .and. bnd_west) then       ! get 7 send D : get 4 send G
     upstream   = westpe
     downstream = southpe
