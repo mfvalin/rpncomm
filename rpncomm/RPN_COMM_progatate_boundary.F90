@@ -212,8 +212,8 @@ program test
           npts = npts + 1
           if(f(i,j,k) .ne. (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)) then
             errors = errors + 1
-            print 102,'  ',i,ig,pilx,gni,j,jg,pily,gnj
-            print *,(ig >= 1 .and. ig <= pilx),(jg >= 1 .and. jg <= pily),(ig > gni - pilx .and. ig <= gni),(jg > gnj - pily .and. jg <= gnj)
+!             print 102,'  ',i,ig,pilx,gni,j,jg,pily,gnj
+!             print *,(ig >= 1 .and. ig <= pilx),(jg >= 1 .and. jg <= pily),(ig > gni - pilx .and. ig <= gni),(jg > gnj - pily .and. jg <= gnj)
           endif
         endif
       endif
@@ -491,19 +491,19 @@ subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pi
     if(bnd_north) then           ! send GF, get 76
       row = FGF
       call mpi_send(row, nhor, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
-      call mpi_recv(row, nhor, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
+      call mpi_recv(row, nhor, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
       F76 = row
     else if(bnd_south) then      ! get 23, send BC
-      call mpi_recv(row, nhor, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
+      call mpi_recv(row, nhor, MPI_INTEGER, upstream, TAG, pe_grid, status, ierror)
       F23 = row
       row = FBC
-      call mpi_send(row, nhor, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
+      call mpi_send(row, nhor, MPI_INTEGER, upstream, TAG, pe_grid, ierror)
     else                         ! get 23 send GF, get 76 send BC
       row = FGF
       call MPI_sendrecv(row, nhor, MPI_INTEGER, downstream, TAG, row2, nhor, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
       F23 = row2
       row = FBC
-      call MPI_sendrecv(row, nhor, MPI_INTEGER, downstream, TAG, row2, nhor, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+      call MPI_sendrecv(row, nhor, MPI_INTEGER, upstream, TAG, row2, nhor, MPI_INTEGER, downstream  , TAG, pe_grid, status, ierror)
       F76 = row2
     endif
     return
@@ -515,10 +515,10 @@ subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pi
     if(bnd_west) then            ! send ED, get 54
       col = FED
       call mpi_send(col, nvrt, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
-      call mpi_recv(col, nvrt, MPI_INTEGER, downstream, TAG, pe_grid, ierror)
+      call mpi_recv(col, nvrt, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
       F54 = col
     else if(bnd_east) then       ! get 81 send HA
-      call mpi_recv(col, nvrt, MPI_INTEGER, upstream, TAG, pe_grid, ierror)
+      call mpi_recv(col, nvrt, MPI_INTEGER, upstream, TAG, pe_grid, status, ierror)
       F81 = col
       col = FHA
       call mpi_send(col, nvrt, MPI_INTEGER, upstream, TAG, pe_grid, ierror)
@@ -527,7 +527,7 @@ subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pi
       call MPI_sendrecv(col, nvrt, MPI_INTEGER, downstream, TAG, col2, nvrt, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
       F81 = col2
       col = FHA
-      call MPI_sendrecv(col, nvrt, MPI_INTEGER, downstream, TAG, col2, nvrt, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
+      call MPI_sendrecv(col, nvrt, MPI_INTEGER, upstream, TAG, col2, nvrt, MPI_INTEGER, downstream  , TAG, pe_grid, status, ierror)
       F54 = col2
     endif
     return
