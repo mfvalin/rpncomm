@@ -75,11 +75,14 @@ program test
   use rpn_comm
   implicit none
   integer :: NX=25
-  integer :: NY=15
+  integer :: NY=13
   integer :: NK=80
-  integer :: HX=2
+  integer :: HX=3
   integer :: HY=2
-  integer :: ierror, pe_me, siz, i, j, k, errors, lni, lnj
+  integer :: PILX
+  integer :: PILY
+  integer :: i0g, j0g, i1g, j1g, gni, gnj, ig, jg
+  integer :: ierror, pe_me, siz, i, j, k, errors, lni, lnj, npts
   integer, dimension(:,:,:), pointer :: f
   character(len=128) :: argument
   real*8 :: t1, t2, t3
@@ -98,11 +101,10 @@ program test
 
   allocate(f(1-HX:NX+HX,1-HY:NY+HY,NK))
   pe_ny = siz / pe_nx
+  if(pe_me == 0) print *,'pe_nx , pe_ny , siz',pe_nx,pe_ny,siz
   if(pe_nx * pe_ny .ne. siz) then
-    if(pe_me == 0) print *,'pe_nx * pe_ny .ne. siz',pe_nx,pe_ny,siz
     goto 1
   endif
-  if(pe_me == 0) print *,'pe_nx , pe_ny , siz',pe_nx,pe_ny,siz
   pe_mex = mod(pe_me,pe_nx)
   pe_mey = pe_me / pe_nx
 
@@ -114,8 +116,17 @@ program test
   allocate(pe_id(-1:pe_nx,-1:pe_ny))
   pe_id = -1
   lni = nx
+  gni = lni * pe_nx
   lnj = ny
-
+  gnj = lnj * pe_ny
+  i0g = pe_mex*lni + 1
+  i1g = i0g + lni - 1
+  pilx = (lni+1)/2
+  j0g = pe_mey*lnj + 1
+  j1g = j0g + lnj - 1
+  pily = (lnj+1)/2
+  if(pe_me == 0) print 102,'lni, lnj, gni, gnj, pilx, pily, hx, hy',lni, lnj, gni, gnj, pilx, pily, hx, hy
+!   print 102,'pe_mex, i0g, i1g, pe_mey, j0g, j1g',pe_mex, i0g, i1g, pe_mey, j0g, j1g
   k = 0
   do j = 0,pe_ny-1
   do i = 0,pe_nx-1
@@ -130,7 +141,7 @@ program test
     enddo
   endif
   call MPI_barrier(MPI_COMM_WORLD,ierror)
-
+#if defined(TEST_CORNERS)
   do k = 1,nk
     do j = 1-hy , ny+hy
     do i = 1-hx , nx+hx
@@ -146,16 +157,27 @@ program test
   if(bnd_east  .and. .not. bnd_south) C = 999999
   if(bnd_west  .and. .not. bnd_south) D = 999999
   if(bnd_south .and. .not.  bnd_west) D = 999999
-
+#else
+  f = 999999
+  do k = 1,nk
+    do j = 1, ny
+    do i = 1, nx
+      f(i,j,k) = (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)
+    enddo
+    enddo
+  enddo
+#endif
   if(nx <= 5 .and. ny <= 3 .and. pe_nx*pe_ny <= 6) then
     do j = ny+hy, 1-hy, -1
       print 101,f(:,j,1)
     enddo
   endif
 
+  errors = 0
+  npts = 0
+#if defined(TEST_CORNERS)
   call RPN_COMM_propagate_boundary_circular(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)  ! to prime the MPI pump
   call RPN_COMM_propagate_boundary(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)  ! to prime the MPI pump
-
   call MPI_barrier(MPI_COMM_WORLD,ierror)
   t1 = MPI_wtime()
   call RPN_COMM_propagate_boundary_circular(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)
@@ -164,7 +186,6 @@ program test
   call MPI_barrier(MPI_COMM_WORLD,ierror)
   t3 = MPI_wtime()
 !   call RPN_COMM_propagate_boundary_circular(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,hx,hy)
-  errors = 0
   do k = 1 , nk
   do j = 1-hy , ny+hy
   do i = 1-hx , nx+hx
@@ -173,6 +194,36 @@ program test
   enddo
   enddo
   print 100,'pe =',pe_me,' time =',nint((t3-t1)*1000000),nint((t2-t1)*1000000),' errors =',errors
+#else
+  t1 = MPI_wtime()
+  call RPN_COMM_propagate_pilot_circular(f,1-hx,nx+hx,1-hy,ny+hy,nx,ny,nk,pilx,pily,hx,hy)
+  t2 = MPI_wtime()
+  call MPI_barrier(MPI_COMM_WORLD,ierror)
+  t3 = MPI_wtime()
+  do k = 1 , 1 ! nk
+  do j = 1-hy , ny+hy
+  do i = 1-hx , nx+hx
+    if( (i < 1) .or. (j < 1) .or. (i > nx) .or. (j > ny) ) then    ! in halo area
+      ig = i0g + i -1
+      jg = j0g + j -1
+      if( (ig < 1) .or. (jg < 1) .or. (ig > gni) .or. (jg > gnj) ) then
+      else
+        if( (ig >= 1 .and. ig <= pilx) .or. (jg >= 1 .and. jg <= pily) .or. (ig > gni - pilx .and. ig <= gni) .or. (jg > gnj - pily .and. jg <= gnj) ) then
+          npts = npts + 1
+          if(f(i,j,k) .ne. (i + nx * pe_mex + 10) * 1000 + (j + ny * pe_mey + 10)) then
+            errors = errors + 1
+            print 102,'  ',i,ig,pilx,gni,j,jg,pily,gnj
+            print *,(ig >= 1 .and. ig <= pilx),(jg >= 1 .and. jg <= pily),(ig > gni - pilx .and. ig <= gni),(jg > gnj - pily .and. jg <= gnj)
+          endif
+        endif
+      endif
+    endif
+  enddo
+  enddo
+  enddo
+  
+  print 100,'pe =',pe_me,' time =',nint((t3-t1)*1000000),nint((t2-t1)*1000000),' errors =',errors,' npts =',npts
+#endif
   if(nx <= 5 .and. ny <= 3 .and. pe_nx*pe_ny <= 6) then
     print *," "
     do j = ny+hy, 1-hy, -1
@@ -181,8 +232,9 @@ program test
   endif
 1 continue
   call MPI_finalize(ierror)
-100 format(A4,I6.5,A7,2I6,A9,I6)
+100 format(A4,I6.5,A7,2I6,A9,I6,A9,I6)
 101 format(15I8.6)
+102 format(A40,20I6)
 end program
 #endif
 
@@ -484,8 +536,8 @@ subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pi
   nhor = pilx * hy * nk  ! size of horizontal boxes (tb, tc, tf, tg, t2, t3, t6, t7)
   nvrt = pily * hx * nk  ! size of vertical boxes (ta, td, te, th, t1, t4, t5, t8)
   if(bnd_north .and. bnd_west) then       ! get 7 send D : get 4 send G
-    upstream   = westpe
-    downstream = southpe
+    upstream   = southpe
+    downstream = eastpe
     tv = FD
     call MPI_sendrecv(tv, nvrt, MPI_INTEGER, downstream, TAG, th, nhor, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
     F7 = th
@@ -493,8 +545,8 @@ subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pi
     call MPI_sendrecv(th, nhor, MPI_INTEGER, upstream  , TAG, tv, nvrt, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
     F4 = tv
   else if(bnd_north .and. bnd_east) then  ! get 1 send F : get 6 send A
-    upstream   = southpe
-    downstream = eastpe
+    upstream   = westpe
+    downstream = southpe
     th = FF
     call MPI_sendrecv(th, nhor, MPI_INTEGER, downstream, TAG, tv, nvrt, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
     F1 = tv
@@ -502,8 +554,8 @@ subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pi
     call MPI_sendrecv(tv, nvrt, MPI_INTEGER, upstream  , TAG, th, nhor, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
     F6 = th
   else if(bnd_south .and. bnd_west) then  ! get 5 send B : get 2 send E
-    upstream   = northpe
-    downstream = westpe
+    upstream   = eastpe
+    downstream = northpe
     th = FB
     call MPI_sendrecv(th, nhor, MPI_INTEGER, downstream, TAG, tv, nvrt, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
     F5 = tv
@@ -511,8 +563,8 @@ subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pi
     call MPI_sendrecv(tv, nvrt, MPI_INTEGER, upstream  , TAG, th, nhor, MPI_INTEGER, downstream, TAG, pe_grid, status, ierror)
     F2 = th
   else if(bnd_south .and. bnd_east) then  ! get 3 send H : get 8 send C
-    upstream   = eastpe
-    downstream = northpe
+    upstream   = northpe
+    downstream = westpe
     tv = FH
     call MPI_sendrecv(tv, nvrt, MPI_INTEGER, downstream, TAG, th, nhor, MPI_INTEGER, upstream  , TAG, pe_grid, status, ierror)
     F3 = th
