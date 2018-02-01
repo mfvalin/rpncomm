@@ -89,6 +89,7 @@ module rpn_comm
   integer :: pe_me_peer, pe_tot_peer                ! PEs with same rank on different grids of same multigrid
   integer :: pe_grid_host, pe_gr_grid_host          ! PEs on same host node (belonging to same "grid")
   integer :: pe_me_grid_host, pe_tot_grid_host      ! PEs on same host node (belonging to same "grid")
+  integer :: pe_grid_host0, pe_me_grid_host0        ! PEs with same rank in pe_grid_host (same grid, same node, same rank)
   integer :: my_colors(3)                           ! domain ordinal/multigrid ordinal/grid ordinal (color)
   integer, allocatable, dimension(:,:) :: pe_id     !  O( pe_id(pe_nx,pe_ny) )
   integer, allocatable, dimension(:)   :: pe_xtab,pe_ytab  ! O(pe_xtab(pe_nx)) O(pe_ytab(pe_ny)) 

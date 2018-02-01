@@ -179,6 +179,7 @@
       integer, external :: RPN_COMM_get_a_free_unit, RPN_COMM_set_timeout_alarm, fnom
       integer :: my_host_id
       integer, parameter :: INTERNAL_SHMEM_SIZE = 1024 * 1024   ! 1 MByte
+      integer :: color0, color1, tmp_wcom
 !
 !      if(RPM_COMM_IS_INITIALIZED) then ! ignore with warning message or abort ?
 !      endif
@@ -439,12 +440,23 @@
 !
 !     make communicator for PEs on same host
 !
-      my_color = my_host_id                                    ! coloring by host identifier
-      call MPI_COMM_SPLIT(pe_grid,my_color,&
-     &                    pe_me_grid,pe_grid_host,ierr)        ! same (sub)grid, same host node communicator
+      my_color = my_host_id                                    ! coloring by host identifier (color MUST BE > 0)
+      color0   = and(my_color,Z"7FFFFFFF")                     ! lower 31 bits
+      color1   = and(ishft(my_color,-31),1)                    ! MSB shifted to LSB position
+      call MPI_COMM_SPLIT(pe_grid,color0,&
+     &                    pe_me_grid,tmp_wcom,ierr)            ! split on lower 31 bits of host id
+      call MPI_COMM_SPLIT(tmp_wcom,color1,&
+     &                    pe_me_grid,pe_grid_host,ierr)        ! resplit on upper bit of host id to get communicator for GRID PEs on this node
       call MPI_COMM_RANK(pe_grid_host,pe_me_grid_host,ierr)    ! my rank on this host
       call MPI_COMM_SIZE(pe_grid_host,pe_tot_grid_host,ierr)   ! population of this host
       call MPI_COMM_GROUP(pe_grid_host,pe_gr_grid_host,ierr)   ! group communicator
+      call MPI_COMM_SPLIT(pe_grid,pe_me_grid_host,&
+     &                    pe_me_grid,pe_grid_host0,ierr)       ! split grid by pe_me_grid_host (same ordinal on node)
+      call MPI_COMM_RANK(pe_grid_host0,pe_me_grid_host0,ierr)  ! my rank in same grid, same node, same rank in node association
+     if(pe_me_grid_host .ne. 0) then                           ! invalidate if rank on node for this grid is not 0
+       pe_grid_host0 = MPI_COMM_NULL
+       pe_me_grid_host0 = -1
+     endif
 !
 !     subgrid split done, each sub domain is now on its own
 !
