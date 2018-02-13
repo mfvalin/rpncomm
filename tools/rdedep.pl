@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 #use 5.010_001;
 use 5.008_008;
 #use warnings;        # Avertissement des messages d'erreurs

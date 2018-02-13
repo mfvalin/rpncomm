@@ -25,7 +25,8 @@ program wrap
 100 format(A)
   end
 EOT
-s.f90 -o ../tools/wrap_code.exe ../tools/wrap_code.f90 2>/dev/null 1>/dev/null
+#s.f90 -o ../tools/wrap_code.exe ../tools/wrap_code.f90 2>/dev/null 1>/dev/null
+gfortran -o ../tools/wrap_code.exe ../tools/wrap_code.f90 2>/dev/null 1>/dev/null
 rm -f ../tools/wrap_code.f90
 fi
 if [[ -z $1 ]] ; then
