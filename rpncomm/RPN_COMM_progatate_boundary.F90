@@ -70,7 +70,7 @@ module rpn_comm_test
   integer, dimension(:,:), pointer :: pe_id
   integer :: pe_mex, pe_mey, pe_grid, pe_nx, pe_ny
   logical :: bnd_north, bnd_south, bnd_east, bnd_west
-end module rpn_comm
+end module rpn_comm_test
 program test
   use rpn_comm
   implicit none
