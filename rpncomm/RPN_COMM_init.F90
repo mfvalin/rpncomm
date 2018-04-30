@@ -146,6 +146,7 @@
       INTEGER FUNCTION RPN_COMM_init_multi_level&
      &      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids)
       use rpn_comm
+      use rpn_comm_17
       use app_internals
       implicit none                                                  !InTf!
 #include "RPN_COMM_interfaces_int.inc"
