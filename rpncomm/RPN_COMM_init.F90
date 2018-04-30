@@ -539,12 +539,6 @@
         ! split pe_grid into server_grid and compute_grid -> pe_indomm (color is pe_server_id) (weight is pe_me_grid)
         call MPI_COMM_SPLIT(pe_grid,pe_server_id,pe_me_grid,pe_indomm,ierr)
       endif
-!==========================================================================================================================
-!	send WORLD topology to all PEs. That will allow all PEs
-!	to compute other PE topology parameters locally.
-!       for doing this, we need to define some basic domains
-!       communicators.
-!==========================================================================================================================
       call MPI_COMM_rank (pe_indomm,pe_medomm   ,ierr)
       call MPI_COMM_SIZE (pe_indomm,pe_tot      ,ierr)
       call MPI_COMM_GROUP(pe_indomm,pe_gr_indomm,ierr)
@@ -554,6 +548,20 @@
       pe_me_grid  = pe_medomm
       pe_tot_grid = pe_tot
       pe_gr_grid  = pe_gr_indomm
+!==========================================================================================================================
+!       on server PEs, call server function from call to RPN_COMM_set_servers and mpi_finalize (no return to caller)
+!       on compute PEs, business as before, then return to caller
+!==========================================================================================================================
+      if(pe_server_id == 1) then
+!       call server(mod(pe_dommtot,npegroup) - (npegroup-nservers) , pe_grid, pe_me_grid, shared_memory, mem_size, ...)
+        call mpi_finalize(ierr)
+      endif
+!==========================================================================================================================
+!	send WORLD topology to all PEs. That will allow all PEs
+!	to compute other PE topology parameters locally.
+!       for doing this, we need to define some basic domains
+!       communicators.
+!==========================================================================================================================
 !
 !       broadcast number of PEs along X and Y axis
 !       broadcast PE block sizes (deltai and deltaj)
