@@ -204,7 +204,7 @@
       integer, external :: RPN_COMM_get_a_free_unit, RPN_COMM_set_timeout_alarm, fnom
       integer :: my_host_id
       integer, parameter :: INTERNAL_SHMEM_SIZE = 1024 * 1024   ! 1 MByte
-      integer :: color0, color1, tmp_wcom, pes_per_grid
+      integer :: color0, color1, tmp_wcom, pes_per_grid, servers_per_grid, compute_per_grid, pe_server_id
 !
 !      if(RPM_COMM_IS_INITIALIZED) then ! ignore with warning message or abort ?
 !      endif
@@ -483,11 +483,13 @@
 	  WORLD_pe(2)=1
 	  call Userinit(WORLD_pe(1),WORLD_pe(2))
 !           add here extra code to process optional call to RPN_COMM_set_servers by Userinit (or before init)
-	  pes_per_grid = WORLD_pe(1)*WORLD_pe(2)
+	  compute_per_grid = WORLD_pe(1)*WORLD_pe(2)
+	  pes_per_grid = compute_per_grid
 	  ! pe_dommtot MUST be a multiple of npegroup (PEs per group)
 	  ! a "group" consists of nservers "server PEs" and npegroup-nservers "compute PEs"
 	  if(nservers > 0 .and. npegroup > 0 .and. mod(pe_dommtot,npegroup) == 0) then
-	    pes_per_grid = pes_per_grid + nservers * (pe_dommtot/npegroup)
+	    servers_per_grid = nservers * (pe_dommtot/npegroup)
+	    pes_per_grid = servers_per_grid + compute_per_grid
 	  endif
 	  if(pes_per_grid .ne. pe_dommtot) then
 	    ok = .false.
@@ -502,7 +504,9 @@
 	  write(rpn_u,*) 'RPN_COMM_init: Forced topology'
 	  WORLD_pe(1) = Pex
 	  WORLD_pe(2) = Pey
-	  pes_per_grid = WORLD_pe(1)*WORLD_pe(2)
+	  compute_per_grid = WORLD_pe(1)*WORLD_pe(2)
+	  servers_per_grid = 0
+	  pes_per_grid = compute_per_grid
 	  if(pes_per_grid .ne. pe_dommtot) then  ! OOPS !!
 	    ok = .false.
 	    write(rpn_u,*) 'RPN_COMM_init: Inconsistency between Pex and Pey args'
@@ -522,18 +526,34 @@
 !        write(rpn_u,*)'after UserInit'
       call RPN_COMM_error_check(ok,WORLD_COMM_MPI,rpn_u)
 !==========================================================================================================================
-!     resplit 'grid' between server PEs and compute PEs
+!     resplit 'grid' between server PEs and compute PEs if "server PEs" are present
 !     (implies updated values for pe_indomm, pe_grid and associates)
 !==========================================================================================================================
+      if(servers_per_grid > 0) then
+        pe_server_id = mod(pe_dommtot,npegroup) ! >= npegroup - nservers means "server PE"
+        if(pe_server_id < npegroup - nservers) then
+          pe_server_id = 0   ! 0 for "compute PE", 1 for "server PE"
+        else
+          pe_server_id = 1
+        endif
+        ! split pe_grid into server_grid and compute_grid -> pe_indomm (color is pe_server_id) (weight is pe_me_grid)
+        call MPI_COMM_SPLIT(pe_grid,pe_server_id,pe_me_grid,pe_indomm,ierr)
+      endif
 !==========================================================================================================================
 !	send WORLD topology to all PEs. That will allow all PEs
 !	to compute other PE topology parameters locally.
 !       for doing this, we need to define some basic domains
 !       communicators.
 !==========================================================================================================================
-      call MPI_COMM_rank(pe_indomm,pe_medomm,ierr)
-      pe_defcomm = pe_indomm
+      call MPI_COMM_rank (pe_indomm,pe_medomm   ,ierr)
+      call MPI_COMM_SIZE (pe_indomm,pe_tot      ,ierr)
+      call MPI_COMM_GROUP(pe_indomm,pe_gr_indomm,ierr)
+      pe_defcomm  = pe_indomm              ! domm -> def
       pe_defgroup = pe_gr_indomm
+      pe_grid     = pe_indomm              ! domm -> grid
+      pe_me_grid  = pe_medomm
+      pe_tot_grid = pe_tot
+      pe_gr_grid  = pe_gr_indomm
 !
 !       broadcast number of PEs along X and Y axis
 !       broadcast PE block sizes (deltai and deltaj)
