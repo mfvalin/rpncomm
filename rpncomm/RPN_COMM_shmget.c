@@ -344,7 +344,7 @@ static int C_RPN_Comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size, int mode
 // c_comm is the communicator for shared memory allocation (node or numa)
 // myrank is the rank in the c_comm communicator
 //
-  size = shm_size * sizeof(int);
+  size = shm_size * 1024;  // shm_size is in KBytes
   if(myrank == 0) {
     id=shmget(IPC_PRIVATE,size,IPC_CREAT|S_IRUSR|S_IWUSR);  /* rank 0 allocates shared memory segment */
     ptr=shmat(id,NULL,0);
