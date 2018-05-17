@@ -28,26 +28,29 @@
       integer, save :: nservers = 0                  ! number of server PEs in group
       integer, save :: npegroup = 0                  ! number of PEs in PE group (including the servers)
       integer, save :: mbytes = 1                    ! number of MegaBytes of shared memory for servers
-      type(C_FUNPTR), save :: fnserv = C_NULL_FUNPTR ! user supplied function to call if this process is a server
-      PROCEDURE ( ), POINTER :: pserv => NULL()      ! Fortran equivalent of above
       type(C_PTR), save :: internal_shared_mem = C_NULL_PTR       ! shared memery on SMP node for internal use
       type(C_PTR), save :: server_shared_mem = C_NULL_PTR         ! shared memery on SMP node for server PEs
-      character(len=1), dimension(:), pointer :: pmem => NULL()   ! Fortran equivalent of above
+      integer, parameter :: COMMAND_BUFFER_SIZE = 4096
+      type :: command_channel
+        integer :: id, first, in, out, limit
+        integer, dimension(COMMAND_BUFFER_SIZE) :: buf
+      end type
+      type(command_channel), dimension(:,:), pointer   :: cmem => NULL()   ! communication buffers between Compute and Server processes
+      integer, dimension(:), pointer                   :: imem => NULL()   ! shared memory area
       end module rpn_comm_init_mod
 !===================================================================
 !InTf!
-      function RPN_COMM_set_servers(nserv,every,nmem,fserv) result(status)  !InTf!
+      function RPN_COMM_set_servers(nserv,every,nmem) result(status)  !InTf!
       ! this function must be called either before RPN_COMM_init... or from the Userinit function
       use rpn_comm_init_mod
       implicit none                                                  !InTf!
       integer, intent(IN) :: nserv,every,nmem                        !InTf!
-      integer, external :: fserv                                     !InTf!
       integer :: status                                              !InTf!
       nservers = nserv      ! out of every npegroup PEs, nservers will be 
       npegroup = every      ! acting as I/O or other server
       mbytes = max(nmem,1)  ! amount in MegaBytes of shared memory to reserve for the "group" (min 1)
-      fnserv = C_FUNLOC(fserv)  !  user supplied function to call if this process is a server
       status = 0
+      print *,'DEBUG: nserv,every,nmem ',nserv,every,nmem
       return
       end function RPN_COMM_set_servers                              !InTf!
 !===================================================================
@@ -207,7 +210,8 @@
       integer, external :: RPN_COMM_get_a_free_unit, RPN_COMM_set_timeout_alarm, fnom
       integer :: my_host_id
       integer, parameter :: INTERNAL_SHMEM_SIZE = 1024   ! 1 MByte = 1024 KBytes
-      integer :: color0, color1, tmp_wcom, pes_per_grid, servers_per_grid, compute_per_grid, pe_server_id
+      integer :: color0, color1, tmp_wcom, pes_per_grid
+      integer :: servers_per_grid, compute_per_grid, pe_server_id, pe_grid_original
 !
 !      if(RPM_COMM_IS_INITIALIZED) then ! ignore with warning message or abort ?
 !      endif
@@ -482,7 +486,7 @@
         pe_me_grid_host0 = -1
       endif
 !
-      Pelocal = pe_me   ! me in my domain
+      Pelocal = pe_me   ! me in my grid
       Petotal = pe_tot  ! number of pes in my grid
       call MPI_COMM_GROUP(pe_wcomm,pe_gr_wcomm,ierr)
 
@@ -537,11 +541,15 @@
 	  write(rpn_u,*)' RPN_COMM_init: not enough PEs for decomposition '
 	  write(rpn_u,*)' REQUESTED=',WORLD_pe(1)*WORLD_pe(2),' AVAILABLE=',pe_dommtot
 	endif
-
       endif  ! if(pe_me .eq. pe_pe0)
 !
 !        write(rpn_u,*)'after UserInit'
       call RPN_COMM_error_check(ok,WORLD_COMM_MPI,rpn_u)
+      call MPI_bcast(npegroup,1,MPI_INTEGER,0,pe_grid,ierr)
+      call MPI_bcast(servers_per_grid,1,MPI_INTEGER,0,pe_grid,ierr)
+      call MPI_bcast(mbytes,1,MPI_INTEGER,0,pe_grid,ierr)
+      call MPI_bcast(nservers,1,MPI_INTEGER,0,pe_grid,ierr)
+      call MPI_bcast(WORLD_pe,2,MPI_INTEGER,0,pe_grid,ierr)
 !==========================================================================================================================
 !     resplit 'grid' between server PEs and compute PEs if "server PEs" are present
 !     (implies updated values for pe_indomm, pe_grid and associates) (in compute PE space)
@@ -550,17 +558,19 @@
 !     redefine Pelocal, Petotal
 !==========================================================================================================================
       ok = .true.
+      pe_grid_original = pe_grid
       if(servers_per_grid > 0) then ! we have servers PEs to split from compute PEs
-        pe_server_id = npegroup - 1 - mod(pe_dommtot,npegroup) ! <= nservers means "server PE"
+        pe_server_id = npegroup - 1 - mod(pe_me,npegroup)  ! <= nservers means "server PE"
         if(pe_server_id < nservers) then
-          my_color = 0   ! 0 for "compute PE", 1 for "server PE"
+          my_color = 1   ! 0 for "compute PE", 1 for "server PE"
         else
-          my_color = 1
+          my_color = 0
         endif
         ! split pe_grid into server_grid and compute_grid -> pe_indomm (color is pe_server_id) (weight is pe_me_grid)
         call MPI_COMM_SPLIT(pe_grid,my_color,pe_me_grid,pe_indomm,ierr)
         ! split into PE groups, using group number (pe_dommtot / npegroup) as color
-        my_color = pe_dommtot / npegroup
+        my_color = pe_me_grid / npegroup
+print *,'DEBUG: color = ',my_color
         call MPI_COMM_SPLIT(pe_grid, my_color, pe_me_grid, tmp_wcom, ierr)   ! tmp_wcom is communicator for PE group
         ! all members of a group MUST be on same node (my_host_id) or else
         call mpi_allreduce(my_host_id, i, 1, MPI_INTEGER, MPI_BOR, tmp_wcom, ierr)
@@ -579,6 +589,8 @@
       pe_defgroup = pe_gr_indomm
       pe_grid     = pe_indomm              ! domm -> grid
       pe_me_grid  = pe_medomm
+      pe_me       = pe_me_grid
+      pe_dommtot  = pe_tot
       pe_tot_grid = pe_tot
       pe_gr_grid  = pe_gr_indomm
       Pelocal     = pe_me_grid
@@ -587,18 +599,41 @@
 !       on server PEs, call server procedure from call to RPN_COMM_set_servers, then mpi_finalize (no return to caller)
 !       on compute PEs, business as before, then return to caller
 !==========================================================================================================================
-      if(servers_per_grid > 0 .and. pe_server_id <= nservers) then
-        call C_F_PROCPOINTER(fnserv,pserv)
-        call C_F_POINTER(server_shared_mem,pmem,[1024])
+      if(servers_per_grid > 0 .and. pe_server_id < nservers) then
+!         call C_F_PROCPOINTER(fnserv,pserv)
+        call C_F_POINTER(server_shared_mem,cmem,[npegroup-nservers,nservers])
+        call C_F_POINTER(server_shared_mem,imem,[1024*256])
         ! pmem is array pointing to shared memory segment
-        ! 4            : number of values in array
-        ! pe_server_id : server kind
-        ! pe_grid      : communicator for servers
-        ! pe_me_grid   : server ordinal in pe_grid
-        ! mbytes       : size in MBytes of array pmem
-        ! open calling sequence, first element of array gives number of values
-        call pserv(pmem, [4, pe_server_id , pe_grid, pe_me_grid, mbytes]) ! call user's server code
+        ! 1006  : number of values in array + 1000 * version_number
+        ! (2)   : server kind
+        ! (3)   : communicator for servers
+        ! (4)   : server ordinal in pe_grid
+        ! (5)   : size in MBytes of array pmem
+        ! (6)   : number of Compute PEs in group
+        ! (7)   : number of Server PEs in group
+        ! open calling sequence, first element of array tells number of values and version
+        do i = 1, npegroup
+        do j = 1, nservers
+          cmem(i,j)%id    = pe_me / nservers
+          cmem(i,j)%first = 1
+          cmem(i,j)%in    = 1
+          cmem(i,j)%out   = 1
+          cmem(i,j)%limit = 4096
+        enddo
+        enddo
+        call MPI_barrier(tmp_wcom,ierr)
+        call RPN_COMM_io_server(imem, &
+              [1006, nservers - pe_server_id - 1, pe_grid, pe_me_grid, mbytes, npegroup-nservers, nservers]    ) ! call user's server code
         call mpi_finalize(ierr)
+        stop
+      else
+        call MPI_barrier(tmp_wcom,ierr)
+        call C_F_POINTER(server_shared_mem,cmem,[npegroup-nservers,nservers])
+        i = mod(pe_me,(npegroup - nservers)) + 1
+        do j = 1,nservers
+          print 100,'CMD =',i-1,j,cmem(i,j)%id,cmem(i,j)%first,cmem(i,j)%in,cmem(i,j)%out,cmem(i,j)%limit
+100       format(A,10I6)
+        enddo
       endif
 !==========================================================================================================================
 !	send WORLD topology to all PEs. That will allow all PEs
@@ -646,12 +681,12 @@
 !     then broadcast to rank 0 of each SMP node using communicator node_rank_zero
       call MPI_allgather(&
      &     pe_my_location,8,MPI_INTEGER,&
-     &     pe_location,   8,MPI_INTEGER,WORLD_COMM_MPI,&
+     &     pe_location,   8,MPI_INTEGER,pe_grid,&
      &     ierr)
-      if( pe_me_all_domains .eq. 0 .and. diag_mode .ge.3) then
+      if( pe_me_grid .eq. 0 .and. diag_mode .ge.3) then
         write(rpn_u,*)'                         FULL PE MAP'
         write(rpn_u,*)'    mex     mey   me(g)    grid  me(sg)   sgrid   me(d)  domain'
-        do j=0,pe_tot_all_domains-1
+        do j=0,pe_tot_grid-1
            write(rpn_u,1001)(pe_location(i,j),i=1,8)
 1001       format(8I8)
         enddo
@@ -764,3 +799,48 @@
             stop
         endif
       end subroutine RPN_COMM_error_check
+      subroutine RPN_COMM_userinit_test(nx, ny) ! test/demo userinit routine used to test rpn_comm_init
+        implicit none
+        integer, intent(INOUT) :: nx, ny
+        character(len=128) :: RPN_COMM_TEST_SHAPE
+        integer :: nio, every, nmem
+        integer, external :: RPN_COMM_get_a_free_unit
+        integer :: iun,ier,i
+
+        call get_environment_variable("RPN_COMM_TEST_SHAPE",RPN_COMM_TEST_SHAPE,i,ier)
+        print *,'IN RPN_COMM_userinit_test: RPN_COMM_TEST_SHAPE = "',trim(RPN_COMM_TEST_SHAPE)//'"'
+
+        if(ier == 0) then
+          read(RPN_COMM_TEST_SHAPE,*)nx, ny, nio
+          if(nio <= 0) return  ! nio == 0 means no server needed
+          nio = 0
+          read(RPN_COMM_TEST_SHAPE,*,err=1)nx, ny, nio, every, nmem
+1         continue
+          call RPN_COMM_set_servers(nio, every, nmem)
+          return
+        endif
+
+        iun=RPN_COMM_get_a_free_unit()
+        if(iun<0)return
+      !        print *,'attempting to read TEST.cfg'
+      !        print *,'nx , ny =',nx,ny
+        open(UNIT=iun,FILE='TEST.cfg',STATUS='OLD',ACTION='READ',IOSTAT=ier)
+      !        print *,'open iostat=',ier
+        if(ier .ne. 0) then
+      !          print *,'attempting auto distribution, nx , ny =',nx,ny
+          do i=7,2,-1
+      !            print *,'nx i mod(nx,i) =',nx, i, mod(nx,i)
+            if(mod(NX,i) == 0 .and. nx .ne. i)then
+              NY = NX / i
+              NX = NX / NY
+              return
+            endif
+          enddo
+          return
+        endif
+        read(UNIT=iun,IOSTAT=ier,FMT=*)NX,NY
+      !        print *,'read iostat=',ier
+        close(UNIT=iun)
+        return
+      end
+      

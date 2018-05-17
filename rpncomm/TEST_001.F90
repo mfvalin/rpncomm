@@ -1,3 +1,5 @@
+! make TEST_001.Abs
+! r.run_in_parallel -noib -npex 14 -inorder -pgm ../Build/${EC_ARCH}/TEST_001.Abs -maxcores
 subroutine rpn_comm_test_001
   use ISO_C_BINDING
   implicit none
@@ -7,7 +9,7 @@ subroutine rpn_comm_test_001
   external :: RPN_COMM_xch_halo_test
   integer :: RPN_COMM_xch_halo_test
   integer, external :: RPN_COMM_xch_halo_flip_test
-  external TestUserInit, get_a_free_unit
+  external get_a_free_unit, RPN_COMM_userinit_test
   integer :: get_a_free_unit
   integer :: RPN_COMM_dist_test
   external RPN_COMM_dist_test
@@ -16,11 +18,12 @@ subroutine rpn_comm_test_001
   integer, dimension(100) :: params
   character(len=256) :: RPN_COMM_TEST_CFG
   integer, external :: rpn_comm_2dgrid_test
+  integer :: me,me_x,me_y
 
   Pex = 0
   Pey = 0
 !       UserInit supplied by TEST_helpers.f
-  call RPN_COMM_init(TestUserInit,Pelocal,Petotal,Pex,Pey)
+  call RPN_COMM_init(RPN_COMM_userinit_test,Pelocal,Petotal,Pex,Pey)
   print *,' Pelocal,Petotal,Pex,Pey =',Pelocal,Petotal,Pex,Pey
 
   call get_environment_variable("RPN_COMM_TEST_CFG",RPN_COMM_TEST_CFG,i,ier)
@@ -31,6 +34,13 @@ subroutine rpn_comm_test_001
     open(UNIT=iun,FILE='TEST_001.cfg',STATUS='OLD')
     read(UNIT=iun,FMT=*)test_to_perform,nparams,params(1:nparams)
     close(UNIT=iun)
+  endif
+  print 100,'INFO: test code =',test_to_perform
+  if(test_to_perform == 0)then
+    status = RPN_COMM_mype(me,me_x,me_y)
+    print 100,'      grid rank =',me,' grid position =(',me_x,me_y,')'
+100 format(A,I6,A,2I4,A)
+    print *,'NO test to perform beyond RPN_COMM_init'
   endif
   if(IAND(test_to_perform,1)==1)then
     ierr=RPN_COMM_dist_test(Petotal)
@@ -79,39 +89,39 @@ subroutine rpn_comm_test_001
   call RPN_COMM_finalize(ierr)
   stop
 end
-subroutine TestUserInit(NX,NY) ! try to get NX,NY from file TEST.cfg if it exists
-  external :: get_a_free_unit
-  integer :: get_a_free_unit
-  integer :: iun,ier,i
-  character(len=128) :: RPN_COMM_TEST_SHAPE
-  call get_environment_variable("RPN_COMM_TEST_SHAPE",RPN_COMM_TEST_SHAPE,i,ier)
-  if(ier == 0) then
-    read(RPN_COMM_TEST_SHAPE,*)NX,NY
-    return
-  endif
-  iun=get_a_free_unit()
-  if(iun<0)return
-!        print *,'attempting to read TEST.cfg'
-!        print *,'nx , ny =',nx,ny
-  open(UNIT=iun,FILE='TEST.cfg',STATUS='OLD',ACTION='READ',IOSTAT=ier)
-!        print *,'open iostat=',ier
-  if(ier .ne. 0) then
-!          print *,'attempting auto distribution, nx , ny =',nx,ny
-    do i=7,2,-1
-!            print *,'nx i mod(nx,i) =',nx, i, mod(nx,i)
-      if(mod(NX,i) == 0 .and. nx .ne. i)then
-        NY = NX / i
-        NX = NX / NY
-        return
-      endif
-    enddo
-    return
-  endif
-  read(UNIT=iun,IOSTAT=ier,FMT=*)NX,NY
-!        print *,'read iostat=',ier
-  close(UNIT=iun)
-  return
-  end
+! subroutine TestUserInit(NX,NY) ! try to get NX,NY from file TEST.cfg if it exists
+!   external :: get_a_free_unit
+!   integer :: get_a_free_unit
+!   integer :: iun,ier,i
+!   character(len=128) :: RPN_COMM_TEST_SHAPE
+!   call get_environment_variable("RPN_COMM_TEST_SHAPE",RPN_COMM_TEST_SHAPE,i,ier)
+!   if(ier == 0) then
+!     read(RPN_COMM_TEST_SHAPE,*)NX,NY
+!     return
+!   endif
+!   iun=get_a_free_unit()
+!   if(iun<0)return
+! !        print *,'attempting to read TEST.cfg'
+! !        print *,'nx , ny =',nx,ny
+!   open(UNIT=iun,FILE='TEST.cfg',STATUS='OLD',ACTION='READ',IOSTAT=ier)
+! !        print *,'open iostat=',ier
+!   if(ier .ne. 0) then
+! !          print *,'attempting auto distribution, nx , ny =',nx,ny
+!     do i=7,2,-1
+! !            print *,'nx i mod(nx,i) =',nx, i, mod(nx,i)
+!       if(mod(NX,i) == 0 .and. nx .ne. i)then
+!         NY = NX / i
+!         NX = NX / NY
+!         return
+!       endif
+!     enddo
+!     return
+!   endif
+!   read(UNIT=iun,IOSTAT=ier,FMT=*)NX,NY
+! !        print *,'read iostat=',ier
+!   close(UNIT=iun)
+!   return
+!   end
   integer function get_a_free_unit()
   implicit none
   integer :: i
