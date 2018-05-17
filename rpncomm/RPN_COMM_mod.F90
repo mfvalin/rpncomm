@@ -37,11 +37,11 @@ module rpn_comm
 !	plus some PE grid topology information
 !	normally set by routine rpn_comm_init
 !
-!	pe_me	PE number of this PE
-!	pe_mex	 x coordinate of this PE in domain (origin 0)
-!	pe_mey	 y coordinate of this PE in domain (origin 0)
-!	pe_myrow communicator for PEs in same ROW(same pe_mey)
-!	pe_mycol communicator for PEs in same COLUMN(same pe_mex)
+!	pe_me	PE number of this PE in grid
+!	pe_mex	 x coordinate of this PE in grid (origin 0)
+!	pe_mey	 y coordinate of this PE in grid (origin 0)
+!	pe_myrow communicator for PEs in same grid ROW(same pe_mey)
+!	pe_mycol communicator for PEs in same grid COLUMN(same pe_mex)
 !	pe_tot	 total number of PEs involved in a grid
 !	pe_nx	 number of PEs along x axis in a grid
 !	pe_ny	 number of PEs along y axis in a grid
@@ -93,7 +93,7 @@ module rpn_comm
   integer :: my_colors(3)                           ! domain ordinal/multigrid ordinal/grid ordinal (color)
   integer, allocatable, dimension(:,:) :: pe_id     !  O( pe_id(pe_nx,pe_ny) )
   integer, allocatable, dimension(:)   :: pe_xtab,pe_ytab  ! O(pe_xtab(pe_nx)) O(pe_ytab(pe_ny)) 
-  integer, allocatable, dimension(:,:) :: pe_location   ! pe_x,pe_x,pe_ingrid,pe_insgrid,pe_indomain pe_location(8,total_nb_of_pes)
+  integer, allocatable, dimension(:,:) :: pe_location   ! pe_x,pe_y,... (see rpn_comm_init) pe_location(8,total_nb_of_pes in grid)
   logical :: async_exch=.true.        ! asynchronous halo exchange (level 1)
   logical :: full_async_exch=.false.  ! fully asynchronous halo exchange (level 2)
   logical :: rpn_ew_ext_l = .false.   ! extended halo option (haloy extra rows on North and South tiles)
