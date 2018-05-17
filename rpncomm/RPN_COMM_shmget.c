@@ -357,7 +357,7 @@ static int C_RPN_Comm_shmget(MPI_Comm c_comm_in, unsigned int shm_size, int mode
     if(myrank == 0) printf("ERROR: (RPN_Comm_shmget) cannot create shared memory segment\n");
     return -1;    /* error, possibly fatal */
   }else{
-    if(myrank == 0) printf("INFO: (RPN_Comm_shmget) created shared memory segment of size %d\n",shm_size);
+    if(myrank == 0) printf("INFO: (RPN_Comm_shmget) created shared memory segment of size %d\n",shm_size); fflush(stdout);
   }
 
   if(myrank != 0) ptr=shmat(id,NULL,0);             /* all processes attach memory segment, rank 0 has already done it */
