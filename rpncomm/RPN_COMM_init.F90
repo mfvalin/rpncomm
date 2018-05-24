@@ -25,30 +25,24 @@
       integer, save :: application_color = 0         ! may be used to identify different applications
       integer, save :: rank_on_node = -1             ! rank of this process on SMP node
       integer, save :: node_rank_zero = -1           ! communicator used by processes of rank 0 on SMP nodes
-      integer, save :: nservers = 0                  ! number of server PEs in group
-      integer, save :: npegroup = 0                  ! number of PEs in PE group (including the servers)
-      integer, save :: mbytes = 1                    ! number of MegaBytes of shared memory for servers
-      type(C_PTR), save :: internal_shared_mem = C_NULL_PTR       ! shared memery on SMP node for internal use
-      type(C_PTR), save :: server_shared_mem = C_NULL_PTR         ! shared memery on SMP node for server PEs
-      integer, parameter :: COMMAND_BUFFER_SIZE = 4096
-      type :: command_channel
-        integer :: id, first, in, out, limit
-        integer, dimension(COMMAND_BUFFER_SIZE) :: buf
-      end type
-      type(command_channel), dimension(:,:), pointer   :: cmem => NULL()   ! communication buffers between Compute and Server processes
-      integer, dimension(:), pointer                   :: imem => NULL()   ! shared memory area
       end module rpn_comm_init_mod
 !===================================================================
 !InTf!
       function RPN_COMM_set_servers(nserv,every,nmem) result(status)  !InTf!
       ! this function must be called either before RPN_COMM_init... or from the Userinit function
-      use rpn_comm_init_mod
+      use rpn_comm_server_mod
       implicit none                                                  !InTf!
       integer, intent(IN) :: nserv,every,nmem                        !InTf!
       integer :: status                                              !InTf!
+      external :: RPN_COMM_io_server
       nservers = nserv      ! out of every npegroup PEs, nservers will be 
-      npegroup = every      ! acting as I/O or other server
+      npegroup = every      ! acting as I/O server or other server
+      ncompute = npegroup-nservers ! number of compute PEs
       mbytes = max(nmem,1)  ! amount in MegaBytes of shared memory to reserve for the "group" (min 1)
+      if(.not. C_ASSOCIATED(fnserv)) then
+        fnserv = C_FUNLOC(RPN_COMM_io_server)
+        call C_F_PROCPOINTER(fnserv,pserv)
+      endif
       status = 0
       print *,'DEBUG: nserv,every,nmem ',nserv,every,nmem
       return
@@ -161,6 +155,7 @@
       use rpn_comm
       use rpn_comm_17
       use rpn_comm_init_mod
+      use rpn_comm_server_mod
       implicit none                                                  !InTf!
 #include "RPN_COMM_interfaces_int.inc"
       external :: Userinit                                           !InTf!
@@ -212,6 +207,8 @@
       integer, parameter :: INTERNAL_SHMEM_SIZE = 1024   ! 1 MByte = 1024 KBytes
       integer :: color0, color1, tmp_wcom, pes_per_grid
       integer :: servers_per_grid, compute_per_grid, pe_server_id, pe_grid_original
+      integer, dimension(128) :: temp
+      external :: RPN_COMM_io_server
 !
 !      if(RPM_COMM_IS_INITIALIZED) then ! ignore with warning message or abort ?
 !      endif
@@ -545,11 +542,18 @@
 !
 !        write(rpn_u,*)'after UserInit'
       call RPN_COMM_error_check(ok,WORLD_COMM_MPI,rpn_u)
-      call MPI_bcast(npegroup,1,MPI_INTEGER,0,pe_grid,ierr)
-      call MPI_bcast(servers_per_grid,1,MPI_INTEGER,0,pe_grid,ierr)
-      call MPI_bcast(mbytes,1,MPI_INTEGER,0,pe_grid,ierr)
-      call MPI_bcast(nservers,1,MPI_INTEGER,0,pe_grid,ierr)
-      call MPI_bcast(WORLD_pe,2,MPI_INTEGER,0,pe_grid,ierr)
+
+!       call MPI_bcast(npegroup,1,MPI_INTEGER,0,pe_grid,ierr)
+!       call MPI_bcast(servers_per_grid,1,MPI_INTEGER,0,pe_grid,ierr)
+!       call MPI_bcast(mbytes,1,MPI_INTEGER,0,pe_grid,ierr)
+!       call MPI_bcast(nservers,1,MPI_INTEGER,0,pe_grid,ierr)
+      temp(1:4) = [npegroup,servers_per_grid,mbytes,nservers]
+      call MPI_bcast(temp,4,MPI_INTEGER,0,pe_grid,ierr)
+      npegroup         = temp(1)
+      servers_per_grid = temp(2)
+      mbytes           = temp(3)
+      nservers         = temp(4)
+!       call MPI_bcast(WORLD_pe,2,MPI_INTEGER,0,pe_grid,ierr)
 !==========================================================================================================================
 !     resplit 'grid' between server PEs and compute PEs if "server PEs" are present
 !     (implies updated values for pe_indomm, pe_grid and associates) (in compute PE space)
@@ -569,8 +573,7 @@
         ! split pe_grid into server_grid and compute_grid -> pe_indomm (color is pe_server_id) (weight is pe_me_grid)
         call MPI_COMM_SPLIT(pe_grid,my_color,pe_me_grid,pe_indomm,ierr)
         ! split into PE groups, using group number (pe_dommtot / npegroup) as color
-        my_color = pe_me_grid / npegroup
-print *,'DEBUG: color = ',my_color
+        my_color = pe_me_grid / npegroup   ! color is now group number
         call MPI_COMM_SPLIT(pe_grid, my_color, pe_me_grid, tmp_wcom, ierr)   ! tmp_wcom is communicator for PE group
         ! all members of a group MUST be on same node (my_host_id) or else
         call mpi_allreduce(my_host_id, i, 1, MPI_INTEGER, MPI_BOR, tmp_wcom, ierr)
@@ -578,7 +581,7 @@ print *,'DEBUG: color = ',my_color
       endif
       call RPN_COMM_error_check(ok,WORLD_COMM_MPI,rpn_u)
 
-      if(ok .and. servers_per_grid > 0) then        ! allocate requested shared memory area on node for members of a group
+      if(ok .and. servers_per_grid > 0) then        ! allocate requested shared memory area on NUMA space on node for members of a group
         server_shared_mem = rpn_comm_shm_ptr( rpn_comm_shmget_numa(tmp_wcom,mbytes*1024) )  ! shmget uses KBytes
       endif
 
@@ -599,42 +602,52 @@ print *,'DEBUG: color = ',my_color
 !       on server PEs, call server procedure from call to RPN_COMM_set_servers, then mpi_finalize (no return to caller)
 !       on compute PEs, business as before, then return to caller
 !==========================================================================================================================
-      if(servers_per_grid > 0 .and. pe_server_id < nservers) then
-!         call C_F_PROCPOINTER(fnserv,pserv)
-        call C_F_POINTER(server_shared_mem,cmem,[npegroup-nservers,nservers])
-        call C_F_POINTER(server_shared_mem,imem,[1024*256])
-        ! pmem is array pointing to shared memory segment
-        ! 1006  : number of values in array + 1000 * version_number
-        ! (2)   : server kind
-        ! (3)   : communicator for servers
-        ! (4)   : server ordinal in pe_grid
-        ! (5)   : size in MBytes of array pmem
-        ! (6)   : number of Compute PEs in group
-        ! (7)   : number of Server PEs in group
-        ! open calling sequence, first element of array tells number of values and version
-        do i = 1, npegroup
-        do j = 1, nservers
-          cmem(i,j)%id    = pe_me / nservers
-          cmem(i,j)%first = 1
-          cmem(i,j)%in    = 1
-          cmem(i,j)%out   = 1
-          cmem(i,j)%limit = 4096
-        enddo
-        enddo
-        call MPI_barrier(tmp_wcom,ierr)
-        call RPN_COMM_io_server(imem, &
-              [1006, nservers - pe_server_id - 1, pe_grid, pe_me_grid, mbytes, npegroup-nservers, nservers]    ) ! call user's server code
-        call mpi_finalize(ierr)
-        stop
-      else
-        call MPI_barrier(tmp_wcom,ierr)
-        call C_F_POINTER(server_shared_mem,cmem,[npegroup-nservers,nservers])
-        i = mod(pe_me,(npegroup - nservers)) + 1
-        do j = 1,nservers
-          print 100,'CMD =',i-1,j,cmem(i,j)%id,cmem(i,j)%first,cmem(i,j)%in,cmem(i,j)%out,cmem(i,j)%limit
-100       format(A,10I6)
-        enddo
-      endif
+      if(servers_per_grid > 0) then         ! there is at least one server PE
+        call C_F_POINTER(server_shared_mem,cmem,[nservers,npegroup-nservers])
+        if(pe_server_id < nservers) then    ! server PE
+!           call C_F_PROCPOINTER(fnserv,pserv)
+          call C_F_POINTER(server_shared_mem,imem,[1024*256])
+          ! pmem is array pointing to shared memory segment
+          ! 1006  : number of values in array + 1000 * version_number
+          ! (2)   : server kind
+          ! (3)   : communicator for servers
+          ! (4)   : server ordinal in pe_grid
+          ! (5)   : size in MBytes of array pmem
+          ! (6)   : number of Compute PEs in group
+          ! (7)   : number of Server PEs in group
+          ! open calling sequence, first element of array tells number of values and version
+          i = pe_server_id + 1                   ! server id ( 1 <= ID <= nservers )
+          do j = 1, npegroup-nservers
+            cmem(i,j)%id    = pe_me / nservers   ! server group ( 0 <= server group < number of groups )
+            cmem(i,j)%first = 1
+            cmem(i,j)%in    = 1
+            cmem(i,j)%inr   = 1
+            cmem(i,j)%out   = 1
+            cmem(i,j)%outr  = 1
+            cmem(i,j)%tag   = 0
+            cmem(i,j)%limit = COMMAND_BUFFER_SIZE
+            cmem(i,j)%status = 0
+          enddo
+          call MPI_barrier(tmp_wcom,ierr)       ! between PEs of same group
+          if(.not. C_ASSOCIATED(fnserv)) then   ! default IO server name is RPN_COMM_io_server (user supplied or library supplied)
+            fnserv = C_FUNLOC(RPN_COMM_io_server)
+            call C_F_PROCPOINTER(fnserv,pserv)  ! make Fortran procedure pointer from C pointer
+          endif
+          call pserv(imem, &
+               [1006, nservers - pe_server_id - 1, pe_grid, pe_me_grid, mbytes, npegroup-nservers, nservers]    ) ! call user's server code
+          call mpi_finalize(ierr)
+          stop
+        else  ! compute PE
+          call MPI_barrier(tmp_wcom,ierr)    ! between PEs of same group
+          cmem_me=>cmem(:,mod(pe_me,(npegroup - nservers)) + 1)                ! this compute PE's command channels
+          j = mod(pe_me,(npegroup - nservers))
+          do i = 1,nservers
+!             print 100,'CMD =',i-1,j,cmem(i,j)%id,cmem(i,j)%first,cmem(i,j)%in,cmem(i,j)%out,cmem(i,j)%limit
+            print 100,'Compute : Server Me GroupID first in out limit =',i-1,j,cmem_me(i)%id,cmem_me(i)%first,cmem_me(i)%in,cmem_me(i)%out,cmem_me(i)%limit
+100         format(A,10I6)
+          enddo
+        endif   ! (server or compute PE)
+      endif   ! (servers_per_grid > 0)
 !==========================================================================================================================
 !	send WORLD topology to all PEs. That will allow all PEs
 !	to compute other PE topology parameters locally.
