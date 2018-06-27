@@ -1,8 +1,12 @@
 module rpn_comm_server_mod                     ! setup data used by rpn_comm_init and server code
 use ISO_C_BINDING 
 implicit none
-type(C_PTR), save :: internal_shared_mem = C_NULL_PTR       ! shared memery on SMP node for internal use
-type(C_PTR), save :: server_shared_mem = C_NULL_PTR         ! shared memery on SMP node for server PEs
+integer, save :: internal_shared_tag = -1                   ! shared memory tag for this region
+type(C_PTR), save :: internal_shared_mem = C_NULL_PTR       ! shared memory pointer on SMP node for internal use (WORLD)
+
+integer, save :: server_shared_tag = -1                     ! shared memory tag for this region
+type(C_PTR), save :: server_shared_mem = C_NULL_PTR         ! shared memory pointer on SMP node for server PEs (GRID)
+
 type(C_FUNPTR), save :: fnserv = C_NULL_FUNPTR ! user supplied function to call if this process is a server
 PROCEDURE ( ), POINTER :: pserv => NULL()      ! Fortran equivalent of above
 integer, dimension(:), pointer, save :: imem => NULL()      ! shared memory area (Fortran version of server_shared_mem)
@@ -18,6 +22,7 @@ integer, parameter :: CMD_NONE            = 0
 integer, parameter :: CMD_QUEUED          = 1
 integer, parameter :: CMD_ACTIVE          = 2
 integer, parameter :: CMD_DONE            = 4
+
 ! in == out                  : buffer is empty
 ! in + 1 modulo limit == out : buffer is full
 type :: command_channel
@@ -30,6 +35,7 @@ type :: command_channel
   integer, dimension(0:COMMAND_BUFFER_SIZE-1) :: reply   ! buffer for replies from server PE
   integer *1 , dimension(0:MAX_COMMANDS-1)    :: status ! command status (none/in/processing/done)
 end type
+
 type(command_channel), dimension(:,:), pointer, save :: cmem => NULL()  ! command channels between all Compute and Server processes
                                                                         ! dimension (nservers , ncompute)
 type(command_channel), dimension(:), pointer, save :: cmem_me => NULL() ! command channels between this compute PE and Server PEs

@@ -23,8 +23,6 @@
       use ISO_C_BINDING
       implicit none
       integer, save :: application_color = 0         ! may be used to identify different applications
-      integer, save :: rank_on_node = -1             ! rank of this process on SMP node
-      integer, save :: node_rank_zero = -1           ! communicator used by processes of rank 0 on SMP nodes
       end module rpn_comm_init_mod
 !===================================================================
 !InTf!
@@ -156,6 +154,8 @@
       use rpn_comm_17
       use rpn_comm_init_mod
       use rpn_comm_server_mod
+      use rpn_comm_msg_mod
+      use rpn_comm_collectives_mod
       implicit none                                                  !InTf!
 #include "RPN_COMM_interfaces_int.inc"
       external :: Userinit                                           !InTf!
@@ -257,19 +257,29 @@
       my_color = my_host_id                       ! coloring by host identifier (color MUST BE > 0)
       color0   = and(my_color,Z"7FFFFFFF")        ! lower 31 bits
       color1   = and(ishft(my_color,-31),1)       ! MSB shifted to LSB position
-      call MPI_COMM_SPLIT(WORLD_COMM_MPI,color0,pe_me,tmp_wcom,ierr)        ! split on lower 31 bits of host id
-      call MPI_COMM_SPLIT(tmp_wcom,color1,pe_me,pe_wcomm,ierr)              ! resplit on upper bit of host id
-      call MPI_COMM_RANK(pe_wcomm,rank_on_node,ierr)                        ! find rank on SMP node
+      call MPI_COMM_SPLIT(WORLD_COMM_MPI,color0,pe_me,tmp_wcom,ierr)         ! split on lower 31 bits of host id
+      call MPI_COMM_SPLIT(tmp_wcom,color1,pe_me,node_comm,ierr)              ! resplit on upper bit of host id
+      call MPI_COMM_RANK(node_comm,rank_on_node,ierr)                        ! find rank on SMP node
+      call MPI_COMM_SIZE(node_comm,pes_on_node,ierr)
 
       call MPI_COMM_split(WORLD_COMM_MPI,rank_on_node,pe_me,node_rank_zero,ierr)  ! split by rank on node
       if(rank_on_node .ne. 0) node_rank_zero = MPI_COMM_NULL                ! only needed between rank 0 PEs on SMP nodes
 
 !     get a shared memory segment to store some information that is identical for every process
-      internal_shared_mem = rpn_comm_shm_ptr( rpn_comm_shmget(pe_wcomm,INTERNAL_SHMEM_SIZE) )
+      internal_shared_tag = rpn_comm_shmget(node_comm,INTERNAL_SHMEM_SIZE)
+      internal_shared_mem = rpn_comm_shm_ptr( internal_shared_tag )
 !     add code to check that C_NULL_PTR was not returned
 
+!     get a shared memory segment for in node messaging, allocate enough space for pes_on_node pairs of message buffers
+!     message buffer : MSG_BUFFER_SIZE + 2 integers (see types msg_buffer and msg_channel) (integer size is assumed to be 4 bytes)
+!     size 4*pes_on_node*2*(MSG_BUFFER_SIZE + 10) needs to be translated into KBytes for rpn_comm_shm_ptr (and ROUNDED UP)
+      msg_shared_tag = rpn_comm_shmget(node_comm, (4*pes_on_node*2*(MSG_BUFFER_SIZE + 10) + 1023)/1024 )
+      msg_shared_mem = rpn_comm_shm_ptr( msg_shared_tag )
+!     add code to check that C_NULL_PTR was not returned
+      call C_F_POINTER(msg_shared_mem,msg_channels,[pes_on_node])  ! array of msg_channel
+
       call RPN_COMM_unbind_process ! unbind processes if needed (FULL_UNBIND environment variable)
-!       call RPN_COMM_rebind_processes(pe_wcomm)     ! place holder for process/thread rebinder (may supersede line above)
+!       call RPN_COMM_rebind_processes(node_comm)     ! place holder for process/thread rebinder (may supersede line above)
 !==========================================================================================================================
 !           split by "application" into "all domains" using application_color (set by call to RPN_COMM_app_color)
 !           define pe_all_domains, pe_me_all_domains, pe_tot_all_domains (comm, rank, size) [ application ]
@@ -461,7 +471,8 @@
       call MPI_COMM_GROUP(pe_grid_peers,pe_gr_grid_peers,ierr)
 !==========================================================================================================================
 !           for each grid, create communicator for PEs on the same SMP host node (including eventual servers)
-!           define pe_grid_host, pe_me_grid_host, pe_tot_grid_host (comm, rank, size) [ peers on same node in grid ]
+!           define pe_grid_host, pe_me_grid_host, pe_tot_grid_host (comm, rank, size) [ Pes on same node in grid ]
+!           define pe_grid_host0, pe_me_grid_host0 (comm, rank)  [ peers with same ordinal on node ]
 !           define Pelocal, Petotal
 !==========================================================================================================================
 !
@@ -482,6 +493,9 @@
         pe_grid_host0 = MPI_COMM_NULL
         pe_me_grid_host0 = -1
       endif
+      collective_shared_tag = rpn_comm_shmget(pe_grid_host,COLLECTIVE_BUFFER_SIZE)
+      collective_shared_mem = rpn_comm_shm_ptr( collective_shared_tag )
+      call C_F_POINTER(collective_shared_mem,collective_buffer,[1])
 !
       Pelocal = pe_me   ! me in my grid
       Petotal = pe_tot  ! number of pes in my grid
@@ -582,7 +596,8 @@
       call RPN_COMM_error_check(ok,WORLD_COMM_MPI,rpn_u)
 
       if(ok .and. servers_per_grid > 0) then        ! allocate requested shared memory area on NUMA space on node for members of a group
-        server_shared_mem = rpn_comm_shm_ptr( rpn_comm_shmget_numa(tmp_wcom,mbytes*1024) )  ! shmget uses KBytes
+        server_shared_tag = rpn_comm_shmget_numa(tmp_wcom,mbytes*1024)  ! shmget uses KBytes
+        server_shared_mem = rpn_comm_shm_ptr( server_shared_tag )
       endif
 
       call MPI_COMM_rank (pe_indomm,pe_medomm   ,ierr)   ! different communicator for compute/server PEs
