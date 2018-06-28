@@ -261,6 +261,7 @@
       call MPI_COMM_SPLIT(tmp_wcom,color1,pe_me,node_comm,ierr)              ! resplit on upper bit of host id
       call MPI_COMM_RANK(node_comm,rank_on_node,ierr)                        ! find rank on SMP node
       call MPI_COMM_SIZE(node_comm,pes_on_node,ierr)
+      node_grid_comm = MPI_COMM_NULL                                         ! to be initialized later
 
       call MPI_COMM_split(WORLD_COMM_MPI,rank_on_node,pe_me,node_rank_zero,ierr)  ! split by rank on node
       if(rank_on_node .ne. 0) node_rank_zero = MPI_COMM_NULL                ! only needed between rank 0 PEs on SMP nodes
@@ -271,12 +272,13 @@
 !     add code to check that C_NULL_PTR was not returned
 
 !     get a shared memory segment for in node messaging, allocate enough space for pes_on_node pairs of message buffers
-!     message buffer : MSG_BUFFER_SIZE + 2 integers (see types msg_buffer and msg_channel) (integer size is assumed to be 4 bytes)
-!     size 4*pes_on_node*2*(MSG_BUFFER_SIZE + 10) needs to be translated into KBytes for rpn_comm_shm_ptr (and ROUNDED UP)
-      msg_shared_tag = rpn_comm_shmget(node_comm, (4*pes_on_node*2*(MSG_BUFFER_SIZE + 10) + 1023)/1024 )
+!     allocate MSG_BUFFER_SIZE KBytes per PE on node
+      msg_shared_tag = rpn_comm_shmget(node_comm, (pes_on_node * MSG_BUFFER_SIZE) )
       msg_shared_mem = rpn_comm_shm_ptr( msg_shared_tag )
 !     add code to check that C_NULL_PTR was not returned
-      call C_F_POINTER(msg_shared_mem,msg_channels,[pes_on_node])  ! array of msg_channel
+      status = init_msg_channels()                                 ! initialize array of msg_channel
+!     if(status <= 0) OUCH !!
+      call MPI_barrier(node_comm,ierr)                             ! wait for rank 0 PE initialization
 
       call RPN_COMM_unbind_process ! unbind processes if needed (FULL_UNBIND environment variable)
 !       call RPN_COMM_rebind_processes(node_comm)     ! place holder for process/thread rebinder (may supersede line above)
@@ -621,9 +623,19 @@
         call C_F_POINTER(server_shared_mem,cmem,[nservers,npegroup-nservers])
         if(pe_server_id < nservers) then    ! server PE
 !           call C_F_PROCPOINTER(fnserv,pserv)
-          call C_F_POINTER(server_shared_mem,imem,[1024*256])
-          ! pmem is array pointing to shared memory segment
-          ! 1006  : number of values in array + 1000 * version_number
+          call C_F_POINTER(server_shared_mem,imem,[1024])          ! dimension is irrelevant, we are only interested in start address
+          status = init_server_channels(pe_server_id + 1, pe_me)   ! init cmem table for THIS server (+1 because origin 1 for indexing cmem)
+
+          call MPI_barrier(tmp_wcom,ierr)       ! between PEs of same group
+
+          cmem_me => NULL()   ! on servers
+          if(.not. C_ASSOCIATED(fnserv)) then   ! default IO server name is RPN_COMM_io_server (user supplied or library supplied)
+            fnserv = C_FUNLOC(RPN_COMM_io_server)
+            call C_F_PROCPOINTER(fnserv,pserv)  ! make Fortran procedure pointer from C pointer
+          endif
+          ! imem is array pointing to shared memory segment
+          ! second argument to pserv call
+          ! (1)   : 1006  = number of values in array + 1000 * version_number
           ! (2)   : server kind
           ! (3)   : communicator for servers
           ! (4)   : server ordinal in pe_grid
@@ -631,34 +643,19 @@
           ! (6)   : number of Compute PEs in group
           ! (7)   : number of Server PEs in group
           ! open calling sequence, first element of array tells number of values and version
-          i = pe_server_id + 1                   ! server id ( 1 <= ID <= nservers )
-          do j = 1, npegroup-nservers
-            cmem(i,j)%id    = pe_me / nservers   ! server group ( 0 <= server group < number of groups )
-            cmem(i,j)%first = 1
-            cmem(i,j)%in    = 1
-            cmem(i,j)%inr   = 1
-            cmem(i,j)%out   = 1
-            cmem(i,j)%outr  = 1
-            cmem(i,j)%tag   = 0
-            cmem(i,j)%limit = COMMAND_BUFFER_SIZE
-            cmem(i,j)%status = 0
-          enddo
-          call MPI_barrier(tmp_wcom,ierr)       ! between PEs of same group
-          if(.not. C_ASSOCIATED(fnserv)) then   ! default IO server name is RPN_COMM_io_server (user supplied or library supplied)
-            fnserv = C_FUNLOC(RPN_COMM_io_server)
-            call C_F_PROCPOINTER(fnserv,pserv)  ! make Fortran procedure pointer from C pointer
-          endif
           call pserv(imem, &
                [1006, nservers - pe_server_id - 1, pe_grid, pe_me_grid, mbytes, npegroup-nservers, nservers]    ) ! call user's server code
           call mpi_finalize(ierr)
           stop
         else  ! compute PE
+
           call MPI_barrier(tmp_wcom,ierr)    ! between PEs of same group
+
           cmem_me=>cmem(:,mod(pe_me,(npegroup - nservers)) + 1)                ! this compute PE's command channels
           j = mod(pe_me,(npegroup - nservers))
           do i = 1,nservers
 !             print 100,'CMD =',i-1,j,cmem(i,j)%id,cmem(i,j)%first,cmem(i,j)%in,cmem(i,j)%out,cmem(i,j)%limit
-            print 100,'Compute : Server Me GroupID first in out limit =',i-1,j,cmem_me(i)%id,cmem_me(i)%first,cmem_me(i)%in,cmem_me(i)%out,cmem_me(i)%limit
+            print 100,'Compute : Server Me GroupID first in out limit =',i-1,j,cmem_me(i)%id  !  ,cmem_me(i)%first,cmem_me(i)%in,cmem_me(i)%out,cmem_me(i)%limit
 100         format(A,10I6)
           enddo
         endif   ! (server or compute PE)

@@ -1,11 +1,11 @@
       ! pmem is array pointing to shared memory segment
-      ! 1006  : number of values in array + version_number * 1000
-      ! (2)   : server kind
-      ! (3)   : communicator for servers
-      ! (4)   : server ordinal in pe_grid
-      ! (5)   : size in MBytes of array pmem
-      ! (6)   : number of Compute PEs in group
-      ! (7)   : number of Server PEs in group
+      ! parms(1)   : 1006  = number of values in array + version_number * 1000
+      ! parms(2)   : server kind
+      ! parms(3)   : communicator for servers
+      ! parms(4)   : server ordinal in pe_grid
+      ! parms(5)   : size in MBytes of array pmem
+      ! parms(6)   : number of Compute PEs in group
+      ! parms(7)   : number of Server PEs in group
       ! open calling sequence, first element of array gives number of values
       subroutine RPN_COMM_io_server(pmem,parms) ! test/demo I/O server routine used to test rpn_comm_init
         use ISO_C_BINDING
@@ -16,7 +16,8 @@
         integer :: pe_me, ierr
         type(C_PTR) :: ptr
         integer, dimension(:), pointer :: array
-        type(command_channel), dimension(:,:), pointer   :: mem => NULL()   ! communication buffers between Compute and Server processes
+!         type(command_channel), dimension(:,:), pointer   :: mem => NULL()   ! communication buffers between Compute and Server processes
+        type(cmd_channel), dimension(:,:), pointer   :: mem => NULL()   ! communication buffers between Compute and Server processes
         integer :: i,j
 
         ptr = C_LOC(pmem(1))
@@ -32,7 +33,7 @@
         print 100,'Command buffers for server type ',parms(2)
         j = parms(2) + 1
         do i = 1, parms(6)
-          print 101,'Server : Client Me GroupID FIRST IN OUT LIMIT =',i-1,j-1,mem(i,j)%id,mem(i,j)%first,mem(i,j)%in,mem(i,j)%out,mem(i,j)%limit
+          print 101,'Server : Client Me GroupID FIRST IN OUT LIMIT =',i-1,j-1,mem(i,j)%id  !  ,mem(i,j)%first,mem(i,j)%in,mem(i,j)%out,mem(i,j)%limit
         enddo
 100     format(A,I2,A,I3)
 101     format(A,10I5)
