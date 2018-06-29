@@ -11,7 +11,7 @@
         use ISO_C_BINDING
         use rpn_comm_server_mod
         implicit none
-        integer, intent(INOUT), dimension(*) :: pmem
+        integer, intent(INOUT), dimension(*), target :: pmem
         integer, intent(IN), dimension(*) :: parms
         integer :: pe_me, ierr
         type(C_PTR) :: ptr

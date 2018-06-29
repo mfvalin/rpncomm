@@ -209,6 +209,7 @@
       integer :: servers_per_grid, compute_per_grid, pe_server_id, pe_grid_original
       integer, dimension(128) :: temp
       external :: RPN_COMM_io_server
+      integer, external :: RPN_COMM_set_servers
 !
 !      if(RPM_COMM_IS_INITIALIZED) then ! ignore with warning message or abort ?
 !      endif
@@ -497,7 +498,7 @@
       endif
       collective_shared_tag = rpn_comm_shmget(pe_grid_host,COLLECTIVE_BUFFER_SIZE)
       collective_shared_mem = rpn_comm_shm_ptr( collective_shared_tag )
-      call C_F_POINTER(collective_shared_mem,collective_buffer,[1])
+      call C_F_POINTER(collective_shared_mem,collective_buffer)
 !
       Pelocal = pe_me   ! me in my grid
       Petotal = pe_tot  ! number of pes in my grid
@@ -829,7 +830,7 @@
         integer, intent(INOUT) :: nx, ny
         character(len=128) :: RPN_COMM_TEST_SHAPE
         integer :: nio, every, nmem
-        integer, external :: RPN_COMM_get_a_free_unit
+        integer, external :: RPN_COMM_get_a_free_unit, RPN_COMM_set_servers
         integer :: iun,ier,i
 
         call get_environment_variable("RPN_COMM_TEST_SHAPE",RPN_COMM_TEST_SHAPE,i,ier)
@@ -841,7 +842,7 @@
           nio = 0
           read(RPN_COMM_TEST_SHAPE,*,err=1)nx, ny, nio, every, nmem
 1         continue
-          call RPN_COMM_set_servers(nio, every, nmem)
+          ier = RPN_COMM_set_servers(nio, every, nmem)
           return
         endif
 
