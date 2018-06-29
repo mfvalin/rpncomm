@@ -37,9 +37,9 @@ module rpn_comm_fiol_buf_mod
       enddo
       status = status + 1
       fbuf(nextin) = fdata(status)
+      buf%in = nextin
       nextin = nextin + 1
       if(nextin >= buf%limit) nextin = buf%first      ! wrap around
-      buf%in = nextin
     enddo
   end function fiol_insert
 
@@ -74,16 +74,14 @@ module rpn_comm_fiol_buf_mod
     implicit none
     type(fiol_buf), intent(INOUT)     :: buf            ! fiol buffer
     integer(C_INT) :: status
-    integer(C_INT) :: nextin   ! next insertion position
 
-    nextin = buf%in + 1
     if(buf%in == buf%out) then
-      status = buf%limit - 1   !  buffer is empty, return buffer capacity
+      status = buf%limit - buf%in   !  buffer is empty, return buffer capacity
     else
       if(buf%in > buf%out) then           ! in - out tokens in buffer
         status = -(buf%limit - 1 - (buf%in - buf%out))  ! number of free slots
       else                                    ! out - in - 1 free slots
-        status = -(buf%out - buf%in - 1)  ! number of free slots
+        status = -(buf%out - buf%in)          ! number of free slots
       endif
     endif
   end function fiol_status
