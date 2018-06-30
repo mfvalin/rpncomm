@@ -70,22 +70,32 @@
 
 // this struct contains the circular buffer indexes
 typedef struct{   // first, in, out, limit are in "origin 0"
-  int32_t first;  // index in membase of first point of circular buffer
-  int32_t in;     // index in membase of insertion point into circular buffer
-  int32_t out;    // index in membase of extraction point into circular buffer
-  int32_t limit;  // index in membase of point after last point of circular buffer
+  int32_t first;  // index in data of first point of circular buffer
+  int32_t in;     // index in data of insertion point into circular buffer
+  int32_t out;    // index in data of extraction point into circular buffer
+  int32_t limit;  // index in data of point after last point of circular buffer
+  int32_t data[1];
 } fiol ;
 
 static int64_t stalled_insert = 0;
 static int64_t stalled_extract = 0;
 
-// membase  : base memory address for first, in, out, limit indexing
-// b        : control indexes for this circular buffer
+// initialize fiol struct
+// b        : pointer to control structure for this circular buffer
+// datasize : number of 4 byte items in this circular buffer
+void FiolBufInit(fiol *b, int32_t datasize){
+  b->first = 0;
+  b->in    = 0;
+  b->out   = 0;
+  b->limit = datasize;
+}
+
+// b        : pointer to control structure for this circular buffer
 // userdata : data from user
 // nw       : number of 4 byte items from user
 // blocking : if 0, do not wait if buffer is full ; if non zero, wait
 // return   : number of items succesfully inserted into buffer
-int32_t FiolBufInsert(void *membase, fiol volatile *b, void *userdata, int32_t nw, int32_t blocking){
+int32_t FiolBufInsert(fiol volatile *b, void *userdata, int32_t nw, int32_t blocking){
   int status = 0;
   int nextin = b->in ;
 
@@ -95,20 +105,19 @@ int32_t FiolBufInsert(void *membase, fiol volatile *b, void *userdata, int32_t n
       stalled_insert++;
       if(blocking == 0) return status;                            // non blocking return amount done
     }
-    ((int32_t *)membase)[b->in] = ((int32_t *)userdata)[status]; // insert data
+    b->data[b->in] = ((int32_t *)userdata)[status]; // insert data
     status = status + 1;                                          // one more token done
     b->in = nextin;                                               // update in after successful insertion
   }
   return status;
 }
 
-// membase  : base memory address for first, in, out, limit indexing
-// b        : control indexes for this circular buffer
+// b        : pointer to control structure for this circular buffer
 // userdata : data to user
 // nw       : number of 4 byte items to user
 // blocking : if 0, do not wait if buffer is empty ; if non zero, wait
 // return   : number of items succesfully extracted from buffer
-int32_t FiolBufExtract(void *membase, fiol volatile *b, void *userdata, int32_t nw, int32_t blocking){
+int32_t FiolBufExtract(fiol volatile *b, void *userdata, int32_t nw, int32_t blocking){
   int status = 0;
 
   while(nw--){                                                    // not all data inserted
@@ -116,17 +125,18 @@ int32_t FiolBufExtract(void *membase, fiol volatile *b, void *userdata, int32_t 
       stalled_extract++;
       if(blocking == 0) return status;                            // non blocking return amount done
     }
-    ((int32_t *)userdata)[status] = ((int32_t *)membase)[b->out]; // extract data
+    ((int32_t *)userdata)[status] = b->data[b->out]; // extract data
     status = status + 1;                                          // one more token done
     b->out = (b->out+1 < b->limit) ? b->out+1 : b->first;         // next extraction point
   }
   return status;
 }
 
+// b        : pointer to control structure for this circular buffer
 // if buffer is empty, return +(number of available slots) (buffer capacity)
 // if buffer is full, return 0
 // otherwise return -(number of free slots)
-int32_t FiolBufStatus(fiol volatile *b){
+int32_t FiolBufStatus(fiol *b){
   int status ;
 //   printf("first, in, out, limit = %d %d %d %d\n",b->first, b->in, b->out, b->limit);
   if(b->in == b->out) {
@@ -158,11 +168,9 @@ static uint64_t rdtsc(void) {   // version rapide "out of order"
   return (uint64_t)lo | (((uint64_t)hi) << 32);
 }
 
-#define BUFSZ 2048
+#define BUFSZ 128
 #define NW 15
 main(int argc, char **argv){
-//   fiol f = {0,0,0,BUFSZ};
-//   int32_t data[BUFSZ];
   int32_t buf[NW*1024*1024];
   int32_t status;
   int ierr, localrank, id;
@@ -171,7 +179,6 @@ main(int argc, char **argv){
   size_t size;
   int i, nrep;
   uint64_t t0 , t1;
-  int32_t *scratch;
 
   ierr = MPI_Init( &argc, &argv );
   ierr = MPI_Comm_rank(MPI_COMM_WORLD,&localrank);
@@ -181,16 +188,12 @@ main(int argc, char **argv){
     id = shmget(IPC_PRIVATE,size,IPC_CREAT|S_IRUSR|S_IWUSR);  /* rank 0 allocates shared memory segment */
     ptr = shmat(id,NULL,0);
     shmctl(id,IPC_RMID,&shm_buf);      /* mark segment for deletion preventively (only works on linux) */
-    scratch = (int32_t *)ptr;
-    for(i=0 ; i<BUFSZ ; i++) scratch[i] = 0;
-    ptr->first = 4;
-    ptr->in    = 4;
-    ptr->out   = 4;
-    ptr->limit = 4 + BUFSZ;
+    for(i=0 ; i<BUFSZ ; i++) ptr->data[i] = 0;  // force pages to be properly instanciated in memory
+    FiolBufInit(ptr, BUFSZ);
 
-    for(i=0 ; i<NW*1024*1024 ; i++) buf[i] = i;
+    for(i=0 ; i<sizeof(buf)/sizeof(int32_t) ; i++) buf[i] = i;
     t0 = rdtsc();
-    status = FiolBufInsert(ptr, ptr, buf, NW, 1);
+    status = FiolBufInsert(ptr, buf, NW, 1);
     t1 = rdtsc();
     printf("status = %d, expected %d, time = %ld\n",status,NW,t1-t0);
     status = FiolBufStatus(ptr) ;
@@ -206,11 +209,11 @@ main(int argc, char **argv){
     ierr = MPI_Barrier(MPI_COMM_WORLD);
 
     t0 = rdtsc();
-    status = FiolBufInsert(ptr, ptr, buf, NW*4, 1);
+    status = FiolBufInsert(ptr, buf, NW*4, 1);
     t1 = rdtsc();
     printf("status = %d, expected %d, time = %ld\n",status,NW*4,t1-t0);
     t0 = rdtsc();
-    status = FiolBufInsert(ptr, ptr, buf, NW*1000, 1);
+    status = FiolBufInsert(ptr, buf, NW*1000, 1);
     t1 = rdtsc();
     printf("status = %d, expected %d, time = %ld\n",status,NW*1000,t1-t0);
 
@@ -220,7 +223,7 @@ main(int argc, char **argv){
     printf("first, in, out, limit = %d %d %d %d\n\n",ptr->first, ptr->in, ptr->out, ptr->limit);
     printf("buf[0] = %d, buf[last] = %d, buf[last+1] = %d\n",buf[0],buf[NW*1000-1],buf[NW*1000]);
     
-  }else{
+  }else if(localrank == 1){
     ierr = MPI_Bcast(&id,1,MPI_INTEGER,0,MPI_COMM_WORLD);
     ptr = shmat(id,NULL,0);
     printf("%d shared memory segment ID = %d, ptr = %p\n\n",localrank,id,ptr);
@@ -228,23 +231,23 @@ main(int argc, char **argv){
     printf("shared buffer status is %d, expecting %d\n",status,-(BUFSZ-NW));
     printf("first, in, out, limit = %d %d %d %d\n\n",ptr->first, ptr->in, ptr->out, ptr->limit);
 
-    for(i=0 ; i<NW*1024*1024 ; i++) buf[i] = 999999;
+    for(i=0 ; i<sizeof(buf)/sizeof(int32_t) ; i++) buf[i] = 999999;
     ierr = MPI_Barrier(MPI_COMM_WORLD);
 
     t0 = rdtsc();
-    status = FiolBufExtract(ptr, ptr, buf, NW, 1);
+    status = FiolBufExtract(ptr, buf, NW, 1);
     t1 = rdtsc();
     printf("status = %d, expected %d, time = %ld\n",status,NW,t1-t0);
     printf("buf[0] = %d, buf[1] = %d, buf[last] = %d, buf[last+1] = %d\n",buf[0],buf[1],buf[NW-1],buf[NW]);
 
     t0 = rdtsc();
-    status = FiolBufExtract(ptr, ptr, buf, NW*4, 1);
+    status = FiolBufExtract(ptr, buf, NW*4, 1);
     t1 = rdtsc();
     printf("status = %d, expected %d, time = %ld\n",status,NW*4,t1-t0);
     printf("buf[0] = %d, buf[1] = %d, buf[last] = %d, buf[last+1] = %d\n",buf[0],buf[1],buf[NW*4-1],buf[NW*4]);
 
     t0 = rdtsc();
-    status = FiolBufExtract(ptr, ptr, buf, NW*1000, 1);
+    status = FiolBufExtract(ptr, buf, NW*1000, 1);
     t1 = rdtsc();
     printf("status = %d, expected %d, time = %ld\n",status,NW*1000,t1-t0);
     printf("buf[0] = %d, buf[1] = %d, buf[last] = %d, buf[last+1] = %d\n",buf[0],buf[1],buf[NW*1000-1],buf[NW*1000]);
@@ -253,53 +256,11 @@ main(int argc, char **argv){
     status = FiolBufStatus(ptr) ;
     printf("shared buffer status is %d, expecting %d\n",status,BUFSZ);
     printf("first, in, out, limit = %d %d %d %d\n\n",ptr->first, ptr->in, ptr->out, ptr->limit);
+  }else{  // all other ranks only participate in barriers
+    ierr = MPI_Barrier(MPI_COMM_WORLD);
+    ierr = MPI_Barrier(MPI_COMM_WORLD);
   }
   printf("stalled_insert = %ld, stalled_extract=%ld\n",stalled_insert,stalled_extract);
-
-//   status = FiolBufStatus(&f) ;
-//   printf("buffer size is %d, expecting %d\n",status,BUFSZ);
-// 
-//   status = FiolBufInsert(data, &f, buf, NW, 1);
-//   printf("status = %d, expected %d\n",status,NW);
-//   status = FiolBufStatus(&f) ;
-//   printf("buffer status is %d, expecting %d\n",status,-(BUFSZ-NW));
-//   printf("first, in, out, limit = %d %d %d %d\n\n",f.first, f.in, f.out, f.limit);
-//   
-//   status = FiolBufInsert(data, &f, buf, NW, 1);
-//   printf("status = %d, expected %d\n",status,NW);
-//   status = FiolBufStatus(&f) ;
-//   printf("buffer status is %d, expecting %d\n",status,-(BUFSZ-2*NW));
-//   printf("first, in, out, limit = %d %d %d %d\n\n",f.first, f.in, f.out, f.limit);
-// 
-//   status = FiolBufExtract(data, &f, buf, NW, 1);
-//   printf("status = %d, expected %d\n",status,NW);
-//   status = FiolBufStatus(&f) ;
-//   printf("buffer status is %d, expecting %d\n",status,-(BUFSZ-NW));
-//   printf("first, in, out, limit = %d %d %d %d\n\n",f.first, f.in, f.out, f.limit);
-//   
-//   status = FiolBufInsert(data, &f, buf, NW, 1);
-//   printf("status = %d, expected %d\n",status,NW);
-//   status = FiolBufStatus(&f) ;
-//   printf("buffer status is %d, expecting %d\n",status,-(BUFSZ-2*NW));
-//   printf("first, in, out, limit = %d %d %d %d\n\n",f.first, f.in, f.out, f.limit);
-// 
-//   status = FiolBufExtract(data, &f, buf, NW, 1);
-//   printf("status = %d, expected %d\n",status,NW);
-//   status = FiolBufStatus(&f) ;
-//   printf("buffer status is %d, expecting %d\n",status,-(BUFSZ-NW));
-//   printf("first, in, out, limit = %d %d %d %d\n\n",f.first, f.in, f.out, f.limit);
-//   
-//   status = FiolBufInsert(data, &f, buf, NW, 1);
-//   printf("status = %d, expected %d\n",status,NW);
-//   status = FiolBufStatus(&f) ;
-//   printf("buffer status is %d, expecting %d\n",status,-(BUFSZ-2*NW));
-//   printf("first, in, out, limit = %d %d %d %d\n\n",f.first, f.in, f.out, f.limit);
-// 
-//   status = FiolBufExtract(data, &f, buf, NW, 1);
-//   printf("status = %d, expected %d\n",status,NW);
-//   status = FiolBufStatus(&f) ;
-//   printf("buffer status is %d, expecting %d\n",status,-(BUFSZ-NW));
-//   printf("first, in, out, limit = %d %d %d %d\n\n",f.first, f.in, f.out, f.limit);
 
   ierr = shmdt(ptr);
   ierr = MPI_Finalize();
