@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 // circular buffer management functions
 
@@ -78,9 +79,13 @@ typedef struct{   // first, in, out, limit are in "origin 0"
   uint32_t data[1];
 } fiol ;
 
+typedef struct{
+  fiol *inbound;
+  fiol *outbound;
+}fioltabentry;
+
 #if defined(SELF_TEST)
 #include <stdio.h>
-#include <stdlib.h>
 #include <mpi.h>
 #include <sys/shm.h>
 #include <sys/types.h>
@@ -93,6 +98,9 @@ static int64_t block_extract   = 0;   // number of block extractions
 
 #endif
 
+static fioltabentry *fioltable;
+static fioltabentry my_fiol;
+
 // initialize fiol struct
 // b        : pointer to control structure for this circular buffer
 // datasize : number of 4 byte items in this circular buffer
@@ -103,13 +111,52 @@ void FiolBufInit(fiol *b, int32_t datasize){
   b->limit = datasize;
 }
 
-uint32_t RPN_COMM_fetch(uint32_t *p);
-void RPN_COMM_store(uint32_t *p, uint32_t v);
+// create and initialize a table for npes channel pairs
+// using size Bytes from address mem
+// i am PE my_pe
+// return 0 if unsuccessful, npes if successful
+int32_t FiolTableInit(unsigned char *mem, uint32_t size, uint32_t npes, uint32_t pe_me){
+  int32_t perchannel = size / (2 * npes);   // number of bytes available per channel (2 channels per "player")
+  int32_t ndata;
+  int i;
+  unsigned char *base = mem;
+  fiol *fi, *fo;
+
+  if(perchannel < sizeof(fiol) + 15*sizeof(uint32_t) ) return 0;       // less than 16 data items per channel
+  if(pe_me < 0 || pe_me >= npes) return 0;                             // invalid PE number
+  fioltable = (fioltabentry *) malloc (2 * npes * sizeof(fiol *));     // allocate table with 2 * npes entries
+  if(fioltable == NULL) return 0;                               // table allocation failed
+
+  ndata = 1 + (perchannel - sizeof(fiol)) / sizeof(uint32_t);   // size of data array (per channel)
+  for(i=0 ; i<npes ; i++) {
+    fioltable[i].inbound  = (fiol *) base;                      // base address for inbound channel
+    if(pe_me == 0) FiolBufInit(fioltable[i].inbound,ndata);     // initialize inbound channel 
+    base = base + perchannel;
+    fioltable[i].outbound = (fiol *) base;                      // base address for outbound channel
+    if(pe_me == 0) FiolBufInit(fioltable[i].outbound,ndata);    // initialize outbound channel 
+    base = base + perchannel;
+  }
+  my_fiol.inbound  = fioltable[pe_me].inbound;                  // my inbound circular buffer
+  my_fiol.outbound = fioltable[pe_me].outbound;                 // my outbound circular buffer
+
+  printf("     PE  frst    in   out limit      address      frst    in   out limit      address\n");
+  for(i=0 ; i<npes; i++){
+    fi = fioltable[i].inbound ; fo = fioltable[i].outbound;
+    printf("%c %5d %5d %5d %5d %5d %16p %5d %5d %5d %5d %16p \n",(pe_me == i) ? '*' : ' ', i,
+           fi->first, fi->in, fi->out, fi->limit, &(fi->data[0]),
+           fo->first, fo->in, fo->out, fo->limit, &(fo->data[0]));
+  }
+
+  return npes;    // return number of channel pairs allocated
+}
+
+// uint32_t RPN_COMM_fetch(uint32_t *p);
+// void RPN_COMM_store(uint32_t *p, uint32_t v);
 
 #define FiolBufInsertNew FiolBufInsert
 
 // older version, one by one insertion
-static int32_t FiolBufInsertBy1(fiol volatile *b, void *userdata, int32_t nw){
+int32_t FiolBufInsertBy1(fiol volatile *b, void *userdata, int32_t nw){
   int status = 0;
   int nextin = b->in ;
   int stalled = 0;
@@ -208,8 +255,10 @@ int32_t FiolBufInsertNB(fiol volatile *b, void *userdata, int32_t nw){
   return status;                                                  // return number of items inserted
 }
 
-static int32_t FiolBufExtractOrig(fiol volatile *b, void *userdata, int32_t nw){
+int32_t FiolBufExtractBy1(fiol volatile *b, void *userdata, int32_t nw){
   int status = 0;
+  uint32_t first = b->first;  // never changes, no point in keeping it volatile via *b
+  uint32_t limit = b->limit;  // never changes, no point in keeping it volatile via *b
 
   while(nw--){                                                    // not all data inserted
     while(b->in == b->out){                                       // circular buffer is empty
@@ -219,7 +268,7 @@ static int32_t FiolBufExtractOrig(fiol volatile *b, void *userdata, int32_t nw){
     }
     ((int32_t *)userdata)[status] = b->data[b->out]; // extract data
     status = status + 1;                                          // one more token done
-    b->out = (b->out+1 < b->limit) ? b->out+1 : b->first;         // next extraction point
+    b->out = (b->out+1 < limit) ? b->out+1 : first;         // next extraction point
   }
   return status;
 }
@@ -238,7 +287,7 @@ uint32_t FiolBufExtract(volatile fiol *b, void *userdata, int32_t nw){
   uint32_t temp;
 
 #if defined(SELF_TEST)
-  uint32_t timeout = 1000000;
+  uint32_t timeout = 10000000;
   printf("mass extract of %d items\n",nw);
 #endif
   while(nw > 0){                              // not all data inserted
@@ -335,7 +384,7 @@ static uint64_t rdtsc(void) {   // version rapide "out of order"
   return (uint64_t)lo | (((uint64_t)hi) << 32);
 }
 
-#define BUFSZ 1024*2
+#define BUFSZ 1024*64
 #define NW 15
 #define NREP 10
 
@@ -352,59 +401,69 @@ uint32_t verify(uint32_t *v, uint32_t nv){
 main(int argc, char **argv){
   int32_t buf[NW*1024*1024];
   int32_t status, status0;
-  int ierr, localrank, id;
+  int ierr, localrank, id, localsize;
   fiol *ptr = NULL;
+  fiol *tst = NULL;
   struct shmid_ds shm_buf;
   size_t size;
+  int sizei;
   int i, nrep;
   uint64_t t0 , t1;
+  unsigned char *tmp;
 
   ierr = MPI_Init( &argc, &argv );
   ierr = MPI_Comm_rank(MPI_COMM_WORLD,&localrank);
+  ierr = MPI_Comm_size(MPI_COMM_WORLD,&localsize);
+
+  size = (BUFSZ +4 ) * localsize * 2 * 4 ;
+  sizei = size;
 
   if(localrank == 0){
-    size = 1234567 ;
     id = shmget(IPC_PRIVATE,size,IPC_CREAT|S_IRUSR|S_IWUSR);  /* rank 0 allocates shared memory segment */
     ptr = shmat(id,NULL,0);
+
+    status = FiolTableInit((unsigned char *)ptr, sizei, localsize, localrank);  // initialize as master
+    tst = fioltable[0].inbound;
+    // for this test we are using channel[0] inbound
+
     shmctl(id,IPC_RMID,&shm_buf);      /* mark segment for deletion preventively (only works on linux) */
     for(i=0 ; i<BUFSZ ; i++) ptr->data[i] = 0;  // force pages to be properly instanciated in memory
-    FiolBufInit(ptr, BUFSZ);
 
     for(i=0 ; i<sizeof(buf)/sizeof(int32_t) ; i++) buf[i] = i;
     t0 = rdtsc();
-    for(i=0 ; i<NW ; i++) FiolBufInsert1(ptr, buf[i]);
+    for(i=0 ; i<NW ; i++) FiolBufInsert1(tst, buf[i]);
     t1 = rdtsc();
     printf("single insert of %d words, time = %ld, per item = %ld\n",NW,t1-t0,(t1-t0)/NW);
-    status = FiolBufStatus(ptr) ;
+    status = FiolBufStatus(tst) ;
     printf("0 buffer status is %d, expecting %d\n",status,-(BUFSZ-NW-1));
-    printf("0 first, in, out, limit = %d %d %d %d\n\n",ptr->first, ptr->in, ptr->out, ptr->limit);
+    printf("0 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
 
     ierr = MPI_Bcast(&id,1,MPI_INTEGER,0,MPI_COMM_WORLD);
     printf("0 shared memory segment ID = %d, ptr = %p\n\n",id,ptr);
-    status = FiolBufStatus(ptr) ;
+    status = FiolBufStatus(tst) ;
     printf("0 shared buffer status is %d, expecting %d\n",status,-(BUFSZ-NW-1));
-    printf("0 first, in, out, limit = %d %d %d %d\n\n",ptr->first, ptr->in, ptr->out, ptr->limit);
+    printf("0 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
 
     ierr = MPI_Barrier(MPI_COMM_WORLD);
 
     t0 = rdtsc();
-    status = FiolBufInsert(ptr, buf, NW*4);
+    status = FiolBufInsert(tst, buf, NW*4);
     t1 = rdtsc();
-    printf("0 status = %d, expected %d, time = %ld\n",status,NW*4,t1-t0);
-    printf("0 first, in, out, limit = %d %d %d %d\n\n",ptr->first, ptr->in, ptr->out, ptr->limit);
+    printf("0 status = %d, expected %d, time = %ld, per item = %ld\n",status,NW*4,t1-t0,(t1-t0)/(NW*4));
+    printf("0 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
     status = 0;
-    status0 = FiolBufInsert(ptr, buf, NW*1000);
+    status0 = FiolBufInsert(tst, buf, NW*1000);
     t0 = rdtsc();
-    for(i=0 ; i<NREP ; i++) status += FiolBufInsert(ptr, buf, NW*1000);
+    for(i=0 ; i<NREP ; i++) status += FiolBufInsert(tst, buf, NW*1000);
     t1 = rdtsc();
     printf("0 status = %d, expected %d, time = %ld, per item = %ld\n",
 	   status,NREP*NW*1000,t1-t0,(t1-t0)/(NREP*NW*1000));
-    printf("0 first, in, out, limit = %d %d %d %d\n\n",ptr->first, ptr->in, ptr->out, ptr->limit);
+    printf("0 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
 
     ierr = MPI_Barrier(MPI_COMM_WORLD);
-    status = FiolBufStatus(ptr) ;
+    status = FiolBufStatus(tst) ;
     printf("0 shared buffer status is %d, expecting %d\n",status,BUFSZ-1);
-    printf("0 first, in, out, limit = %d %d %d %d\n\n",ptr->first, ptr->in, ptr->out, ptr->limit);
+    printf("0 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
     printf("0 buf[0] = %d, buf[last] = %d, buf[last+1] = %d\n",buf[0],buf[NW*1000-1],buf[NW*1000]);
     printf("0 stalled_insert = %ld, stalled_extract = %ld, block_insert = %ld, block_extract = %ld\n",
 	   stalled_insert,stalled_extract,block_insert,block_extract);
@@ -412,31 +471,35 @@ main(int argc, char **argv){
   }else if(localrank == 1){
     ierr = MPI_Bcast(&id,1,MPI_INTEGER,0,MPI_COMM_WORLD);
     ptr = shmat(id,NULL,0);
+
+    status = FiolTableInit((unsigned char *)ptr, sizei, localsize, localrank);
+    tst = fioltable[0].inbound;
+
     printf("%d shared memory segment ID = %d, ptr = %p\n\n",localrank,id,ptr);
-    status = FiolBufStatus(ptr) ;
+    status = FiolBufStatus(tst) ;
     printf("1 shared buffer status is %d, expecting %d\n",status,-(BUFSZ-NW-1));
-    printf("1 first, in, out, limit = %d %d %d %d\n\n",ptr->first, ptr->in, ptr->out, ptr->limit);
+    printf("1 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
 
     for(i=0 ; i<sizeof(buf)/sizeof(int32_t) ; i++) buf[i] = 999999;
     ierr = MPI_Barrier(MPI_COMM_WORLD);
 
     t0 = rdtsc();
-    for(i=0 ; i<NW ; i++) buf[i] = FiolBufExtract1(ptr);
+    for(i=0 ; i<NW ; i++) buf[i] = FiolBufExtract1(tst);
     t1 = rdtsc();
     printf("1 single extract of %d words, time = %ld, per item = %ld\n",NW,t1-t0,(t1-t0)/NW);
-//     printf("status = %d, expected %d, time = %ld\n",status,NW,t1-t0);
+    printf("time = %ld, per item = %ld\n",t1-t0,(t1-t0)/NW);
     printf("1 buf[0] = %d, buf[1] = %d, buf[last] = %d, buf[last+1] = %d\n",buf[0],buf[1],buf[NW-1],buf[NW]);
 
     t0 = rdtsc();
-    status = FiolBufExtract(ptr, buf, NW*4);
+    status = FiolBufExtract(tst, buf, NW*4);
     t1 = rdtsc();
-    printf("1 status = %d, expected %d, time = %ld\n",status,NW*4,t1-t0);
+    printf("1 status = %d, expected %d, time = %ld, per item = %ld\n",status,NW*4,t1-t0,(t1-t0)/(NW*4));
     printf("1 buf[0] = %d, buf[1] = %d, buf[last] = %d, buf[last+1] = %d\n",buf[0],buf[1],buf[NW*4-1],buf[NW*4]);
 
     status = 0;
-    status0 = FiolBufExtract(ptr, buf, NW*1000);
+    status0 = FiolBufExtract(tst, buf, NW*1000);
     t0 = rdtsc();
-    for(i=0 ; i<NREP ; i++) status += FiolBufExtract(ptr, buf, NW*1000);
+    for(i=0 ; i<NREP ; i++) status += FiolBufExtract(tst, buf, NW*1000);
     t1 = rdtsc();
     ierr = verify(buf, status0);
     printf("1 status = %d, expected %d, time = %ld, errors = %d, per item = %ld\n",
@@ -444,9 +507,9 @@ main(int argc, char **argv){
     printf("1 buf[0] = %d, buf[1] = %d, buf[last] = %d, buf[last+1] = %d\n",buf[0],buf[1],buf[status0-1],buf[status0]);
 
     ierr = MPI_Barrier(MPI_COMM_WORLD);
-    status = FiolBufStatus(ptr) ;
+    status = FiolBufStatus(tst) ;
     printf("1 shared buffer status is %d, expecting %d\n",status,BUFSZ-1);
-    printf("1 first, in, out, limit = %d %d %d %d\n\n",ptr->first, ptr->in, ptr->out, ptr->limit);
+    printf("1 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
     printf("1 stalled_insert = %ld, stalled_extract = %ld, block_insert = %ld, block_extract = %ld\n",
 	   stalled_insert,stalled_extract,block_insert,block_extract);
   }else{  // all other ranks only participate in barriers
