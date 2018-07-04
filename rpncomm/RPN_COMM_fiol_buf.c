@@ -478,7 +478,7 @@ main(int argc, char **argv){
   size_t size;
   int sizei;
   int i, nrep;
-  uint64_t t0 , t1;
+  uint64_t t0 , t1, t2;
   unsigned char *tmp;
   MPI_Comm MY_World = MPI_COMM_NULL;
   MPI_Comm MY_Peers = MPI_COMM_NULL;
@@ -558,13 +558,16 @@ main(int argc, char **argv){
     // local/global "all reduce" test
     ierr = MPI_Barrier(MPI_COMM_WORLD);
     t0 = rdtsc();
+    ierr = MPI_Barrier(MY_World);
+    t2 = rdtsc()-t0;
+    t0 = rdtsc();
     FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
     for(i=0 ; i<localsize ; i++) buf[i] = FiolBufExtract1(i);        // get from all PEs on node outbound buffer
     for(i=1 ; i<localsize ; i++) buf[0] = buf[0] + buf[i];           // local sum
     for(i=0 ; i<localsize ; i++) FiolBufInsert1(i,buf[0]);           // broadcast sum to all inbound buffers
     status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
     t1 = rdtsc();
-    printf("%5d answer1 = %d, time = %ld\n",localrank,status,t1-t0);
+    printf("%5d answer1 = %d, time = %ld, barrier = %ld\n",localrank,status,t1-t0,t2);
 
     ierr = MPI_Barrier(MPI_COMM_WORLD);
     t0 = rdtsc();
@@ -624,10 +627,13 @@ main(int argc, char **argv){
     // local/global "all reduce" test
     ierr = MPI_Barrier(MPI_COMM_WORLD);
     t0 = rdtsc();
+    ierr = MPI_Barrier(MY_World);
+    t2 = rdtsc()-t0;
+    t0 = rdtsc();
     FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
     status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
     t1 = rdtsc();
-    printf("%5d answer1 = %d, time = %ld\n",localrank,status,t1-t0);
+    printf("%5d answer1 = %d, time = %ld, barrier = %ld\n",localrank,status,t1-t0,t2);
 
     ierr = MPI_Barrier(MPI_COMM_WORLD);
     t0 = rdtsc();
@@ -646,10 +652,13 @@ main(int argc, char **argv){
     // local/global "all reduce" test
     ierr = MPI_Barrier(MPI_COMM_WORLD);
     t0 = rdtsc();
+    ierr = MPI_Barrier(MY_World);
+    t2 = rdtsc()-t0;
+    t0 = rdtsc();
     FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
     status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
     t1 = rdtsc();
-    printf("%5d answer1 = %d, time = %ld\n",localrank,status,t1-t0);
+    printf("%5d answer1 = %d, time = %ld, barrier = %ld\n",localrank,status,t1-t0,t2);
 
     ierr = MPI_Barrier(MPI_COMM_WORLD);
     t0 = rdtsc();
