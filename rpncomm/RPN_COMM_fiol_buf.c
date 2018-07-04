@@ -561,12 +561,22 @@ main(int argc, char **argv){
     FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
     for(i=0 ; i<localsize ; i++) buf[i] = FiolBufExtract1(i);        // get from all PEs on node outbound buffer
     for(i=1 ; i<localsize ; i++) buf[0] = buf[0] + buf[i];           // local sum
+    for(i=0 ; i<localsize ; i++) FiolBufInsert1(i,buf[0]);           // broadcast sum to all inbound buffers
+    status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
+    t1 = rdtsc();
+    printf("%5d answer1 = %d, time = %ld\n",localrank,status,t1-t0);
+
+    ierr = MPI_Barrier(MPI_COMM_WORLD);
+    t0 = rdtsc();
+    FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
+    for(i=0 ; i<localsize ; i++) buf[i] = FiolBufExtract1(i);        // get from all PEs on node outbound buffer
+    for(i=1 ; i<localsize ; i++) buf[0] = buf[0] + buf[i];           // local sum
     ierr = MPI_Allreduce(&buf[0],&buf[1],1,MPI_INTEGER,MPI_SUM,MY_Peers);
     buf[0] = buf[1];
     for(i=0 ; i<localsize ; i++) FiolBufInsert1(i,buf[0]);           // broadcast sum to all inbound buffers
     status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
     t1 = rdtsc();
-    printf("%5d answer = %d, time = %ld\n",localrank,status,t1-t0);
+    printf("%5d answer2 = %d, time = %ld\n",localrank,status,t1-t0);
   }else if(localrank == 1){             // node CLIENT PE 1
     ierr = MPI_Bcast(&id,1,MPI_INTEGER,0,MY_World);
     ptr = shmat(id,NULL,0);
@@ -617,7 +627,14 @@ main(int argc, char **argv){
     FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
     status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
     t1 = rdtsc();
-    printf("%5d answer = %d, time = %ld\n",localrank,status,t1-t0);
+    printf("%5d answer1 = %d, time = %ld\n",localrank,status,t1-t0);
+
+    ierr = MPI_Barrier(MPI_COMM_WORLD);
+    t0 = rdtsc();
+    FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
+    status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
+    t1 = rdtsc();
+    printf("%5d answer2 = %d, time = %ld\n",localrank,status,t1-t0);
   }else{                    // node CLIENT PEs 2 -> localsize - 1
     ierr = MPI_Bcast(&id,1,MPI_INTEGER,0,MY_World);
     ptr = shmat(id,NULL,0);
@@ -632,7 +649,14 @@ main(int argc, char **argv){
     FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
     status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
     t1 = rdtsc();
-    printf("%5d answer = %d, time = %ld\n",localrank,status,t1-t0);
+    printf("%5d answer1 = %d, time = %ld\n",localrank,status,t1-t0);
+
+    ierr = MPI_Barrier(MPI_COMM_WORLD);
+    t0 = rdtsc();
+    FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
+    status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
+    t1 = rdtsc();
+    printf("%5d answer2 = %d, time = %ld\n",localrank,status,t1-t0);
   }
 
   ierr = shmdt(ptr);
