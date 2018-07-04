@@ -468,7 +468,10 @@ uint32_t verify(uint32_t *v, uint32_t nv){
 main(int argc, char **argv){
   int32_t buf[NW*1024*1024];
   int32_t status, status0;
-  int ierr, localrank, id, localsize;
+  int ierr, id;
+  int localrank, localsize;
+  int globalrank, globalsize;
+  int peerrank, peersize;
   fiol *ptr = NULL;
   fiol *tst = NULL;
   struct shmid_ds shm_buf;
@@ -477,15 +480,31 @@ main(int argc, char **argv){
   int i, nrep;
   uint64_t t0 , t1;
   unsigned char *tmp;
+  MPI_Comm MY_World = MPI_COMM_NULL;
+  MPI_Comm MY_Peers = MPI_COMM_NULL;
+  MPI_Comm temp_comm;
+  int myhost, myhost0, myhost1;
 
   ierr = MPI_Init( &argc, &argv );
-  ierr = MPI_Comm_rank(MPI_COMM_WORLD,&localrank);
-  ierr = MPI_Comm_size(MPI_COMM_WORLD,&localsize);
+  ierr = MPI_Comm_rank(MPI_COMM_WORLD,&globalrank);
+  ierr = MPI_Comm_size(MPI_COMM_WORLD,&globalsize);
+
+  myhost  = gethostid();
+  myhost0 = myhost & 0x7FFFFFFF  ; // lower 31 bits
+  myhost1 = (myhost >> 31) & 0x1 ; // upper bit
+  ierr = MPI_Comm_split(MPI_COMM_WORLD,myhost0,globalrank,&temp_comm) ;  // split WORLD using the lower 31 bits of host id , weight=rank in base
+  ierr = MPI_Comm_split(temp_comm     ,myhost1,globalrank,&MY_World) ;   // re split using the upper bit of host id , weight=rank in base
+  ierr = MPI_Comm_rank(MY_World,&localrank);                             // rank of this PE on this SMP node
+  ierr = MPI_Comm_size(MY_World,&localsize);                             // number of PEs on this SMP node
+  ierr = MPI_Comm_split(MPI_COMM_WORLD,localrank,globalrank,&MY_Peers) ; // communicator with PES of same local rank on other SMP nodes
+  ierr = MPI_Comm_rank(MY_Peers,&peerrank);
+  ierr = MPI_Comm_size(MY_Peers,&peersize);
+  printf("number of peers in MY_Peers = %d\n",peersize);
 
   size = (BUFSZ +4 ) * localsize * 2 * 4 ;
   sizei = size;
 
-  if(localrank == 0){
+  if(localrank == 0){      // node SERVER PE
     id = shmget(IPC_PRIVATE,size,IPC_CREAT|S_IRUSR|S_IWUSR);  /* rank 0 allocates shared memory segment */
     ptr = shmat(id,NULL,0);
 
@@ -506,13 +525,13 @@ main(int argc, char **argv){
     printf("0 buffer status is %d, expecting %d\n",status,-(BUFSZ-NW-1));
     printf("0 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
 
-    ierr = MPI_Bcast(&id,1,MPI_INTEGER,0,MPI_COMM_WORLD);
+    ierr = MPI_Bcast(&id,1,MPI_INTEGER,0,MY_World);
     printf("0 shared memory segment ID = %d, ptr = %p\n\n",id,ptr);
     status = FiolBufStatus(1, 0) ;
     printf("0 shared buffer status is %d, expecting %d\n",status,-(BUFSZ-NW-1));
     printf("0 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
 
-    ierr = MPI_Barrier(MPI_COMM_WORLD);
+    ierr = MPI_Barrier(MY_World);
 
     t0 = rdtsc();
     status = FiolBufInsert(1, buf, NW*4);
@@ -528,7 +547,7 @@ main(int argc, char **argv){
 	   status,NREP*NW*1000,t1-t0,(t1-t0)/(NREP*NW*1000));
     printf("0 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
 
-    ierr = MPI_Barrier(MPI_COMM_WORLD);
+    ierr = MPI_Barrier(MY_World);
     status = FiolBufStatus(-1, 0) ;
     printf("0 shared buffer status is %d, expecting %d\n",status,BUFSZ-1);
     printf("0 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
@@ -536,8 +555,20 @@ main(int argc, char **argv){
     printf("0 stalled_insert = %ld, stalled_extract = %ld, block_insert = %ld, block_extract = %ld\n",
 	   stalled_insert,stalled_extract,block_insert,block_extract);
 
-  }else if(localrank == 1){
-    ierr = MPI_Bcast(&id,1,MPI_INTEGER,0,MPI_COMM_WORLD);
+    // local/global "all reduce" test
+    ierr = MPI_Barrier(MPI_COMM_WORLD);
+    t0 = rdtsc();
+    FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
+    for(i=0 ; i<localsize ; i++) buf[i] = FiolBufExtract1(i);        // get from all PEs on node outbound buffer
+    for(i=1 ; i<localsize ; i++) buf[0] = buf[0] + buf[i];           // local sum
+    ierr = MPI_Allreduce(&buf[0],&buf[1],1,MPI_INTEGER,MPI_SUM,MY_Peers);
+    buf[0] = buf[1];
+    for(i=0 ; i<localsize ; i++) FiolBufInsert1(i,buf[0]);           // broadcast sum to all inbound buffers
+    status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
+    t1 = rdtsc();
+    printf("%5d answer = %d, time = %ld\n",localrank,status,t1-t0);
+  }else if(localrank == 1){             // node CLIENT PE 1
+    ierr = MPI_Bcast(&id,1,MPI_INTEGER,0,MY_World);
     ptr = shmat(id,NULL,0);
 
     status = FiolTableInit((unsigned char *)ptr, sizei, localsize, localrank);
@@ -549,7 +580,7 @@ main(int argc, char **argv){
     printf("1 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
 
     for(i=0 ; i<sizeof(buf)/sizeof(int32_t) ; i++) buf[i] = 999999;
-    ierr = MPI_Barrier(MPI_COMM_WORLD);
+    ierr = MPI_Barrier(MY_World);
 
     t0 = rdtsc();
     for(i=0 ; i<NW ; i++) buf[i] = FiolBufExtract1(-1);
@@ -574,15 +605,34 @@ main(int argc, char **argv){
 	   status,NREP*NW*1000,t1-t0,ierr,(t1-t0)/(NREP*NW*1000));
     printf("1 buf[0] = %d, buf[1] = %d, buf[last] = %d, buf[last+1] = %d\n",buf[0],buf[1],buf[status0-1],buf[status0]);
 
-    ierr = MPI_Barrier(MPI_COMM_WORLD);
+    ierr = MPI_Barrier(MY_World);
     status = FiolBufStatus(-1, 0) ;
     printf("1 shared buffer status is %d, expecting %d\n",status,BUFSZ-1);
     printf("1 first, in, out, limit = %d %d %d %d\n\n",tst->first, tst->in, tst->out, tst->limit);
     printf("1 stalled_insert = %ld, stalled_extract = %ld, block_insert = %ld, block_extract = %ld\n",
 	   stalled_insert,stalled_extract,block_insert,block_extract);
-  }else{  // all other ranks only participate in barriers
+    // local/global "all reduce" test
     ierr = MPI_Barrier(MPI_COMM_WORLD);
+    t0 = rdtsc();
+    FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
+    status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
+    t1 = rdtsc();
+    printf("%5d answer = %d, time = %ld\n",localrank,status,t1-t0);
+  }else{                    // node CLIENT PEs 2 -> localsize - 1
+    ierr = MPI_Bcast(&id,1,MPI_INTEGER,0,MY_World);
+    ptr = shmat(id,NULL,0);
+
+    status = FiolTableInit((unsigned char *)ptr, sizei, localsize, localrank);
+
+    ierr = MPI_Barrier(MY_World);  // all other ranks participate in barriers
+    ierr = MPI_Barrier(MY_World);
+    // local/global "all reduce" test
     ierr = MPI_Barrier(MPI_COMM_WORLD);
+    t0 = rdtsc();
+    FiolBufInsert1(-1, localrank);                                   // insert into my own outbound buffer
+    status = FiolBufExtract1(-1);                                    // get answer from my own inbound buffer
+    t1 = rdtsc();
+    printf("%5d answer = %d, time = %ld\n",localrank,status,t1-t0);
   }
 
   ierr = shmdt(ptr);
