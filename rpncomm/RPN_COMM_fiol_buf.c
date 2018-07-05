@@ -98,6 +98,7 @@ typedef struct{
 #if defined(SELF_TEST) || defined(DIAG)
 
 #include <stdio.h>
+#include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/types.h>
 #include <sys/stat.h>
