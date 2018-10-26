@@ -104,8 +104,12 @@ $(LIBRARY): $(OBJECTS)
 #	ar rcv $(LIBRARY)_ $(OBJECTS)
 #	ar dv $(LIBRARY)_ TEST_stubs.o rpn_comm_c_stubs.o rpn_comm_fortran_stubs.o
 	mv $(LIBRARY)_ $(LIBRARY)
+	ar t $(LIBRARY) | sort -u >$(VPATH)/objects.lst
 	(cd $(LIBDIR) ; ln -sf lib$(LIB)_$(RPN_COMM_version).a  lib$(LIB).a)
 #	cp *.mod $(INCDIR)
+
+checkref:
+	diff $(VPATH)/REFERENCE.lst $(VPATH)/objects.lst
 
 #.PHONY:	$(VPATH)/includes
 
