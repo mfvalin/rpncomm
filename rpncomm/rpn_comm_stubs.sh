@@ -1,4 +1,5 @@
-#!/bin/ksh
+#!/bin/bash
+set -ex
 cat <<EOT >make_mpif_include.f90
 program make_mpif_includes
 include 'mpif.h'
