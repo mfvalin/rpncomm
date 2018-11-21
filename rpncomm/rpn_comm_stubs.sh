@@ -1,5 +1,7 @@
 #!/bin/bash
 set -ex
+# for the following mpirun
+ulimit -s unlimited
 cat <<EOT >make_mpif_include.f90
 program make_mpif_includes
 include 'mpif.h'

@@ -109,7 +109,8 @@ $(LIBRARY): $(OBJECTS)
 #	cp *.mod $(INCDIR)
 
 checkref:
-	diff $(VPATH)/REFERENCE.lst $(VPATH)/objects.lst
+	sort -u $(VPATH)/REFERENCE.lst >$(VPATH)/SORTED.lst
+	diff $(VPATH)/SORTED.lst $(VPATH)/objects.lst
 
 #.PHONY:	$(VPATH)/includes
 
