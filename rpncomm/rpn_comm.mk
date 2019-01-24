@@ -18,7 +18,7 @@ TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs \
            TEST_010.Abs TEST_011.Abs
 
 FMODULES = RPN_COMM_mod.o
-LIBNAME  = $(LIB)_$(RPN_COMM_version)
+LIBNAME  = $(LIB)_$(RPN_COMM_version)$(shell $(VPATH)/../tools/mpi_version.sh)
 LIBRARY  = $(LIBDIR)/lib$(LIBNAME).a
 STUB_LIBRARY = $(LIBDIR)/lib$(LIB)stubs_$(RPN_COMM_version).a
 SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
@@ -105,7 +105,7 @@ $(LIBRARY): $(OBJECTS)
 #	ar dv $(LIBRARY)_ TEST_stubs.o rpn_comm_c_stubs.o rpn_comm_fortran_stubs.o
 	mv $(LIBRARY)_ $(LIBRARY)
 	ar t $(LIBRARY) | sort -u >$(VPATH)/objects.lst
-	(cd $(LIBDIR) ; ln -sf lib$(LIB)_$(RPN_COMM_version).a  lib$(LIB).a)
+	(cd $(LIBDIR) ; ln -sf lib$(LIBNAME).a  lib$(LIB)$(shell $(VPATH)/../tools/mpi_version.sh).a)
 #	cp *.mod $(INCDIR)
 
 checkref:
