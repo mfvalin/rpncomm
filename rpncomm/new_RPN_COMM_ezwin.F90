@@ -187,7 +187,7 @@ end interface
   integer, dimension(100) :: expected
   real, dimension(100) :: expectedf
   integer, dimension(2,50) :: req
-  real :: tmp
+  real, target :: tmp
   type :: packet
     SEQUENCE
     integer :: n
@@ -195,7 +195,7 @@ end interface
     integer :: off
     real :: val
   end type
-  type(packet) :: pak
+  type(packet), target :: pak
   type :: area
     SEQUENCE
     integer :: offset
@@ -254,7 +254,7 @@ end interface
         expected(1+ansoffset) = reqbuf(4) + partner ! expected answer from partner is element 4 of request + partner rank
         expectedf(1+ansoffset) = pak%val + .01*partner
 !         call RPN_COMM_ezwin_put(req_win,c_loc(reqbuf(1)),4,partner,fetch,error)
-        call RPN_COMM_ezwin_put(req_win,c_loc(pak%n),4,partner,fetch,error)
+        call RPN_COMM_ezwin_put(req_win,c_loc(pak),4,partner,fetch,error)
         ansoffset = ansoffset + 1
       endif
     endif
