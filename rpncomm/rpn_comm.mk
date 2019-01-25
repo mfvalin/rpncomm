@@ -18,7 +18,7 @@ TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs \
            TEST_010.Abs TEST_011.Abs
 
 FMODULES = RPN_COMM_mod.o
-MPI_VERSION = $(shell $(VPATH)/../tools/mpi_version.sh)
+MPI_VERSION = $(shell $(VPATH)/../tools/mpi_version.sh $(VTAG) )
 LIBNAME  = $(LIB)_$(RPN_COMM_version)$(MPI_VERSION)
 LIBRARY  = $(LIBDIR)/lib$(LIBNAME).a
 STUB_LIBRARY = $(LIBDIR)/lib$(LIB)stubs_$(RPN_COMM_version)$(MPI_VERSION).a
