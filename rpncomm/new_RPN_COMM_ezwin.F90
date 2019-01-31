@@ -41,7 +41,8 @@ subroutine RPN_COMM_ezwin_create(sz,comm,mywin,ierr)       !InTf!
   if(ent >= MAX_EZWINDOWS) return    ! table is full
   ent = ent + 1    ! bump table pointer
 
-  sz8 = sz
+  sz8 = sz * 4     ! 32 bit integers to bytes
+  ! displacement size is 4 bytes (32 bit integers)
   call MPI_WIN_ALLOCATE(sz8, 4, MPI_INFO_NULL, comm, ezwtab(ent)%p,ezwtab(ent)%win,ierr)
   if(ierr .ne. MPI_SUCCESS) then    ! error creating window
     ent = ent - 1                   ! suppress entry in table
@@ -50,6 +51,8 @@ subroutine RPN_COMM_ezwin_create(sz,comm,mywin,ierr)       !InTf!
 !   print *,"INFO: created window of size",sz8," bytes"
 
   mywin%p = ezwtab(ent)%p
+  ezwtab(ent)%ix = ent
+  ezwtab(ent)%sz = sz
   mywin%t1 = ieor(ent,RPN_COMM_MAGIC2)
   mywin%t2 = ent
 end subroutine RPN_COMM_ezwin_create                       !InTf!
@@ -107,8 +110,9 @@ subroutine RPN_COMM_ezwin_fetch_add(mywin, add, fetch, rank, offset, ierr)      
   integer(KIND=MPI_ADDRESS_KIND) target_disp
   integer :: assert
 
-  ierr = ieor(MPI_SUCCESS,RPN_COMM_MAGIC2)   ! fudge an error code
-  if(is_invalid(mywin)) return
+  ierr = MPI_ERR_OTHER   ! error code in case of premature return
+  if(is_invalid(mywin)) return              ! invalid window object
+  if(offset >= ezwtab(mywin%t2)%sz) return  ! OUCH, offset points outside of the window
   target_disp = offset
   assert = 0
   call MPI_Win_lock(MPI_LOCK_EXCLUSIVE, rank, assert, ezwtab(mywin%t2)%win, ierr)
@@ -130,8 +134,9 @@ subroutine RPN_COMM_ezwin_get(mywin,pz,nw,rank,offset,ierr)       !InTf!
   integer :: assert
   integer, dimension(:), pointer :: z
 
-  ierr = ieor(MPI_SUCCESS,RPN_COMM_MAGIC2)   ! fudge an error code
-  if(is_invalid(mywin)) return
+  ierr = MPI_ERR_OTHER   ! error code in case of premature return
+  if(is_invalid(mywin)) return                 ! invalid window object
+  if(offset+nw >= ezwtab(mywin%t2)%sz) return  ! OUCH, offset+nw points outside of the window
   target_disp = offset
   assert = 0
   call c_f_pointer(pz,z,[nw])
@@ -154,8 +159,9 @@ subroutine RPN_COMM_ezwin_put(mywin,pz,nw,rank,offset,ierr)      !InTf!
   integer :: assert
   integer, dimension(:), pointer :: z
 
-  ierr = ieor(MPI_SUCCESS,RPN_COMM_MAGIC2)   ! fudge an error code
-  if(is_invalid(mywin)) return
+  ierr = MPI_ERR_OTHER   ! error code in case of premature return
+  if(is_invalid(mywin)) return                 ! invalid window object
+  if(offset+nw >= ezwtab(mywin%t2)%sz) return  ! OUCH, offset+nw points outside of the window
   target_disp = offset
   assert = 0
   call c_f_pointer(pz,z,[nw])
