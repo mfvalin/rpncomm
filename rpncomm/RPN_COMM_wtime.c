@@ -56,6 +56,22 @@ typedef unsigned long long ticks;
 static int t0_=0;
 static ticks t0;
 static double cpu_mult=1.0E-9;  /* 1GHz */
+#if defined(__arm__)
+static ticks getticks(void)
+{
+     static long long last=0;  /* kept in nanoseconds, even if clock_gettime has at best microsec resolution */
+     long long int elapsed;
+     struct timespec tp;
+     clock_gettime(CLOCK_MONOTONIC, &tp);
+     elapsed=tp.tv_sec;
+     elapsed=elapsed*1000000000;
+     elapsed=elapsed+tp.tv_nsec;
+     elapsed *= (1.0E-9/cpu_mult);  /* convert from nanoseconds to ticks */
+     if (last == 0 ) { last = elapsed ;}  /* initialize last */
+     if (elapsed<=last) elapsed=++last;   /* never return same value twice */
+     return (ticks)elapsed;  /* time in ticks */
+}
+#else
 static ticks getticks(void)
 {
      unsigned a, d;
@@ -64,6 +80,7 @@ static ticks getticks(void)
 
      return (((ticks)a) | (((ticks)d) << 32));
 }
+#endif
 
 #endif
 #if defined(AIX)
