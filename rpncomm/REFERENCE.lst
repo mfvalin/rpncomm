@@ -96,3 +96,4 @@ RPN_COMM_xch_halon.o
 RPN_COMM_xch_halons.o
 RPN_COMM_xch_halosl.o
 RPN_COMM_xch_halox.o
+RPN_COMM_ezwin.o
