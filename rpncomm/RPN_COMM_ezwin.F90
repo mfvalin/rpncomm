@@ -1,3 +1,4 @@
+#define IN_RPN_COMM_ezwin
 module RPN_COMM_ezwin_mod
   use ISO_C_BINDING
   implicit none
