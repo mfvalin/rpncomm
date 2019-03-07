@@ -17,13 +17,6 @@
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
  */
-#if defined(linux)
-#define _GNU_SOURCE
-#endif
-#include <sched.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
 
 /*
    unset any processor affinity for the current process
@@ -52,6 +45,14 @@ void rpn_comm_unbind_process_(void);
 void rpn_comm_unbind_process(void)
 {
 #if defined(linux)
+
+#define _GNU_SOURCE
+#include <sched.h>
+#include <stdio.h>
+#include <unistd.h>
+
+int atoi(const char *nptr);
+char *getenv(const char *name);
 
 cpu_set_t set;
 int i;
