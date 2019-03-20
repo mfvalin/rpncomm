@@ -44,6 +44,7 @@ void rpn_comm_unbind_process__(void);
 void rpn_comm_unbind_process_(void);
 void rpn_comm_unbind_process(void)
 {
+#if defined(USE_OLD_CODE)
 #if defined(linux)
 
 #define _GNU_SOURCE
@@ -86,6 +87,7 @@ if(nthreads > nbound) {  /* need more threads than cores we can run on , unbind 
   if(will_print) printf("NO unbinding will be done\n");  /* enough resources available and no forced unbind */
 }
 
+#endif
 #endif
 
 return;
