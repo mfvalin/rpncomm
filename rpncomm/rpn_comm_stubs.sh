@@ -314,6 +314,12 @@ if [[ "$1" == fortran || "$1" == all ]] ; then
       return
       end
 !
+      subroutine MPI_comm_free
+      write(6,*) 'MPI_comm_free not authorized in non-mpi mode, ABORT'
+      call ABORT
+      return
+      end
+!
       subroutine MPI_type_get_extent(dtyp_m,extent,ierr)  ! replaces MPI_type_extent
       integer,intent(IN) :: dtyp_m
       !integer, intent(out) :: ierr
