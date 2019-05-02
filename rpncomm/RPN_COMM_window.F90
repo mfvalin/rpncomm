@@ -19,7 +19,7 @@
 ! !/
 #define IN_RPN_COMM_window
 #if defined(WITH_DOC)
-!****P* rpn_comm/windows  simplified/restricted version of MPI one sided communications
+!****P* rpn_comm/windows  (simplified/restricted version of MPI one sided communications package)
 ! DESCRIPTION
 !   This is a simplified and restricted version of MPI-2 one sided communications.
 !
