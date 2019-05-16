@@ -97,3 +97,4 @@ RPN_COMM_xch_halons.o
 RPN_COMM_xch_halosl.o
 RPN_COMM_xch_halox.o
 RPN_COMM_ezwin.o
+RPN_COMM_split_by_node.o
