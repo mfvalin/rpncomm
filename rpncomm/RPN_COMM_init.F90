@@ -373,6 +373,12 @@
       pe_indomms = pe_multi_grid
       call MPI_COMM_GROUP(pe_indomms,pe_gr_indomms,ierr)
 !
+!     make communicator for PEs on same host in this multigrid
+!       call RPN_COMM_split_by_node(pe_multi_grid,
+!                                   pe_multigrid_host, pe_node_peers,
+!                                   rank_on_host,      rank_in_peers, n_on_node, ierr)
+!
+!
 !     domain split done, each domain is now on its own
 !
 !
@@ -399,7 +405,9 @@
 !      write(rpn_u,*)'pe_tot_grid=',pe_tot_grid
       call MPI_COMM_GROUP(pe_grid,pe_gr_grid,ierr)
 !
-!     make communicator for PEs on same host
+!     make communicator for PEs on same host in this grid
+! TODO
+!     utiliser RPN_COMM_split_by_node ou a tout le moins son algorithme
 !
       my_color = abs(f_gethostid())  ! coloring by host identifier
       call MPI_COMM_SPLIT(pe_grid,my_color,&
