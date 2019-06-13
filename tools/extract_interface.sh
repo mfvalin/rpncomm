@@ -30,12 +30,12 @@ gfortran -o ../tools/wrap_code.exe ../tools/wrap_code.f90 2>/dev/null 1>/dev/nul
 rm -f ../tools/wrap_code.f90
 fi
 if [[ -z $1 ]] ; then
-  grep '!InTf!' | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/ [ ]*!.*//' | ../tools/wrap_code.exe
+  grep '!InTf!' | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/ [ ]*!.*//' | ../tools/wrap_code.exe | sed 's/[ ]*$//'
 else
   [[ -f $1 ]] || exit 0
   if grep -q '!InTf!' $1 ; then
     echo "#if ! defined(IN_${1%.*})"
-    grep '!InTf!' $1 | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/ [ ]*!.*//' | ../tools/wrap_code.exe
+    grep '!InTf!' $1 | sed -e 's/^\t//' -e 's/^      //' -e 's/^!!//' -e 's/ [ ]*!.*//' | ../tools/wrap_code.exe | sed 's/[ ]*$//'
     echo "#endif"
   fi
 fi
