@@ -181,8 +181,10 @@
       call MPI_INITIALIZED(mpi_started,ierr)
       status = RPN_COMM_set_timeout_alarm(60)
       if (.not. mpi_started ) call MPI_init(ierr)
+      call MPI_barrier(WORLD_COMM_MPI,ierr)
       status = RPN_COMM_set_timeout_alarm(0)
       pe_wcomm=WORLD_COMM_MPI      ! UNIVERSE at this point
+
       call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)
       if(pe_me == 0)then
         call RPN_COMM_env_var("RPN_COMM_MONITOR",SYSTEM_COMMAND)
@@ -608,20 +610,22 @@
 !      contains
 
       end FUNCTION RPN_COMM_init_multi_level                        !InTf!
+
       integer function RPN_COMM_get_a_free_unit()                   !InTf!
       implicit none
       integer :: i
       character (len=16) :: access_mode
-	RPN_COMM_get_a_free_unit=-1
-	do i = 99,1,-1  ! find an available unit number
-	  inquire(UNIT=i,ACCESS=access_mode)
-	  if(trim(access_mode) == 'UNDEFINED')then ! found
-	    RPN_COMM_get_a_free_unit = i
-	    exit
-	  endif
-	enddo
+      RPN_COMM_get_a_free_unit=-1
+      do i = 99,1,-1  ! find an available unit number
+        inquire(UNIT=i,ACCESS=access_mode)
+        if(trim(access_mode) == 'UNDEFINED')then ! found
+          RPN_COMM_get_a_free_unit = i
+          exit
+        endif
+      enddo
       return
       end function RPN_COMM_get_a_free_unit                         !InTf!
+
       function RPN_COMM_set_timeout_alarm(seconds) result(seconds_since)  !InTf!
       use ISO_C_BINDING
       implicit none
