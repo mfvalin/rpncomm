@@ -181,7 +181,7 @@
       call MPI_INITIALIZED(mpi_started,ierr)
       status = RPN_COMM_set_timeout_alarm(60)
       if (.not. mpi_started ) call MPI_init(ierr)
-      call MPI_barrier(WORLD_COMM_MPI,ierr)
+!       call MPI_barrier(WORLD_COMM_MPI,ierr)
       status = RPN_COMM_set_timeout_alarm(0)
       pe_wcomm=WORLD_COMM_MPI      ! UNIVERSE at this point
 
