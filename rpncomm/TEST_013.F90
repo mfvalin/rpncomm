@@ -1,6 +1,9 @@
 !=======================================================================
+module test_013
+  integer, save :: pe_mex, pe_mey
+end module test_013
 subroutine rpn_comm_test_013
-  use rpn_comm
+  use test_013
   implicit none
   integer :: Pex, Pey, Pelocal, Petotal, halox, haloy
   external :: TestUserInit
@@ -17,6 +20,8 @@ subroutine rpn_comm_test_013
   haloy = 3
   iter = 8
   call RPN_COMM_init(TestUserInit,Pelocal,Petotal,Pex,Pey)
+  pe_mex = mod(Pelocal,Pex)
+  pe_mey = Pelocal / Pex
 !   print *,'PE',Pelocal+1,' of',Petotal
   nk = Pex * 2
 !   do while(nk < 60)
@@ -77,9 +82,11 @@ end subroutine TestUserInit
 !=======================================================================
 integer function xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, mode, tag)
 !=======================================================================
-  use rpn_comm
+  use ISO_C_BINDING
+  use test_013
   implicit none
-  include 'RPN_COMM_interfaces.inc'
+  include 'mpif.h'
+  include 'RPN_COMM.inc'
   !
   integer, pointer, dimension(:,:,:), static :: localarray
   integer, intent(IN) :: lni, lnj, nk, halox, haloy, gni, gnj, mode
