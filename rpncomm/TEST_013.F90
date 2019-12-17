@@ -8,12 +8,17 @@ end module test_013
 subroutine rpn_comm_test_013
   use test_013
   implicit none
-  integer :: Pex, Pey, Pelocal, Petotal, halox, haloy, step, is
+  include 'mpif.h'
+  integer :: Pex, Pey, Pelocal, Petotal, halox, haloy, step, is, nbeads, nbent, nused, nprc
   external :: TestUserInit
   integer :: lni, lnj, lnk, gni, gnj, nk
   character(len=128) :: RPN_COMM_TEST_CFG
-  integer :: i, ier, errors, iter, tag
+  integer :: i, j, ier, errors, iter, tag
   integer, external :: xch_halo_test
+  integer(C_INT), dimension(:), pointer   :: local
+  integer(C_INT), dimension(:,:), allocatable, target :: global
+  integer(C_INT), dimension(:,:), allocatable :: blob
+  type(C_PTR) :: local_c
 
   Pex = 0
   Pey = 0
@@ -24,7 +29,8 @@ subroutine rpn_comm_test_013
   pe_mex = mod(Pelocal,Pex)
   pe_mey = Pelocal / Pex
 !   print *,'PE',Pelocal+1,' of',Petotal
-  nk = Pex * 2
+!   nk = Pex * 2
+  nk = max(80,Pex)
 !   do while(nk < 60)
 !     nk = nk + pex
 !   enddo
@@ -44,7 +50,7 @@ subroutine rpn_comm_test_013
 
   call time_trace_init(trace)
 
-  do step = 1, 10
+  do step = 1, 1
     call time_trace_step(trace, step)
     is = step
     errors = 0
@@ -61,19 +67,37 @@ subroutine rpn_comm_test_013
 !     if(Pelocal == 0) then
 !     endif
   enddo
+
   call time_trace_dump_text(trace, 'time_list', Pelocal)
-!   halox = 9
-!   haloy = 9
-! 
-!   do i = 1, iter
-!     if(i == 1) errors = xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj,  2, tag) ! allocate, do not deallocate
-!     errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -2, tag)   ! neither
-!     if(i == iter) errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -1, tag) ! do not allocate, deallocate
-!   enddo
-!   print 100,' iterations, halox, haloy, pe, errors =',  iter+2, halox, haloy, Pelocal, errors
+
+  local_c = time_trace_get_buffer_data(trace, nbeads, nbent, 1)
+  call c_f_pointer(local_c, local, [nbent])  ! C pointer to Fortran pointer
+  allocate(global(nbent,Petotal))
+  call MPI_gather(local, nbent, MPI_INTEGER, global, nbent, MPI_INTEGER, 0, MPI_COMM_WORLD,ier)
+
+  if(Pelocal == 0)then
+    allocate(blob(2+2*Petotal,nbent/2))
+    blob = 0
+    nused = time_trace_expand(C_LOC(global(1,1)), nbent, blob, blob(3,1), 2+2*Petotal, nbent/2, 0)
+    do i = 2, Petotal
+      nused = time_trace_expand(C_LOC(global(1,i)), nbent, blob, blob(1+2*i,1), 2+2*Petotal, nbent/2, 1)
+    enddo
+    print *,'nused, size =',nused, nbent/2
+    nprc = min(Petotal,5)
+    do i = 1, abs(nused)
+      if(blob(2,i) == -1) then   ! step flag, combine 2 unsigned 32 bit integers into a 64 bit integer
+        print 102,blob(1,i), blob(2,i), &
+                  ((i8_from_2_i4(blob(2*j+1,i), blob(2*j+2,i)), 0) , j=1,nprc)
+      else
+        print 101,blob(1:2+nprc*2,i)
+      endif
+    enddo
+  endif
 
   call RPN_COMM_finalize(ier)
 100 format(A50,10I7)
+101 format(12I10)
+102 format(2I10,5(I18,I2))
 end subroutine rpn_comm_test_013
 !=======================================================================
 subroutine TestUserInit(NX,NY) ! try to get NX,NY from file TEST.cfg if it exists
