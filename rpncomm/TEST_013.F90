@@ -1,11 +1,14 @@
 !=======================================================================
 module test_013
+  use ISO_C_BINDING
+#include <time_trace.hf>
   integer, save :: pe_mex, pe_mey
+  type(time_context), save :: trace
 end module test_013
 subroutine rpn_comm_test_013
   use test_013
   implicit none
-  integer :: Pex, Pey, Pelocal, Petotal, halox, haloy
+  integer :: Pex, Pey, Pelocal, Petotal, halox, haloy, step, is
   external :: TestUserInit
   integer :: lni, lnj, lnk, gni, gnj, nk
   character(len=128) :: RPN_COMM_TEST_CFG
@@ -16,9 +19,7 @@ subroutine rpn_comm_test_013
   Pey = 0
   lni = 40
   lnj = 38
-  halox = 3
-  haloy = 3
-  iter = 8
+  iter = 5
   call RPN_COMM_init(TestUserInit,Pelocal,Petotal,Pex,Pey)
   pe_mex = mod(Pelocal,Pex)
   pe_mey = Pelocal / Pex
@@ -29,7 +30,7 @@ subroutine rpn_comm_test_013
 !   enddo
   call get_environment_variable("RPN_COMM_TEST_CFG",RPN_COMM_TEST_CFG,i,ier)
   if(ier == 0) then
-    read(RPN_COMM_TEST_CFG,*)lni, lnj, nk, halox, haloy
+    read(RPN_COMM_TEST_CFG,*)lni, lnj, nk
   endif
   gni = lni * Pex
   gnj = lnj * pey
@@ -39,28 +40,40 @@ subroutine rpn_comm_test_013
     print 100,' lni, lnj, lnk =', lni, lnj, lnk
     print 100,' gni, gnj, nk =', gni, gnj, nk
 !     print 100,' mex, mey =',pe_mex, pe_mey
-  endif  
+  endif
 
-  tag = 100
-  do i = 1, iter
-    if(i == 1) errors = xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj,  2, tag) ! allocate, do not deallocate
-    errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -2, tag)   ! neither
-    if(i == iter) errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -1, tag) ! do not allocate, deallocate
+  call time_trace_init(trace)
+
+  do step = 1, 10
+    call time_trace_step(trace, step)
+    is = step
+    errors = 0
+    do halox = 1, 9, 2
+      tag = 100 * halox
+      haloy = halox
+      do i = 1, iter
+        if(i == 1) errors = xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj,  2, tag) ! allocate, do not deallocate
+        errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -2, tag)   ! neither
+        if(i == iter) errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -1, tag) ! do not allocate, deallocate
+      enddo
+    enddo
+    print 100,'step, iterations, errors =', step, iter+2, errors
+!     if(Pelocal == 0) then
+!     endif
   enddo
-  print 100,' iterations, halox, haloy, pe, errors =',  iter+2, halox, haloy, Pelocal, errors
-
-  halox = 9
-  haloy = 9
-
-  do i = 1, iter
-    if(i == 1) errors = xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj,  2, tag) ! allocate, do not deallocate
-    errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -2, tag)   ! neither
-    if(i == iter) errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -1, tag) ! do not allocate, deallocate
-  enddo
-  print 100,' iterations, halox, haloy, pe, errors =',  iter+2, halox, haloy, Pelocal, errors
+  call time_trace_dump_text(trace, 'time_list', Pelocal)
+!   halox = 9
+!   haloy = 9
+! 
+!   do i = 1, iter
+!     if(i == 1) errors = xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj,  2, tag) ! allocate, do not deallocate
+!     errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -2, tag)   ! neither
+!     if(i == iter) errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -1, tag) ! do not allocate, deallocate
+!   enddo
+!   print 100,' iterations, halox, haloy, pe, errors =',  iter+2, halox, haloy, Pelocal, errors
 
   call RPN_COMM_finalize(ier)
-100 format(A40,8I7)
+100 format(A50,10I7)
 end subroutine rpn_comm_test_013
 !=======================================================================
 subroutine TestUserInit(NX,NY) ! try to get NX,NY from file TEST.cfg if it exists
@@ -86,6 +99,7 @@ integer function xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, mode, tag)
   use test_013
   implicit none
   include 'mpif.h'
+  external MPI_Barrier
   include 'RPN_COMM.inc'
   !
   integer, pointer, dimension(:,:,:), static :: localarray
@@ -113,9 +127,10 @@ integer function xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, mode, tag)
   miny = lminy-haloy
   maxy = lmaxy+haloy
 
-  print 100,' tag =',tag
+!   print 100,' tag =',tag
   tag = tag + 10
-  call mpi_barrier(MPI_COMM_WORLD,ierr)
+!   call mpi_barrier(MPI_COMM_WORLD,ierr)
+!   call time_trace_barr(trace, tag, .true., MPI_COMM_WORLD, MPI_barrier)
   if(mode >= 0) then
     allocate(localarray(minx:maxx,miny:maxy,nk))
 !     print 100,' allocated localarray',minx, maxx, miny, maxy, nk
@@ -133,7 +148,8 @@ integer function xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, mode, tag)
 !     print 100,' avant ',localarray(minx:maxx,j,1)
 !   enddo
 !   print *,''
-  call mpi_barrier(MPI_COMM_WORLD,ierr)
+!   call mpi_barrier(MPI_COMM_WORLD,ierr)
+  call time_trace_barr(trace, tag+2, .true., MPI_COMM_WORLD, MPI_barrier)
 ! SUBROUTINE RPN_COMM_xch_halo(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody,gni,npol_row)
   call RPN_COMM_xch_halo(localarray, &
                 minx - lminx + 1, maxx - lminx + 1, &
@@ -144,7 +160,8 @@ integer function xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, mode, tag)
 !   do j = maxy, miny, -1
 !     print 100,' apres ',localarray(minx:maxx,j,1)
 !   enddo
-  call mpi_barrier(MPI_COMM_WORLD,ierr)
+!   call mpi_barrier(MPI_COMM_WORLD,ierr)
+  call time_trace_barr(trace, tag+4, .true., MPI_COMM_WORLD, MPI_barrier)
   errors=0
   miny1 = max(1,miny)
   maxy1 = min(gnj,maxy)
@@ -164,7 +181,8 @@ integer function xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, mode, tag)
     deallocate(localarray)
 !     print 100,' deallocated localarray'
   endif
-  call mpi_barrier(MPI_COMM_WORLD,ierr)
+!   call mpi_barrier(MPI_COMM_WORLD,ierr)
+!   call time_trace_barr(trace, tag+6, .true., MPI_COMM_WORLD, MPI_barrier)
 
   xch_halo_test=errors
   return
