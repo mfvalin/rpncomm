@@ -1,0 +1,6 @@
+&TEST_CFG
+  nk = 81
+  nsteps = 2
+  iter = 1
+/
+

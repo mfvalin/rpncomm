@@ -11,46 +11,66 @@ subroutine rpn_comm_test_013
   include 'mpif.h'
   integer :: Pex, Pey, Pelocal, Petotal, halox, haloy, step, is, nbeads, nbent, nused, nprc
   external :: TestUserInit
-  integer :: lni, lnj, lnk, gni, gnj, nk
+  integer :: lni, lnj, gnk, gni, gnj, nk, lnk, lniymax, lniy
   character(len=128) :: RPN_COMM_TEST_CFG
-  integer :: i, j, ier, errors, iter, tag
-  integer, external :: xch_halo_test
+  integer :: i, j, ier, errors, iter, tag, nsteps
+  integer, external :: xch_halo_test, transpose_test
   integer(C_INT), dimension(:), pointer   :: local
   integer(C_INT), dimension(:,:), allocatable, target :: global
   integer(C_INT), dimension(:,:), allocatable :: blob
   type(C_PTR) :: local_c
+  namelist /TEST_CFG/ lni, lnj, iter, nsteps, nk
+  logical :: file_exists
 
   Pex = 0
   Pey = 0
-  lni = 40
+  lni = 40     ! default configuration values
   lnj = 38
   iter = 5
+  nsteps = 1
   call RPN_COMM_init(TestUserInit,Pelocal,Petotal,Pex,Pey)
   pe_mex = mod(Pelocal,Pex)
   pe_mey = Pelocal / Pex
 !   print *,'PE',Pelocal+1,' of',Petotal
 !   nk = Pex * 2
-  nk = max(80,Pex)
+  nk = max(80,Pex)     ! default configuration value
 !   do while(nk < 60)
 !     nk = nk + pex
 !   enddo
   call get_environment_variable("RPN_COMM_TEST_CFG",RPN_COMM_TEST_CFG,i,ier)
-  if(ier == 0) then
+  if(ier == 0) then  ! environment variable found, get dimensions
     read(RPN_COMM_TEST_CFG,*)lni, lnj, nk
+  endif
+  INQUIRE(FILE="RPN_COMM_TEST_CFG.txt", EXIST=file_exists)   ! check for explicit config file
+  if(file_exists) then                                       ! file exists, read configuration overrides from namelist
+    open(unit=55,file="RPN_COMM_TEST_CFG.txt",FORM="FORMATTED")
+    read(unit=55,NML=TEST_CFG)
+    if(Pelocal == 0) write(6,NML=TEST_CFG)
+    close(unit=55)
   endif
   gni = lni * Pex
   gnj = lnj * pey
-  lnk = nk
+  gnk = max(nk,Pex)
+  lnk = (nk + Pex - 1) / Pex        ! gnk distributed over Pex
+  gnk = lnk * Pex                   ! make sure gnk is a multiple of Pex
+  nk = gnk
+  lniymax = (gni + Pey - 1) / Pey   ! gni distributed over Pey
+  lniy = lniymax
+  if(pe_mey == Pey - 1)  lniy = gni - lniymax*(Pey - 1)
   if(Pelocal == 0) then
     print 100,' Pelocal,Petotal,Pex,Pey =',Pelocal,Petotal,Pex,Pey
-    print 100,' lni, lnj, lnk =', lni, lnj, lnk
-    print 100,' gni, gnj, nk =', gni, gnj, nk
+    print 100,' lni, lnj, lnk, lniy =', lni, lnj, lnk, lniy
+    print 100,' gni, gnj, gnk =', gni, gnj, gnk
 !     print 100,' mex, mey =',pe_mex, pe_mey
+  endif
+  if(gni - lniymax*(Pey - 1) < 0 ) then   ! OOPS cannot distribute properly over Pey
+    if(Pelocal == 0) print 100,'ERROR: improper value for gni, lniymax, remainder =',lniymax,gni - lniymax*(Pex - 1)
+    goto 777
   endif
 
   call time_trace_init(trace)
 
-  do step = 1, 1
+  do step = 1, nsteps
     call time_trace_step(trace, step)
     is = step
     errors = 0
@@ -62,6 +82,12 @@ subroutine rpn_comm_test_013
         errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -2, tag)   ! neither
         if(i == iter) errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -1, tag) ! do not allocate, deallocate
       enddo
+    enddo
+    tag = 1000
+    do i = 1, iter
+      if(i == 1) errors = errors + transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, 2, tag)
+      errors = errors + transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, -2, tag)
+      if(i == iter) errors = errors + transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, -1, tag)
     enddo
     print 100,'step, iterations, errors =', step, iter+2, errors
 !     if(Pelocal == 0) then
@@ -94,6 +120,7 @@ subroutine rpn_comm_test_013
     enddo
   endif
 
+777 continue
   call RPN_COMM_finalize(ier)
 100 format(A50,10I7)
 101 format(12I10)
@@ -113,6 +140,7 @@ subroutine TestUserInit(NX,NY) ! try to get NX,NY from file TEST.cfg if it exist
     nx = 0
     ny = 0
     print *,'ERROR: environment variable RPN_COMM_TEST_SHAPE not found'
+    print *,'       RPN_COMM_TEST_SHAPE="NPEX NPEY"'
   endif
   return
 end subroutine TestUserInit
@@ -213,3 +241,54 @@ integer function xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, mode, tag)
 100 format(A40,8I7)
 end function xch_halo_test
 !=======================================================================
+!=======================================================================
+integer function transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, mode, tag)
+!=======================================================================
+  use ISO_C_BINDING
+  use test_013
+  implicit none
+  include 'mpif.h'
+  external MPI_Barrier
+  include 'RPN_COMM.inc'
+
+  integer, intent(IN) :: lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, mode
+  integer, intent(INOUT) :: tag
+  integer :: errors, lnk, ierr, my_row, my_col, lniy
+  integer, pointer, dimension(:,:,:),   static :: sx
+  integer, pointer, dimension(:,:,:,:), static :: tx, sy, ty
+  !
+  errors = 0
+  lnk = gnk / Pex
+  lniy = (gni + Pey -1) / Pey
+  if(mode >= 0) then
+    allocate(sx(lni,lnj,gnk))
+    allocate(tx(lni,lnj,lnk,Pex))
+    allocate(sy(lniy,lnj,lnk,Pey))
+    allocate(ty(lniy,lnj,lnk,Pey))
+    print *,'allocated with lni,lnj,gnk,Pex =',lni,lnj,gnk,Pex
+  endif
+  my_row = RPN_COMM_comm(RPN_COMM_EW)
+  my_col = RPN_COMM_comm(RPN_COMM_NS)
+  sx = 0
+  tx = 0
+  sy = 0
+  ty = 0
+  tag = tag + 10
+  call time_trace_barr(trace, tag+2, .true., MPI_COMM_WORLD, MPI_barrier)
+  call MPI_ALLTOALL(sx, lni*lnj*lnk, MPI_INTEGER, tx, lni*lnj*lnk, MPI_INTEGER, my_row, ierr)
+  call time_trace_barr(trace, tag+3, .true., MPI_COMM_WORLD, MPI_barrier)
+  call MPI_ALLTOALL(sy, lniy*lnj*lnk, MPI_INTEGER, ty, lniy*lnj*lnk, MPI_INTEGER, my_col, ierr)
+  call time_trace_barr(trace, tag+4, .true., MPI_COMM_WORLD, MPI_barrier)
+  call MPI_ALLTOALL(ty, lniy*lnj*lnk, MPI_INTEGER, sy, lniy*lnj*lnk, MPI_INTEGER, my_col, ierr)
+  call time_trace_barr(trace, tag+5, .true., MPI_COMM_WORLD, MPI_barrier)
+  call MPI_ALLTOALL(tx, lni*lnj*lnk, MPI_INTEGER, sx, lni*lnj*lnk, MPI_INTEGER, my_row, ierr)
+  call time_trace_barr(trace, tag+6, .true., MPI_COMM_WORLD, MPI_barrier)
+  if(abs(mode) <= 1) then
+    deallocate(ty)
+    deallocate(sy)
+    deallocate(tx)
+    deallocate(sx)
+    print *,'deallocated'
+  endif
+  transpose_test = errors
+end function transpose_test
