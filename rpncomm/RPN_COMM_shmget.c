@@ -139,3 +139,28 @@ int RPNCOMM_Numa_split(MPI_Fint origcomm, int mode, MPI_Fint *numacomm, int *num
   }
   return newsize;
 }
+#if defined(SELF_TEST)
+int main(int argc, char **argv){
+  MPI_Fint origcomm, numacomm;
+  int numarank, npes, myrank;
+  int *addr;
+
+  MPI_Init(&argc, &argv);
+  MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+
+  npes = RPNCOMM_Numa_split(MPI_Comm_c2f(MPI_COMM_WORLD), 0, &numacomm, &numarank);
+  printf("size = %d, rank = %d\n",npes,numarank);
+  addr = (int *) RPNCOMM_Shmget(numacomm, 32768);
+  printf("address = %p\n",addr);
+  MPI_Barrier(MPI_COMM_WORLD);
+  if(numarank == 0) {
+    addr[0] = myrank;
+    addr[1] = 2345;
+    addr[2] = 3456;
+    addr[3] = 4567;
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+  printf("addr[0:3] = %d %d %d %d\n",addr[0], addr[1], addr[2], addr[3]);
+  MPI_Finalize();
+}
+#endif
