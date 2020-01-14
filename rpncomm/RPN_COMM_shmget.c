@@ -148,8 +148,8 @@ int main(int argc, char **argv){
   MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
-  npes = RPNCOMM_Numa_split(MPI_Comm_c2f(MPI_COMM_WORLD), 0, &numacomm, &numarank);
-  printf("size = %d, rank = %d\n",npes,numarank);
+  npes = RPNCOMM_Numa_split(MPI_Comm_c2f(MPI_COMM_WORLD), 1, &numacomm, &numarank);  // socket split
+  printf("size = %d, rank = %d, core = %d, socket = %d\n",npes,numarank, core, socket);
   addr = (int *) RPNCOMM_Shmget(numacomm, 32768);
   printf("address = %p\n",addr);
   MPI_Barrier(MPI_COMM_WORLD);
