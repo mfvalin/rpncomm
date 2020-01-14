@@ -13,13 +13,13 @@ subroutine rpn_comm_test_013
   external :: TestUserInit
   integer :: lni, lnj, gnk, gni, gnj, nk, lnk, lniymax, lniy
   character(len=128) :: RPN_COMM_TEST_CFG
-  integer :: i, j, ier, errors, iter, tag, nsteps
+  integer :: i, j, ier, errors, iter, tag, nsteps, iter2
   integer, external :: xch_halo_test, transpose_test
   integer(C_INT), dimension(:), pointer   :: local
   integer(C_INT), dimension(:,:), allocatable, target :: global
   integer(C_INT), dimension(:,:), allocatable :: blob
   type(C_PTR) :: local_c
-  namelist /TEST_CFG/ lni, lnj, iter, nsteps, nk
+  namelist /TEST_CFG/ lni, lnj, iter, nsteps, nk, iter2
   logical :: file_exists
 
   Pex = 0
@@ -27,6 +27,7 @@ subroutine rpn_comm_test_013
   lni = 40     ! default configuration values
   lnj = 38
   iter = 5
+  iter2 = 5
   nsteps = 1
   call RPN_COMM_init(TestUserInit,Pelocal,Petotal,Pex,Pey)
   pe_mex = mod(Pelocal,Pex)
@@ -77,19 +78,35 @@ subroutine rpn_comm_test_013
     do halox = 1, 9, 2
       tag = 100 * halox
       haloy = halox
-      do i = 1, iter
-        if(i == 1) errors = xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj,  2, tag) ! allocate, do not deallocate
-        errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -2, tag)   ! neither
-        if(i == iter) errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -1, tag) ! do not allocate, deallocate
+      if(iter > 0) then
+        if(iter == 1) then  ! only one iteration
+          errors = xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj,  0, tag) ! allocate, then deallocate
+        else                ! more than one iteration
+          errors = xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj,  2, tag) ! allocate, do not deallocate
+        endif
+      endif
+      do i = 2, iter-1
+        if(iter > 2) errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -2, tag)   ! neither allocate nor deallocate
       enddo
+      if(iter > 1) then
+        errors = errors + xch_halo_test(lni, lnj, nk, halox, haloy, gni, gnj, -1, tag) ! do not allocate, deallocate
+      endif
     enddo
     tag = 1000
-    do i = 1, iter
-      if(i == 1) errors = errors + transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, 2, tag)
-      errors = errors + transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, -2, tag)
-      if(i == iter) errors = errors + transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, -1, tag)
+    if(iter2 > 0) then
+      if(iter2 == 1) then  ! only one iteration
+        errors = errors + transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, 0, tag) ! allocate, then deallocate
+      else
+        errors = errors + transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, 2, tag) ! allocate, do not deallocate
+      endif
+    endif
+    do i = 2, iter2-1
+      errors = errors + transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, -2, tag)   ! neither allocate nor deallocate
     enddo
-    print 100,'step, iterations, errors =', step, iter+2, errors
+    if(iter2 > 1) then
+      errors = errors + transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey, -1, tag) ! do not allocate, deallocate
+    endif
+    print 100,'step, iterations, errors =', step, iter,iter2, errors
 !     if(Pelocal == 0) then
 !     endif
   enddo
@@ -101,6 +118,7 @@ subroutine rpn_comm_test_013
   allocate(global(nbent,Petotal))
   call MPI_gather(local, nbent, MPI_INTEGER, global, nbent, MPI_INTEGER, 0, MPI_COMM_WORLD,ier)
 
+  goto 777
   if(Pelocal == 0)then
     allocate(blob(2+2*Petotal,nbent/2))
     blob = 0
@@ -265,7 +283,7 @@ integer function transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey,
     allocate(tx(lni,lnj,lnk,Pex))
     allocate(sy(lniy,lnj,lnk,Pey))
     allocate(ty(lniy,lnj,lnk,Pey))
-    print *,'allocated with lni,lnj,gnk,Pex =',lni,lnj,gnk,Pex
+!     print *,'allocated with lni,lnj,gnk,Pex =',lni,lnj,gnk,Pex
   endif
   my_row = RPN_COMM_comm(RPN_COMM_EW)
   my_col = RPN_COMM_comm(RPN_COMM_NS)
@@ -288,7 +306,7 @@ integer function transpose_test(lni, lnj, gnk, halox, haloy, gni, gnj, Pex, Pey,
     deallocate(sy)
     deallocate(tx)
     deallocate(sx)
-    print *,'deallocated'
+!     print *,'deallocated'
   endif
   transpose_test = errors
 end function transpose_test
