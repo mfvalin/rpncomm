@@ -17,6 +17,7 @@
 ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! Boston, MA 02111-1307, USA.
 !
+
 module split_by_node
   save
   integer, parameter :: MAX_CACHE=16
@@ -136,16 +137,19 @@ subroutine RPN_COMM_split_by_socket(origcomm, nodecomm, sockcomm, peercomm, node
   integer, intent(OUT) :: err       ! error code                                         !InTf!
 !******
   integer :: socket, ierr
+  integer :: lcpus, sockets_per_node, nnuma, ht, map
 
   call RPN_COMM_split_by_node(origcomm, nodecomm, peercomm, noderank, peerrank, isiz, err) ! split by node
   if(ERR .ne. RPN_COMM_OK) return
 
   err = RPN_COMM_ERROR      ! precondition for failure
-  if(noderank < isiz / 2) then
-    socket = 0
-  else
-    socket = 1
-  endif
+  call get_logical_cpu_configuration(lcpus, sockets_per_node, nnuma, ht, map)
+  socket = noderank / sockets_per_node
+!   if(noderank < isiz / 2 ) then
+!     socket = 0
+!   else
+!     socket = 1
+!   endif
   call mpi_comm_split(nodecomm, socket, noderank, sockcomm, ierr)  ! re split by socket
   if(ierr .ne. MPI_SUCCESS) return
   call MPI_Comm_rank(sockcomm, sockrank,ierr); 
