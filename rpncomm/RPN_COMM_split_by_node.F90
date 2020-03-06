@@ -129,14 +129,14 @@ subroutine RPN_COMM_split_by_socket(origcomm, nodecomm, sockcomm, peercomm, node
   integer, intent(IN)  :: origcomm  ! MPI communicator to split on a socket basis        !InTf!
   integer, intent(OUT) :: nodecomm  ! new communicator to be used py PEs on same node    !InTf!
   integer, intent(OUT) :: sockcomm  ! new communicator to be used py PEs on same socket  !InTf!
-  integer, intent(OUT) :: peercomm  ! new communicator for node peers                    !InTf!
+  integer, intent(OUT) :: peercomm  ! new communicator for socket peers                  !InTf!
   integer, intent(OUT) :: noderank  ! rank in node communicator                          !InTf!
   integer, intent(OUT) :: sockrank  ! rank in socket communicator                        !InTf!
-  integer, intent(OUT) :: peerrank  ! rank in node peers                                 !InTf!
+  integer, intent(OUT) :: peerrank  ! rank in socket peers                               !InTf!
   integer, intent(OUT) :: isiz      ! size of socket communicator                        !InTf!
   integer, intent(OUT) :: err       ! error code                                         !InTf!
 !******
-  integer :: socket, ierr
+  integer :: socket, ierr, rank
   integer :: lcpus, sockets_per_node, nnuma, ht, map
 
   call RPN_COMM_split_by_node(origcomm, nodecomm, peercomm, noderank, peerrank, isiz, err) ! split by node
@@ -152,9 +152,16 @@ subroutine RPN_COMM_split_by_socket(origcomm, nodecomm, sockcomm, peercomm, node
 !   endif
   call mpi_comm_split(nodecomm, socket, noderank, sockcomm, ierr)  ! re split by socket
   if(ierr .ne. MPI_SUCCESS) return
-  call MPI_Comm_rank(sockcomm, sockrank,ierr); 
+  call MPI_Comm_rank(sockcomm, sockrank,ierr);                       ! rank in socket communicator
   if(ierr .ne. MPI_SUCCESS) return
   call MPI_Comm_size(sockcomm, isiz, ierr);                          ! number of PEs on this SMP node (belonging to origcomm)
+  if(ierr .ne. MPI_SUCCESS) return
+
+  call MPI_Comm_rank(origcomm, rank,ierr);                           ! rank of this PE in the original communicator
+  if(ierr .ne. MPI_SUCCESS) return
+  call MPI_Comm_split(origcomm, sockrank, rank, peercomm, ierr)      ! create socket peers communicator
+  if(ierr .ne. MPI_SUCCESS) return
+  call MPI_Comm_rank(peercomm, peerrank,ierr);                       ! rank of this PE in the socket peers communicator
   if(ierr .ne. MPI_SUCCESS) return
 
   err = RPN_COMM_OK
