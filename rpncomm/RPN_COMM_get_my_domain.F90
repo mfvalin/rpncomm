@@ -41,10 +41,11 @@ function RPN_COMM_get_my_domain_2(ndomains, offset) result (domain) !InTf!
   domain = temp
   return
 contains
-  subroutine internal(ndomains, offset)
-    integer, intent(OUT) :: ndomains, offset
+  subroutine internal(ndomains, offset, err)
+    integer, intent(OUT) :: ndomains, offset, err
     ndomains = local_ndomains
     offset = local_offset
+    err = 0
     return
   end subroutine internal
 end function RPN_COMM_get_my_domain_2                           !InTf!

@@ -144,7 +144,7 @@ subroutine RPN_COMM_split_by_socket(origcomm, nodecomm, sockcomm, peercomm, node
 
   err = RPN_COMM_ERROR      ! precondition for failure
   call get_logical_cpu_configuration(lcpus, sockets_per_node, nnuma, ht, map)
-  socket = noderank / sockets_per_node
+  socket = noderank / (lcpus/sockets_per_node)          ! rank_on_node / cpus_per_socket
 !   if(noderank < isiz / 2 ) then
 !     socket = 0
 !   else
