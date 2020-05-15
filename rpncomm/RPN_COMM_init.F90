@@ -608,21 +608,22 @@
 !      contains
 
       end FUNCTION RPN_COMM_init_multi_level                        !InTf!
-      integer function RPN_COMM_get_a_free_unit()                   !InTf!
+! the following 2 functions have been moved to their own source file
+      integer function RPN_COMM_get_a_free_unit_x()                   !InTf!
       implicit none
       integer :: i
       character (len=16) :: access_mode
-	RPN_COMM_get_a_free_unit=-1
+	RPN_COMM_get_a_free_unit_x=-1
 	do i = 99,1,-1  ! find an available unit number
 	  inquire(UNIT=i,ACCESS=access_mode)
 	  if(trim(access_mode) == 'UNDEFINED')then ! found
-	    RPN_COMM_get_a_free_unit = i
+	    RPN_COMM_get_a_free_unit_x = i
 	    exit
 	  endif
 	enddo
       return
-      end function RPN_COMM_get_a_free_unit                         !InTf!
-      function RPN_COMM_set_timeout_alarm(seconds) result(seconds_since)  !InTf!
+      end function RPN_COMM_get_a_free_unit_x                         !InTf!
+      function RPN_COMM_set_timeout_alarm_x(seconds) result(seconds_since)  !InTf!
       use ISO_C_BINDING
       implicit none
       integer, intent(IN) :: seconds  !InTf!
@@ -640,4 +641,4 @@
       seconds_since = c_alarm(seconds)
 !      print *,'alarm set to ',seconds,' seconds'
       return
-      end function RPN_COMM_set_timeout_alarm                             !InTf!
+      end function RPN_COMM_set_timeout_alarm_x                             !InTf!
