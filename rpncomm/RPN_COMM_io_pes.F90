@@ -38,7 +38,7 @@
 !   - setno     = free_ioset(setno)
 !   - setno     = create_ioset(npes,method)
 !******
-!****P* rpn_comm/io_pe  (IO PE sets management package)
+!****P* RPN_COMM/io_pe  management routines for  IO PE sets
 ! FUNCTION
 !   Create, free, manage sets of processes used to perform IO (or other) operations
 !   in the RPN_COMM library (version 4.5.16 and above)

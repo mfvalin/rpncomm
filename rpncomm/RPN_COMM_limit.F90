@@ -24,6 +24,8 @@ end
 ! ! Boston, MA 02111-1307, USA.
 ! !/
       subroutine RPN_COMM_test_limit(NPE)
+!****f* RPN_COMM/Use Example
+! EXAMPLE
       implicit none
       integer, intent(IN) :: NPE
 !      integer, parameter :: NPE=6
@@ -70,6 +72,7 @@ end
         print 101, 'offst=',offset
         print *,''
       enddo
+!******
       print *, '---------------------------'
 101   format(A,10I6)
 102   format(A,10A6)
@@ -111,31 +114,40 @@ end
 !**function  RPN_COMM_limit_2 global domain decomposition function (along one dimension)
 !InTf!
 !!integer function RPN_COMM_limit_2(my_id, npe, gmin, gmax,lmini,lmaxi,count, offset,relax)!InTf!
+!****f* RPN_COMM/RPN_COMM_limit_2
+! SYNOPSIS
       integer function RPN_COMM_limit_2(my_id, npe, gmin, gmax, &
      &     lmini,lmaxi,count, offset,relax)
+! AUTHOR
+!  M.Valin Recherche en Prevision Numerique 2015
+! IGNORE
       implicit none                                                !InTf!
 !
-!arguments
-!  I	my_id   "tile" ordinal along decomposition axis (0 to npe-1)
-!  I    npe    number of "tiles" (PEs) along this dimension
-!  I    gmin,gmax
+! ARGUMENTS
+!  IN   my_id   "tile" ordinal along decomposition axis (0 -> npe-1)
+!  IN   npe    number of "tiles" (PEs) along this dimension
+!  IN   gmin,gmax
 !              global index space along this dimension is gmin:gmax (usually 1:n)
-!  O    lmini,lmaxi
+!  OUT  lmini,lmaxi
 !              this "tile" will cover index range lmini:lmaxi in global space
-!  O    count(1:npe)
+!  OUT  count(1:npe)
 !              count(i) = number of points along this dimension for PE with ordinal I-1
-!  O   offset(1:npe)
+!  OUT  offset(1:npe)
 !              offset(i) = offset from gmin for PE with ordinal I-1
-!  I    relax  decomposition mode
+!  IN   relax  decomposition mode
 !          0 : strict mode, all tiles but last one must have same dimension, 
 !              last tile may be shorter but may not have zero dimension
-!          1 : some tiles at end 1 shorter than tiles at beginning, zero size not allowed for these tiles
-!          2 : same as relax=1 but zero dimension tiles at end are allowed (usefule only if more PEs than points)
-!          3 : tiles with same length followed by a shorter tile followed by zero size tiles
+!          1 : some tiles at end may be 1 shorter than tiles at beginning, 
+!              zero size not allowed for these shorter tiles
+!          2 : same as relax=1 but zero dimension tiles at end are allowed 
+!              (useful only if more PEs than points)
+!          3 : tiles with same length possibly followed by ONE shorter tile 
+!              possibly followed by ONE or MORE zero size tiles
 !
-!notes
+! Notes
 !     this function is totally stand alone and could eventually be moved into the rmnlib library
-!     mode 2 only makes sense when more PEs than points
+!     mode 2 only makes sense when one has more PEs than points
+!******
 !*
       integer, intent(IN) ::  my_id, npe, gmin, gmax, relax         !InTf!
       integer, intent(OUT) :: lmini,lmaxi                           !InTf!
@@ -199,15 +211,21 @@ end
       return
       end function RPN_COMM_limit_2                       !InTf!
 !InTf!
-!     old function, calls newer RPN_COMM_limit_2 forcing STRICT decomposition mode
-!     kept for compatibility with older versions of this library
 !!integer function RPN_COMM_limit(my_id, npe, gmin, gmax, lmini,lmaxi,count, offset) !InTf!
-      integer function RPN_COMM_limit(my_id, npe, gmin, gmax, lmini,&   ! old entry point
+!****f* RPN_COMM/RPN_COMM_limit
+! SYNOPSIS
+      integer function RPN_COMM_limit(my_id, npe, gmin, gmax, lmini,&
      &     lmaxi,count, offset)
+! IGNORE
       implicit none                                        !InTf!
+! ARGUMENTS
       integer, intent(IN) ::  my_id, npe, gmin, gmax       !InTf!
       integer, intent(OUT) :: lmini,lmaxi                  !InTf!
       integer, intent(OUT) :: count(npe),offset(npe)       !InTf!
+! Notes
+!     old function, calls newer RPN_COMM_limit_2 forcing STRICT decomposition mode
+!     kept for compatibility with older versions of this library
+!******
       external RPN_COMM_limit_2
       integer RPN_COMM_limit_2
       RPN_COMM_limit = &
