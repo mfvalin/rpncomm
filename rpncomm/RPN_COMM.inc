@@ -1,5 +1,5 @@
 !/* RPN_COMM - Library of useful routines for C and FORTRAN programming
-! * Copyright (C) 1975-2012  Division de Recherche en Prevision Numerique
+! * Copyright (C) 1975-2020  Division de Recherche en Prevision Numerique
 ! *                          Environnement Canada
 ! *
 ! * This library is free software; you can redistribute it and/or
@@ -19,5 +19,6 @@
 ! */
       include 'RPN_COMM_constants.inc'
       include 'RPN_COMM_types.inc'
+      include 'RPN_COMM_mpi_definitions.inc'
       include 'RPN_COMM_interfaces.inc'
       include 'RPN_COMM_is_null.inc'

@@ -387,7 +387,7 @@ end module RPN_COMM_io_pe_tables
   subroutine RPN_COMM_io_pe_test()
   use rpn_comm
   implicit none
-#include <RPN_COMM_interfaces.inc>
+  include 'RPN_COMM_interfaces.inc'
 #endif
 !****f* rpn_comm/example example code
 ! EXAMPLE
