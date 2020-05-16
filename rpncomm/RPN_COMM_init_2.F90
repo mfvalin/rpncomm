@@ -201,8 +201,13 @@
         call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)              ! size of my subdomain
       endif
 !     --------------------------------------------------------------------------
-!     TODO : take care of IO processors  (they are done at the grid level)
+!     TODO : take care of IO processors  (at the grid level)
 !            "grid" will have to be split into compute and IO processes
+!            will need to look at RPN_COMM_IO_CONFIG environment variable
+!            may have to redefine pe_wcomm to be compute PEs
+!            do we instead want IO at the supergrid level ?
+!            grids will have to cooperate at the supergrid level
+!            my_colors for compute PEs only ?
 !     options:
 !          return to the caller with special code
 !          call user supplied subroutine
@@ -233,7 +238,7 @@
       call MPI_COMM_GROUP(pe_grid_host,pe_gr_grid_host,ierr)   ! group communicator
 !     --------------------------------------------------------------------------
 !     create peer to peer communicators between grids within a multigrid
-!     do we want to include IO processors ? 
+!     do we want to include IO processors ? (probably not)
 !
       my_color = pe_me_grid
       call MPI_COMM_SPLIT(pe_multi_grid,my_color,pe_me_multi_grid,pe_grid_peers,ierr)
