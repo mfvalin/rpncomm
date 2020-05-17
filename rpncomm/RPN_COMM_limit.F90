@@ -30,6 +30,7 @@ end
       integer, intent(IN) :: NPE
 !      integer, parameter :: NPE=6
       integer, dimension(NPE) :: count, offset
+      integer, dimension(70) :: cnt, off
       integer :: my_id, gmin, gmax, lmini, lmaxi, status
       integer :: RPN_COMM_limit_2
       external :: RPN_COMM_limit_2
@@ -110,6 +111,28 @@ end
       print 101, 'count=',count
       print 101, 'offst=',offset
       print *, '---------------------------'
+      gmax = 209
+      status = RPN_COMM_limit_2(69, 70, gmin, gmax,lmini,lmaxi,cnt, off,4)
+      print 102, '      ','   ID',' mini',' maxi',' gmin',' gmax','relax',' stat'
+      print 101, 'pe_me=',my_id, lmini,lmaxi, gmin, gmax, 3, status
+      print 103, 'count=',cnt
+      print 101, 'offst=',off(70)
+      print *, '---------------------------'
+      gmax = 199
+      status = RPN_COMM_limit_2(69, 70, gmin, gmax,lmini,lmaxi,cnt, off,4)
+      print 102, '      ','   ID',' mini',' maxi',' gmin',' gmax','relax',' stat'
+      print 101, 'pe_me=',my_id, lmini,lmaxi, gmin, gmax, 3, status
+      print 103, 'count=',cnt
+      print 101, 'offst=',off(70)
+      print *, '---------------------------'
+      gmax = 59
+      status = RPN_COMM_limit_2(69, 70, gmin, gmax,lmini,lmaxi,cnt, off,4)
+      print 102, '      ','   ID',' mini',' maxi',' gmin',' gmax','relax',' stat'
+      print 101, 'pe_me=',my_id, lmini,lmaxi, gmin, gmax, 3, status
+      print 103, 'count=',cnt
+      print 101, 'offst=',off(70)
+      print *, '---------------------------'
+103   format(A,100I2)
       end subroutine RPN_COMM_test_limit
 !**function  RPN_COMM_limit_2 global domain decomposition function (along one dimension)
 !InTf!
@@ -155,15 +178,28 @@ end
 
       integer gtot
       integer val1, val2, i
+      real :: delta
 
       lmini = -1
       lmaxi = -1
       gtot = gmax - gmin + 1    ! number of points to be distributed
+      offset(1) = 0
+
+      if(relax == 4)then        ! spread as evenly as we can
+        val1 = gtot / npe       ! floor(gtot/npe)
+        count = val1
+        val2 = gtot - val1*npe  ! remainder ( <npe )
+        delta = float(npe) / float(val2) ! > 1.0
+        do i = 1, val2
+          val1 = nint(i * delta)
+          count(val1) = count(val1) + 1  ! spread the remaining points as evenly as possible
+        enddo
+        goto 666   ! take care of offset, lmini, and lmaxi
+      endif
 
       val1 = (gtot + npe - 1)/npe           ! ceiling(gtot/npe)
       count = val1
       val2 = val1
-      offset(1) = 0
       do i=2,npe
         count(i) = min(count(i),gtot-val2)
         offset(i) = offset(i-1) + count(i-1)

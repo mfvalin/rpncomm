@@ -19,7 +19,7 @@
 ! * Boston, MA 02111-1307, USA.
 ! */
 !InTf!
-        real*8 function RPN_COMM_wtime()            !InTf!
+        real(kind=kind(1.d0)) function RPN_COMM_wtime()            !InTf!
         implicit none                               !InTf!
 !
         include 'mpif.h'

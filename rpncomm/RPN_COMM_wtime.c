@@ -58,11 +58,17 @@ static ticks t0;
 static double cpu_mult=1.0E-9;  /* 1GHz */
 static ticks getticks(void)
 {
+#if defined(__x86_64__)
      unsigned a, d;
      asm("cpuid");
      asm volatile("rdtsc" : "=a" (a), "=d" (d));
 
      return (((ticks)a) | (((ticks)d) << 32));
+#else
+     double MPI_Wtime();
+     ticks tmp = MPI_Wtime() * 1000000.0; // microseconds
+     return tmp;
+#endif
 }
 
 #endif

@@ -21,7 +21,7 @@
         integer, parameter :: RPN_COMM_OK    =  0
         integer, parameter :: RPN_COMM_ERROR = -1
 !
-        integer, parameter :: RPN_COMM_MAGIC = Z'13579BDF'
+        integer, parameter :: RPN_COMM_MAGIC = int( Z'13579BDF', kind=kind(RPN_COMM_MAGIC))
 ! command op codes
         integer, parameter :: RPN_COMM_MASTER = 0
         integer, parameter :: RPN_COMM_GET=12345
