@@ -19,9 +19,9 @@
 ! !/
 !===================================================================
 !InTf!
-!!INTEGER FUNCTION RPN_COMM_init_multi_level_io(Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,Io)  !InTf!
-      INTEGER FUNCTION RPN_COMM_init_multi_level_io&
-     &      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,Io)
+!!INTEGER FUNCTION RPN_COMM_init_multi_level_io(Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,ApplID,Io)
+      INTEGER FUNCTION RPN_COMM_init_multi_level_io &                !InTf!
+      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,ApplID,Io)  !InTf!
       use rpn_comm
       implicit none                                                  !InTf!
       external :: Userinit                                           !InTf!
@@ -29,6 +29,7 @@
       integer, intent(inout) :: Pex,Pey                              !InTf!
       integer, intent(in)    :: MultiGrids                           !InTf!
       integer, intent(in)    :: Grids                                !InTf!
+      integer, intent(in)    :: ApplID                               !InTf!
       integer, intent(in)    :: Io                                   !InTf!
 !arguments
 !  I	Userinit	User routine that will be called by PE 0 to
@@ -42,7 +43,9 @@
 !		it will be set to the proper value upon exit
 !  I    MultiGrids  number of simultaneous MultiGrids (usually 1)
 !  I    Grids   number of grids in MultiGrids
-!  I/O  Io      Io mode ! to be defined
+!  I    ApplID  application ID, positive number
+!  I/O  Io      Io mode (there will be mod(io,10) IO PEs per io/10 compute PEs)
+!               Io = 182 : 2 IO PEs for 18 compute PEs (2 out of 20 PEs are IO PEs)
 !
 !notes
 !	processor topology common /pe/ will be filled here
@@ -60,13 +63,9 @@
       logical ok, allok
       logical RPN_COMM_grank
       integer RPN_COMM_petopo, RPN_COMM_version
-      character *4096 SYSTEM_COMMAND,SYSTEM_COMMAND2
-      character *256 , dimension(:), allocatable :: directories
-      character *256 :: my_directory, my_directory_file
+      character *4096 SYSTEM_COMMAND
       character *32 access_mode
       integer ncolors,my_color,directory_file_num,iun
-      integer,dimension(:,:),allocatable::colors
-      integer,dimension(:),allocatable::colortab
       integer version_marker, version_max, version_min
       integer pe_my_location(8)
       external RPN_COMM_unbind_process
@@ -127,17 +126,27 @@
       pe_tot_all_domains = pe_tot
       call MPI_COMM_GROUP(pe_all_domains,pe_gr_all_domains,ierr)
 !
-      allocate(colortab(0:pe_tot-1))
       my_color = 0
       diag_mode=1
       SYSTEM_COMMAND=" "
       call RPN_COMM_env_var("RPN_COMM_DIAG",SYSTEM_COMMAND)
       if( SYSTEM_COMMAND .ne. " " ) read(SYSTEM_COMMAND,*) diag_mode
 !
-!     if environment variable RPN_COMM_DOM is set, ignore it, deprecated feature
+!     even if environment variable RPN_COMM_DOM is set, ignore it, deprecated feature
+!     domain/appl split is now performed using applid
 !
 !     --------------------------------------------------------------------------
-!     my domain (will always be 0 now)
+!     if appl ID is nonzero and positive, split by application
+!
+      if(applid > 0) then
+        my_color = applid
+        RPN_COMM_init_multi_level_io = my_color
+        call MPI_COMM_SPLIT(WORLD_COMM_MPI,my_color,pe_me,pe_wcomm,ierr)  ! split using appl color
+        call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)               ! my rank
+        call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)              ! size of my appl
+      endif
+!     --------------------------------------------------------------------------
+!     my domain (appl)
       my_colors(1) = my_color
       RPN_COMM_init_multi_level_io = my_color
       pe_a_domain = pe_wcomm
