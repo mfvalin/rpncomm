@@ -28,11 +28,14 @@ RPN_COMM_debug.o
 RPN_COMM_defo.o
 RPN_COMM_diag.o
 RPN_COMM_dist.o
+RPN_COMM_ezwin.o
 RPN_COMM_f2c.o
 RPN_COMM_finalize.o
 RPN_COMM_gather.o
 RPN_COMM_gather_e1y3.o
 RPN_COMM_gatherv.o
+RPN_COMM_get_a_free_unit.o
+RPN_COMM_get_mpi_definitions.o
 RPN_COMM_getenv.o
 RPN_COMM_globalsum.o
 RPN_COMM_grank.o
@@ -42,6 +45,8 @@ RPN_COMM_group.o
 RPN_COMM_halo.o
 RPN_COMM_haloflip.o
 RPN_COMM_init.o
+RPN_COMM_init_2.o
+RPN_COMM_init_helpers.o
 RPN_COMM_io.o
 RPN_COMM_io_dist_coll.o
 RPN_COMM_io_pe_list.o
@@ -70,10 +75,12 @@ RPN_COMM_reduce.o
 RPN_COMM_scatterv.o
 RPN_COMM_send.o
 RPN_COMM_sendrecv.o
+RPN_COMM_set_timeout_alarm.o
 RPN_COMM_shmget.o
 RPN_COMM_size.o
 RPN_COMM_sock.o
 RPN_COMM_split.o
+RPN_COMM_split_by_node.o
 RPN_COMM_spread.o
 RPN_COMM_status_size.o
 RPN_COMM_swapns.o
@@ -96,5 +103,3 @@ RPN_COMM_xch_halon.o
 RPN_COMM_xch_halons.o
 RPN_COMM_xch_halosl.o
 RPN_COMM_xch_halox.o
-RPN_COMM_ezwin.o
-RPN_COMM_split_by_node.o
