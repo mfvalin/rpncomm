@@ -17,7 +17,7 @@
 ! ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! ! Boston, MA 02111-1307, USA.
 ! !/
-subroutine RPN_COMM_get_mpi_definitions(what, ierr)
+subroutine RPN_COMM_get_mpi_definitions(what, ierr)  ! get a copy of MPI definitions
   implicit none
   include 'mpif.h'
   include 'RPN_COMM_mpi_symbols.inc'
@@ -97,3 +97,62 @@ subroutine RPN_COMM_get_mpi_definitions(what, ierr)
 
   return
 end subroutine RPN_COMM_get_mpi_definitions
+
+module RPN_COMM_mpi_layout
+  use ISO_C_BINDING
+  implicit none
+  include 'RPN_COMM_mpi_layout.inc'
+  type(mpi_layout), save :: internal_mpi_layout
+end module RPN_COMM_mpi_layout
+
+subroutine RPN_COMM_get_mpi_layout(what, ierr) ! get a copy on RPN_COMM internal mpi layout (communicators, ranks, sizes)
+  use ISO_C_BINDING
+  use RPN_COMM_mpi_layout
+  implicit none
+  include 'mpif.h'
+  type(mpi_layout), intent(INOUT) :: what
+  integer(C_INT), intent(OUT) :: ierr
+  integer :: i
+
+  ierr = MPI_ERROR
+  if(what%version .ne. layout_version) then
+    write(0,*)'ERROR: (RPN_COMM_get_mpi_layout) version mismatch, expected :',layout_version,' got :',what%version
+    what%version = -1
+    return
+  endif
+  ierr = MPI_SUCCESS
+
+  what = internal_mpi_layout
+  what%comm%sgrd%row       = MPI_COMM_NULL   ! row is not defined for supergrids
+  what%rank%sgrd%row       = -1
+  what%size%sgrd%row       = -1
+  what%comm%sgrd%column    = MPI_COMM_NULL   ! and neither is column
+  what%rank%sgrd%column    = -1
+  what%size%sgrd%column    = -1
+!   what%comm%appl%all       = internal_mpi_layout%comm%appl%all
+!   what%comm%appl%same_node = internal_mpi_layout%comm%appl%same_node
+!   what%comm%appl%same_numa = internal_mpi_layout%comm%appl%same_numa
+! 
+!   what%comm%sgrd%all       = internal_mpi_layout%comm%sgrd%all
+!   what%comm%sgrd%compute   = internal_mpi_layout%comm%sgrd%compute
+!   what%comm%sgrd%service   = internal_mpi_layout%comm%sgrd%service
+!   what%comm%sgrd%same_node = internal_mpi_layout%comm%sgrd%same_node
+!   what%comm%sgrd%same_numa = internal_mpi_layout%comm%sgrd%same_numa
+!   what%comm%sgrd%node_peer = internal_mpi_layout%comm%sgrd%node_peer
+!   what%comm%sgrd%numa_peer = internal_mpi_layout%comm%sgrd%numa_peer
+!   what%comm%sgrd%grid_peer = internal_mpi_layout%comm%sgrd%grid_peer
+!   what%comm%sgrd%row       = MPI_COMM_NULL
+!   what%comm%sgrd%column    = MPI_COMM_NULL
+! 
+!   what%comm%grid%all       = internal_mpi_layout%comm%grid%all
+!   what%comm%grid%compute   = internal_mpi_layout%comm%grid%compute
+!   what%comm%grid%service   = internal_mpi_layout%comm%grid%service
+!   what%comm%grid%same_node = internal_mpi_layout%comm%grid%same_node
+!   what%comm%grid%same_numa = internal_mpi_layout%comm%grid%same_numa
+!   what%comm%sgrd%node_peer = internal_mpi_layout%comm%grid%node_peer
+!   what%comm%grid%numa_peer = internal_mpi_layout%comm%grid%numa_peer
+!   what%comm%grid%grid_peer = internal_mpi_layout%comm%grid%grid_peer
+!   what%comm%grid%row       = internal_mpi_layout%comm%grid%row
+!   what%comm%grid%column    = internal_mpi_layout%comm%grid%column
+  return
+end subroutine RPN_COMM_get_mpi_layout

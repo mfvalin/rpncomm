@@ -1,11 +1,19 @@
 !
 !  mpi_layout structure
 !  table of elements
-!  EXAMPLES :
-   type(mpi_layout) :: l
+!  USAGE :
+!       type(mpi_layout) :: l
+!       integer :: ierr
+!       call RPN_COMM_get_mpi_layout(l, ierr)
+!
+!       internal RPN_COMM MPI information is now available, like:
+!
 !       l%comm%grid%service    ! communicator for service(IO) PEs in a grid
 !       l%rank%sgrd%compute    ! rank in a supergrid compute PEs communicator
+!       l%comm%grid%compute    ! communicator for compute PEs in a grid
+!       l%comm%grid%column     ! grid column communicator
 !       l%size%grid%row        ! size of grid row communicator
+!
 !       |
 !       | APPLICATION, containing M identical supergrids
 !  comm | % appl % all         ! all PEs belonging to an application (model, domain)
@@ -63,8 +71,9 @@
     type(mpigrid)     :: grid          ! basic computation grid
   end type
 ! the three usual associates, communicators, rank, and size
+  integer(C_INT), parameter :: layout_version = 123456
   type, BIND(C) :: mpi_layout
-    integer(C_INT) :: version = 123456
+    integer(C_INT) :: version = layout_version
     type(grid_hierarchy) :: comm       ! communicators
     type(grid_hierarchy) :: rank       ! rank in communicator
     type(grid_hierarchy) :: size       ! size of communicator
