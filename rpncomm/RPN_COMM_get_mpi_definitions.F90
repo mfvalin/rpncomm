@@ -102,7 +102,7 @@ module RPN_COMM_mpi_layout
   use ISO_C_BINDING
   implicit none
   include 'RPN_COMM_mpi_layout.inc'
-  type(mpi_layout), save :: internal_mpi_layout
+  type(mpi_layout), save :: ml
 end module RPN_COMM_mpi_layout
 
 subroutine RPN_COMM_get_mpi_layout(what, ierr) ! get a copy on RPN_COMM internal mpi layout (communicators, ranks, sizes)
@@ -122,37 +122,37 @@ subroutine RPN_COMM_get_mpi_layout(what, ierr) ! get a copy on RPN_COMM internal
   endif
   ierr = MPI_SUCCESS
 
-  what = internal_mpi_layout
+  what = ml
   what%comm%sgrd%row       = MPI_COMM_NULL   ! row is not defined for supergrids
   what%rank%sgrd%row       = -1
   what%size%sgrd%row       = -1
   what%comm%sgrd%column    = MPI_COMM_NULL   ! and neither is column
   what%rank%sgrd%column    = -1
   what%size%sgrd%column    = -1
-!   what%comm%appl%all       = internal_mpi_layout%comm%appl%all
-!   what%comm%appl%same_node = internal_mpi_layout%comm%appl%same_node
-!   what%comm%appl%same_numa = internal_mpi_layout%comm%appl%same_numa
+!   what%comm%appl%all       = ml%comm%appl%all
+!   what%comm%appl%same_node = ml%comm%appl%same_node
+!   what%comm%appl%same_numa = ml%comm%appl%same_numa
 ! 
-!   what%comm%sgrd%all       = internal_mpi_layout%comm%sgrd%all
-!   what%comm%sgrd%compute   = internal_mpi_layout%comm%sgrd%compute
-!   what%comm%sgrd%service   = internal_mpi_layout%comm%sgrd%service
-!   what%comm%sgrd%same_node = internal_mpi_layout%comm%sgrd%same_node
-!   what%comm%sgrd%same_numa = internal_mpi_layout%comm%sgrd%same_numa
-!   what%comm%sgrd%node_peer = internal_mpi_layout%comm%sgrd%node_peer
-!   what%comm%sgrd%numa_peer = internal_mpi_layout%comm%sgrd%numa_peer
-!   what%comm%sgrd%grid_peer = internal_mpi_layout%comm%sgrd%grid_peer
+!   what%comm%sgrd%all       = ml%comm%sgrd%all
+!   what%comm%sgrd%compute   = ml%comm%sgrd%compute
+!   what%comm%sgrd%service   = ml%comm%sgrd%service
+!   what%comm%sgrd%same_node = ml%comm%sgrd%same_node
+!   what%comm%sgrd%same_numa = ml%comm%sgrd%same_numa
+!   what%comm%sgrd%node_peer = ml%comm%sgrd%node_peer
+!   what%comm%sgrd%numa_peer = ml%comm%sgrd%numa_peer
+!   what%comm%sgrd%grid_peer = ml%comm%sgrd%grid_peer
 !   what%comm%sgrd%row       = MPI_COMM_NULL
 !   what%comm%sgrd%column    = MPI_COMM_NULL
 ! 
-!   what%comm%grid%all       = internal_mpi_layout%comm%grid%all
-!   what%comm%grid%compute   = internal_mpi_layout%comm%grid%compute
-!   what%comm%grid%service   = internal_mpi_layout%comm%grid%service
-!   what%comm%grid%same_node = internal_mpi_layout%comm%grid%same_node
-!   what%comm%grid%same_numa = internal_mpi_layout%comm%grid%same_numa
-!   what%comm%sgrd%node_peer = internal_mpi_layout%comm%grid%node_peer
-!   what%comm%grid%numa_peer = internal_mpi_layout%comm%grid%numa_peer
-!   what%comm%grid%grid_peer = internal_mpi_layout%comm%grid%grid_peer
-!   what%comm%grid%row       = internal_mpi_layout%comm%grid%row
-!   what%comm%grid%column    = internal_mpi_layout%comm%grid%column
+!   what%comm%grid%all       = ml%comm%grid%all
+!   what%comm%grid%compute   = ml%comm%grid%compute
+!   what%comm%grid%service   = ml%comm%grid%service
+!   what%comm%grid%same_node = ml%comm%grid%same_node
+!   what%comm%grid%same_numa = ml%comm%grid%same_numa
+!   what%comm%sgrd%node_peer = ml%comm%grid%node_peer
+!   what%comm%grid%numa_peer = ml%comm%grid%numa_peer
+!   what%comm%grid%grid_peer = ml%comm%grid%grid_peer
+!   what%comm%grid%row       = ml%comm%grid%row
+!   what%comm%grid%column    = ml%comm%grid%column
   return
 end subroutine RPN_COMM_get_mpi_layout

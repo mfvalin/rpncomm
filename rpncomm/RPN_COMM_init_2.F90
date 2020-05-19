@@ -19,10 +19,14 @@
 ! !/
 !===================================================================
 !InTf!
-!!INTEGER FUNCTION RPN_COMM_init_multi_level_io(Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,ApplID,Io)
-      INTEGER FUNCTION RPN_COMM_init_multi_level_io &                !InTf!
+!
+! multiple levels initialization function application/supergrid/grid/block
+!
+!!INTEGER FUNCTION RPN_COMM_init_all_levels(Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,ApplID,Io)
+      INTEGER FUNCTION RPN_COMM_init_all_levels &                !InTf!
       (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,ApplID,Io)  !InTf!
       use rpn_comm
+      use RPN_COMM_mpi_layout
       implicit none                                                  !InTf!
       external :: Userinit                                           !InTf!
       integer, intent(out)   :: Pelocal,Petotal                      !InTf!
@@ -89,13 +93,18 @@
            WORLD_COMM_MPI_INIT=.true.
            WORLD_COMM_MPI=MPI_COMM_WORLD
       endif
-      RPN_COMM_init_multi_level_io = 0
+      RPN_COMM_init_all_levels = 0
       ok = .true.
 
-      call MPI_INITIALIZED(mpi_started,ierr)
-      status = RPN_COMM_set_timeout_alarm(60)
+      call MPI_INITIALIZED(mpi_started,ierr)      ! is the MPI library already initialized ?
+      status = RPN_COMM_set_timeout_alarm(60)     ! maximum of 60 seconds for MPI_init
       if (.not. mpi_started ) call MPI_init(ierr)
-      status = RPN_COMM_set_timeout_alarm(0)
+      status = RPN_COMM_set_timeout_alarm(0)      ! timeout reset to infinity (no timeout)
+
+      ml%comm%wrld%all = WORLD_COMM_MPI
+      call MPI_COMM_RANK(ml%comm%wrld%all, ml%rank%wrld%all, ierr)
+      call MPI_COMM_SIZE(ml%size%wrld%all, ml%size%wrld%all, ierr)
+
       pe_wcomm=WORLD_COMM_MPI                     ! UNIVERSE at this point
       call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)     ! rank in UNIVERSE
       call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)    ! size of UNIVERSE
@@ -109,7 +118,7 @@
           close(iun)
         endif
       endif
-      call RPN_COMM_unbind_process ! unbind processes if applicable (FULL_UNBIND environment variable, linux pnly)
+      call RPN_COMM_unbind_process ! unbind processes if requested (FULL_UNBIND environment variable, linux only)
 
 !     check that all Processes use the same version of rpn_comm
       version_marker=RPN_COMM_version()
@@ -136,19 +145,17 @@
 !     domain/appl split is now performed using applid
 !
 !     --------------------------------------------------------------------------
-!     if appl ID is nonzero and positive, split by application
+!     split by application
 !
-      if(applid > 0) then
-        my_color = applid
-        RPN_COMM_init_multi_level_io = my_color
-        call MPI_COMM_SPLIT(WORLD_COMM_MPI,my_color,pe_me,pe_wcomm,ierr)  ! split using appl color
-        call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)               ! my rank
-        call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)              ! size of my appl
-      endif
+      my_color = applid
+      RPN_COMM_init_all_levels = my_color
+      call MPI_COMM_SPLIT(WORLD_COMM_MPI,my_color,pe_me,pe_wcomm,ierr)  ! split using appl color
+      call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)               ! my rank
+      call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)              ! size of my appl
 !     --------------------------------------------------------------------------
 !     my domain (appl)
       my_colors(1) = my_color
-      RPN_COMM_init_multi_level_io = my_color
+      RPN_COMM_init_all_levels = my_color
       pe_a_domain = pe_wcomm
       pe_me_a_domain = pe_me
       pe_tot_a_domain = pe_tot
@@ -176,7 +183,7 @@
       my_color = 0
       if(MultiGrids .gt. 1) then
         my_color=pe_me/(pe_tot/MultiGrids)
-        RPN_COMM_init_multi_level_io = my_color
+        RPN_COMM_init_all_levels = my_color
         call MPI_COMM_SPLIT(pe_a_domain,my_color,pe_me,pe_wcomm,ierr)
         call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)               ! my rank
         call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)              ! size of my subdomain
@@ -203,7 +210,7 @@
         Pelocal = pe_me                                       ! rank in my domain
         Petotal = pe_tot                                      ! number of pes in domain
         my_color=pe_me/(pe_tot/Grids)
-        RPN_COMM_init_multi_level_io = my_color
+        RPN_COMM_init_all_levels = my_color
         call MPI_COMM_SPLIT(pe_multi_grid,my_color,&
      &                      pe_me_multi_grid,pe_wcomm,ierr)
         call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)               ! my rank
@@ -422,4 +429,4 @@
       return
 !      contains
 
-      end FUNCTION RPN_COMM_init_multi_level_io                        !InTf!
+      end FUNCTION RPN_COMM_init_all_levels                        !InTf!

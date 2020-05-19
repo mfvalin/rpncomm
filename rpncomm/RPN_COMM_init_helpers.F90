@@ -73,3 +73,21 @@
       return
       end subroutine RPN_COMM_world_set                            !InTf!
 !===================================================================
+      subroutine RPN_COMM_get_core_and_numa(core, numa)            !InTf!
+      use ISO_C_BINDING
+      implicit none                                                !InTf!
+      integer, intent(OUT) ::  core, numa                          !InTf!
+      interface
+        function sched_get_my_cpu() result (cpu) bind(C,name='sched_getcpu')
+          import :: C_INT
+          integer(C_INT) :: cpu
+        end function sched_get_my_cpu
+        function numa_get_my_node(cpu) result (numa) bind(C,name='numa_node_of_cpu')
+          import :: C_INT
+          integer(C_INT), intent(IN), value :: cpu
+          integer(C_INT) :: numa
+        end function numa_get_my_node
+      end interface
+      core = sched_get_my_cpu()
+      numa = numa_get_my_node(core)
+      end subroutine RPN_COMM_get_core_and_numa                    !InTf!
