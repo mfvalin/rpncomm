@@ -88,6 +88,7 @@
     integer(C_INT) :: all              ! all PEs, compute and service
     integer(C_INT) :: compute          ! compute PEs
     integer(C_INT) :: service          ! service (Input/Output) PEs
+    integer(C_INT) :: color            ! ordinal of grid in supergrid or ordinal of supergrid in application
     integer(C_INT) :: same_node        ! PEs in same SMP node (compute and service)
     integer(C_INT) :: same_numa        ! PEs in same numa space (compute and service)
     integer(C_INT) :: node_peer        ! node to node peer (PEs with same rank in node)
@@ -101,6 +102,7 @@
     integer(C_INT) :: all              ! all PEs, compute and service
     integer(C_INT) :: same_node        ! PEs in same SMP node (compute and service)
     integer(C_INT) :: same_numa        ! PEs in same numa space (compute and service)
+    integer(C_INT) :: color            ! application id (color)
   end type
 ! the sets of information
   type, BIND(C) :: grid_hierarchy

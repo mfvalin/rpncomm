@@ -22,9 +22,9 @@
 !
 ! multiple levels initialization function application/supergrid/grid/block
 !
-!!INTEGER FUNCTION RPN_COMM_init_all_levels(Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,ApplID,Io)
-      INTEGER FUNCTION RPN_COMM_init_all_levels &                !InTf!
-      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,ApplID,Io)  !InTf!
+!!INTEGER FUNCTION RPN_COMM_init_all_levels(Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,AppID,Io)
+      INTEGER FUNCTION RPN_COMM_init_all_levels &                    !InTf!
+      (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids,AppID,Io)   !InTf!
       use rpn_comm
       use RPN_COMM_mpi_layout
       implicit none                                                  !InTf!
@@ -33,7 +33,7 @@
       integer, intent(inout) :: Pex,Pey                              !InTf!
       integer, intent(in)    :: MultiGrids                           !InTf!
       integer, intent(in)    :: Grids                                !InTf!
-      integer, intent(in)    :: ApplID                               !InTf!
+      character(len=*)       :: AppID                                !InTf!
       integer, intent(in)    :: Io                                   !InTf!
 !arguments
 !  I	Userinit	User routine that will be called by PE 0 to
@@ -47,7 +47,7 @@
 !		it will be set to the proper value upon exit
 !  I    MultiGrids  number of simultaneous MultiGrids (usually 1)
 !  I    Grids   number of grids in MultiGrids
-!  I    ApplID  application ID, positive number
+!  I    ApplID  application ID, alphanumeric character string, 5 chars max
 !  I/O  Io      Io mode (there will be mod(io,10) IO PEs per io/10 compute PEs)
 !               Io = 182 : 2 IO PEs for 18 compute PEs (2 out of 20 PEs are IO PEs)
 !
@@ -74,9 +74,12 @@
       integer pe_my_location(8)
       external RPN_COMM_unbind_process
       integer, external :: RPN_COMM_get_a_free_unit, RPN_COMM_set_timeout_alarm, fnom
+      character(len=63) :: t63
+      character(len=5) :: t5
+      integer :: ApplID
 !
-!      if(RPM_COMM_IS_INITIALIZED) then ! ignore with warning message or abort ?
-!      endif
+      t63 = " 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      t5  = t63
       pe_indomm=-1
       pe_indomms=-1
       pe_dommtot=-1
@@ -100,15 +103,21 @@
       status = RPN_COMM_set_timeout_alarm(60)     ! maximum of 60 seconds for MPI_init
       if (.not. mpi_started ) call MPI_init(ierr)
       status = RPN_COMM_set_timeout_alarm(0)      ! timeout reset to infinity (no timeout)
-
-      ml%comm%wrld%all = WORLD_COMM_MPI
+!
+!     all applications (domains)
+!     NEW style
+      ml%comm%wrld%all = WORLD_COMM_MPI           ! the UNIVERSE 
       call MPI_COMM_RANK(ml%comm%wrld%all, ml%rank%wrld%all, ierr)
       call MPI_COMM_SIZE(ml%size%wrld%all, ml%size%wrld%all, ierr)
-
+!     OLD style
       pe_wcomm=WORLD_COMM_MPI                     ! UNIVERSE at this point
       call MPI_COMM_RANK(pe_wcomm,pe_me,ierr)     ! rank in UNIVERSE
       call MPI_COMM_SIZE(pe_wcomm,pe_tot,ierr)    ! size of UNIVERSE
-
+      pe_all_domains = pe_wcomm
+      pe_me_all_domains = pe_me
+      pe_tot_all_domains = pe_tot
+      call MPI_COMM_GROUP(pe_all_domains,pe_gr_all_domains,ierr)
+!
       if(pe_me == 0)then                   
         call RPN_COMM_env_var("RPN_COMM_MONITOR",SYSTEM_COMMAND)
         if(SYSTEM_COMMAND .ne. " ") then
@@ -119,27 +128,23 @@
         endif
       endif
       call RPN_COMM_unbind_process ! unbind processes if requested (FULL_UNBIND environment variable, linux only)
-
-!     check that all Processes use the same version of rpn_comm
-      version_marker=RPN_COMM_version()
-      call mpi_allreduce(version_marker, version_max, 1, MPI_INTEGER,&
-     &                   MPI_BOR, WORLD_COMM_MPI, ierr)
-      if(version_max .ne. version_marker)then
-        write(rpn_u,*) 'ERROR: RPN_COMM version mismatch, ABORTING execution'
-        call mpi_finalize(ierr)
-        stop
-      endif
-!     all domains
-      pe_all_domains = pe_wcomm
-      pe_me_all_domains = pe_me
-      pe_tot_all_domains = pe_tot
-      call MPI_COMM_GROUP(pe_all_domains,pe_gr_all_domains,ierr)
 !
-      my_color = 0
+!     set diagnostic mode
       diag_mode=1
       SYSTEM_COMMAND=" "
       call RPN_COMM_env_var("RPN_COMM_DIAG",SYSTEM_COMMAND)
       if( SYSTEM_COMMAND .ne. " " ) read(SYSTEM_COMMAND,*) diag_mode
+!
+!     check that all Processes use the same version of rpn_comm
+      version_marker=RPN_COMM_version()
+      call mpi_allreduce(version_marker, version_max, 1, MPI_INTEGER, MPI_BOR, WORLD_COMM_MPI, ierr)
+      if(version_max .ne. version_marker)then
+        write(rpn_u,*) 'ERROR: RPN_COMM version mismatch, PLS recompile, ABORTING execution'
+        call mpi_finalize(ierr)
+        stop
+      endif
+!
+      my_color = 0
 !
 !     even if environment variable RPN_COMM_DOM is set, ignore it, deprecated feature
 !     domain/appl split is now performed using applid
