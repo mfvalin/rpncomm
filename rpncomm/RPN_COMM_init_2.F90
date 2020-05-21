@@ -80,10 +80,11 @@
       character *32 access_mode
       integer ncolors,my_color,directory_file_num,iun
       integer version_marker, version_max, version_min
-      integer pe_my_location(8)
+      integer pe_my_location(10)
       external RPN_COMM_unbind_process
       integer, external :: RPN_COMM_get_a_free_unit, RPN_COMM_set_timeout_alarm
       integer :: ApplID
+      character(len=5) :: appid5
 !
 !     build application (domain) "color" from first 5 (at most) characters of AppID
       ApplID = 0
@@ -405,7 +406,7 @@ if(pe_me == 0) print *,'application split done'
       pe_pe0 = 0
       pe_dommtot = pe_tot
       call MPI_COMM_GROUP(pe_wcomm,pe_gr_wcomm,ierr)
-if(pe_me == 0) print *,'grid split done'
+! if(pe_me == 0) print *,'grid split done'
 !     --------------------------------------------------------------------------
 !     Grid initialization (compute PEs) 
 !     get PEs along X and Y
@@ -506,19 +507,32 @@ if(pe_me == 0) print *,'grid split done'
       pe_my_location(6) = my_colors(2)
       pe_my_location(7) = pe_me_a_domain
       pe_my_location(8) = my_colors(1)
-      allocate(pe_location(8,0:pe_tot-1))
+      pe_my_location(9) = ml%host
+      pe_my_location(10)= ml%numa
+
+      pe_tot = ml%size%wrld%all
+print *,'pe_tot =',pe_tot
+! diag_mode = 3
+      allocate(pe_location(10,0:pe_tot-1))
       call MPI_allgather( &
-     &     pe_my_location,8,MPI_INTEGER, &
-     &     pe_location,   8,MPI_INTEGER, &
+     &     pe_my_location,10,MPI_INTEGER, &
+     &     pe_location,   10,MPI_INTEGER, &
      &     WORLD_COMM_MPI, ierr)
       if( pe_me_all_domains .eq. 0 .and. diag_mode .ge.3) then
         write(rpn_u,*)'                         FULL PE MAP'
-        write(rpn_u,*)'    mex     mey   me(g)    grid  me(sg)   sgrid   me(d)  domain'
+        write(rpn_u,*)'    mex     mey   me(g)    grid  me(sg)   sgrid   me(d)  domain host   numa'
         do j=0,pe_tot_all_domains-1
-           write(rpn_u,1001)(pe_location(i,j),i=1,8)
-1001       format(8I8)
+           appid5 = '     '
+           reste = pe_location(8,j)
+           do i = 5, 1, -1
+             appid5(i:i) = char(32 + mod(reste,64))
+             reste = reste / 64
+           enddo
+           write(rpn_u,1001)pe_location(1:8,j),appid5,pe_location(9:10,j)
+1001       format(7I8,I12,3X,A5,Z9,I3)
         enddo
       endif
+      deallocate(pe_location)
 !     --------------------------------------------------------------------------
 !     PE blocks, initialized to 1 x 1 blocks
       BLOC_EXIST   =.false.
