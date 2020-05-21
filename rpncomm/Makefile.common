@@ -16,14 +16,14 @@
 	echo call rpn_comm_$(basename $<) >> test.f90 ; \
 	echo stop >>test.f90 ;
 	echo end >>test.f90 ; \
-	$(MPIF90C) $(OPENMP) $(FCFLAGS) -o $@ test.f90 $< -L$(LIBDIR) -l$(LIBNAME) $(MPI_SERIAL_LIB) ; \
+	$(MPIF90C) $(OPENMP) $(FCFLAGS) -o $@ test.f90 $< -L$(LIBDIR) -l$(LIBNAME) $(MPI_SERIAL_LIB) -lnuma ; \
 	cat test.f90 ; rm -f test.f90
 .o.Abs-serial:
 	echo program P_$(basename $<) > test.f90 ; \
 	echo call rpn_comm_$(basename $<) >> test.f90 ; \
 	echo stop >>test.f90 ;
 	echo end >>test.f90 ; \
-	$(MPIF90C) $(OPENMP) $(FCFLAGS) -o $@ test.f90 $< -L$(LIBDIR) -l$(LIBNAME) $(MPI_SERIAL_LIB) ; \
+	$(MPIF90C) $(OPENMP) $(FCFLAGS) -o $@ test.f90 $< -L$(LIBDIR) -l$(LIBNAME) $(MPI_SERIAL_LIB) -lnuma; \
 	cat test.f90 ; rm -f test.f90
 
 ifeq (,$(VPATH))

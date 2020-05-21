@@ -37,7 +37,7 @@
 !
 !  user defined type containing frequently used MPI symbols
 !
-  integer, parameter :: mpi_symbols_version = 10000 ! version 1.00.00
+  integer, parameter :: mpi_symbols_version = 100002 ! version 1.00.00
   type :: RPN_COMM_mpi_definitions
     integer :: version = mpi_symbols_version
     !
@@ -54,7 +54,7 @@
     integer :: MPI_SUCCESS, MPI_ERROR
 
     integer :: MPI_COMM_WORLD, MPI_COMM_SELF
-    integer :: MPI_GROUP_EMPTY
+    integer :: MPI_GROUP_EMPTY, MPI_COMM_TYPE_SHARED
     integer :: MPI_ERRORS_ARE_FATAL, MPI_ERRORS_RETURN
     !
     !     data types

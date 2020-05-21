@@ -47,6 +47,7 @@ subroutine RPN_COMM_get_mpi_definitions(what, ierr)  ! get a copy of MPI definit
   what%MPI_COMM_WORLD = MPI_COMM_WORLD
   what%MPI_COMM_SELF = MPI_COMM_SELF
   what%MPI_GROUP_EMPTY = MPI_GROUP_EMPTY
+  what%MPI_COMM_TYPE_SHARED = MPI_COMM_TYPE_SHARED
   what%MPI_ERRORS_ARE_FATAL = MPI_ERRORS_ARE_FATAL
   what%MPI_ERRORS_RETURN = MPI_ERRORS_RETURN
   what%MPI_BYTE = MPI_BYTE
@@ -104,6 +105,58 @@ module RPN_COMM_mpi_layout
   include 'RPN_COMM_mpi_layout.inc'
   type(mpi_layout), save :: ml
 end module RPN_COMM_mpi_layout
+
+! initialize RPN_COMM internal mpi layout (communicators, ranks, sizes)
+subroutine RPN_COMM_reset_mpi_layout() 
+  use RPN_COMM_mpi_layout
+  implicit none
+  include 'mpif.h'
+  interface
+    function get_host_id() result(h) bind(C,name='gethostid')
+      import :: C_LONG
+      integer(C_LONG) :: h
+    end function get_host_id
+    function numa_node(cpu) result(n) bind(C,name='numa_node_of_cpu')
+      import :: C_INT
+      integer(C_INT), intent(IN), value :: cpu
+      integer(C_INT) :: n
+    end function 
+    function get_my_cpu() result(c) bind(C,name='sched_getcpu')
+      import :: C_INT
+      integer(C_INT) :: c
+    end function get_my_cpu
+  end interface
+  integer :: cpu
+
+  ml%host = get_host_id()              ! get linux host id
+  cpu = get_my_cpu()                   ! get logical cpu number
+  ml%numa = numa_node(cpu)             ! get numa space number for this cpu
+  ml%colors = [-1, -1, -1]
+
+  ml%comm%wrld = application(MPI_COMM_NULL, MPI_COMM_NULL, MPI_COMM_NULL)
+  ml%rank%wrld = application(-1, -1, -1)
+  ml%size%wrld = application(-1, -1, -1)
+
+  ml%comm%appl = ml%comm%wrld
+  ml%rank%appl = ml%rank%wrld
+  ml%size%appl = ml%size%wrld
+
+  ml%comm%sgrd = mpigrid(MPI_COMM_NULL, MPI_COMM_NULL, MPI_COMM_NULL, MPI_COMM_NULL, &
+			 MPI_COMM_NULL, MPI_COMM_NULL, MPI_COMM_NULL, MPI_COMM_NULL, &
+			 MPI_COMM_NULL, MPI_COMM_NULL)
+  ml%rank%sgrd = mpigrid(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
+  ml%size%sgrd = mpigrid(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1)
+
+  ml%comm%grid = ml%comm%sgrd
+  ml%rank%grid = ml%rank%sgrd
+  ml%size%grid = ml%size%sgrd
+
+  ml%comm%blck = subgrid(MPI_COMM_NULL, MPI_COMM_NULL, MPI_COMM_NULL)
+  ml%rank%blck = subgrid(-1, -1, -1)
+  ml%size%blck = subgrid(-1, -1, -1)
+
+  return
+end subroutine RPN_COMM_reset_mpi_layout
 
 subroutine RPN_COMM_get_mpi_layout(what, ierr) ! get a copy on RPN_COMM internal mpi layout (communicators, ranks, sizes)
   use ISO_C_BINDING

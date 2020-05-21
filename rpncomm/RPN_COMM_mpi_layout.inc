@@ -38,6 +38,7 @@
 !  version                     ! version marker (consistency check between compilation and runtime)
 !  host                        ! host id for this host
 !  numa                        ! numa space on host for this PE
+!  colors(3)                   ! colors(1) : application id, colors(2) : supergrid ordinal, colors(3) : grid ordinal
 !       |
 !       | WORLD, all PEs from all applications, compute and service
 !       | % wrld % all         ! all PEs in all domains
@@ -88,7 +89,6 @@
     integer(C_INT) :: all              ! all PEs, compute and service
     integer(C_INT) :: compute          ! compute PEs
     integer(C_INT) :: service          ! service (Input/Output) PEs
-    integer(C_INT) :: color            ! ordinal of grid in supergrid or ordinal of supergrid in application
     integer(C_INT) :: same_node        ! PEs in same SMP node (compute and service)
     integer(C_INT) :: same_numa        ! PEs in same numa space (compute and service)
     integer(C_INT) :: node_peer        ! node to node peer (PEs with same rank in node)
@@ -102,7 +102,6 @@
     integer(C_INT) :: all              ! all PEs, compute and service
     integer(C_INT) :: same_node        ! PEs in same SMP node (compute and service)
     integer(C_INT) :: same_numa        ! PEs in same numa space (compute and service)
-    integer(C_INT) :: color            ! application id (color)
   end type
 ! the sets of information
   type, BIND(C) :: grid_hierarchy
@@ -112,12 +111,13 @@
     type(mpigrid)     :: grid          ! basic computation grid
     type(subgrid)     :: blck          ! block of PEs inside a grid (subgrid)
   end type
-! the three usual associates, communicators, rank, and size
-  integer(C_INT), parameter :: layout_version = 10000 ! version 1.00.00
+! the three usual associates, communicators, rank, and size + general info
+  integer(C_INT), parameter :: layout_version = 100001 ! version 1.00.00
   type, BIND(C) :: mpi_layout
     integer(C_INT) :: version = layout_version
     integer(C_INT) :: host             ! SMP host id
     integer(C_INT) :: numa             ! numa space for this PE
+    integer(C_INT) :: colors(3)        ! application / supergrid / grid "color"
     type(grid_hierarchy) :: comm       ! communicators
     type(grid_hierarchy) :: rank       ! rank in communicator
     type(grid_hierarchy) :: size       ! size of communicator
