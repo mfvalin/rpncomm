@@ -21,12 +21,23 @@
 !
 !	RPN_COMM_chdir : bridge to f_RPN_COMM_chdir, null terminates string before calling C routine
 !
+! may 2020 : use BIND(C) to access chdir, gethostid, and environment variables
+!            this obsoletes RPN_COMM_getenv.c, RPN_COMM_chdir.c
 !InTf!
       integer function RPN_COMM_chdir(string) !InTf!
+      use ISO_C_BINDING
       implicit none                           !InTf!
       character (len=*) :: string             !InTf!
-      integer,external :: f_RPN_COMM_chdir
-      RPN_COMM_chdir=f_RPN_COMM_chdir(trim(string)//achar(0))
+      interface
+        function f_chdir(path) result(status) BIND(C,name='chdir')
+          import :: C_INT, C_CHAR
+          character(C_CHAR), dimension(*), intent(IN) :: path
+          integer(C_INT) :: status
+        end function f_chdir
+      end interface
+!       integer,external :: f_RPN_COMM_chdir
+!       RPN_COMM_chdir=f_RPN_COMM_chdir(trim(string)//achar(0))
+      RPN_COMM_chdir=f_chdir(trim(string)//achar(0))
       return
       end function RPN_COMM_chdir             !InTf!
 !
@@ -41,7 +52,9 @@
 
       integer status,length
       value = " "
-      call RPN_COMM_getenv(trim(varname)//achar(0),value,len(value))
+!       call RPN_COMM_getenv(trim(varname)//achar(0),value,len(value))
+      CALL GET_ENVIRONMENT_VARIABLE(varname, value, length, status)
+      if(status .ne. 0) value = " "
       return
       end subroutine RPN_COMM_env_var              !InTf!
 !
@@ -49,8 +62,14 @@
 !
 !InTf!
       integer function RPN_COMM_hostid()       !InTf!
-      use rpn_comm
+      use ISO_C_BINDING
       implicit none                            !InTf!
+      interface
+	function f_gethostid() result(id) BIND(C,name='gethostid')
+	  import :: C_LONG
+	  integer(C_LONG) :: id
+	end function f_gethostid
+      end interface
       RPN_COMM_hostid=f_gethostid()
       return
       end function RPN_COMM_hostid !InTf!

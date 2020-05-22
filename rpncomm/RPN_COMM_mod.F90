@@ -219,7 +219,7 @@ module rpn_comm
 ! get the 32 bit host identifier
 !
   interface
-    integer(C_INT) function f_gethostid()BIND(C,name='gethostid')
+    integer(C_LONG) function f_gethostid()BIND(C,name='gethostid')
       use iso_c_binding
     end function f_gethostid
   end interface
