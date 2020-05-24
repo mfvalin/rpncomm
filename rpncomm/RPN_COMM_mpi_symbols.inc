@@ -76,4 +76,8 @@
     integer :: MPI_MAX, MPI_MIN, MPI_SUM, MPI_PROD, MPI_LAND
     integer :: MPI_BAND, MPI_LOR, MPI_BOR, MPI_LXOR, MPI_BXOR
     integer :: MPI_MAXLOC, MPI_MINLOC, MPI_REPLACE
+    !
+    !     threads
+    !
+    integer :: MPI_THREAD_SINGLE, MPI_THREAD_FUNNELED, MPI_THREAD_SERIALIZED, MPI_THREAD_MULTIPLE
   end type

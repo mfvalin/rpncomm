@@ -95,6 +95,10 @@ subroutine RPN_COMM_get_mpi_definitions(what, ierr)  ! get a copy of MPI definit
   what%MPI_MAXLOC = MPI_MAXLOC
   what%MPI_MINLOC = MPI_MINLOC
   what%MPI_REPLACE = MPI_REPLACE
+  what%MPI_THREAD_SINGLE = MPI_THREAD_SINGLE
+  what%MPI_THREAD_FUNNELED = MPI_THREAD_FUNNELED
+  what%MPI_THREAD_SERIALIZED = MPI_THREAD_SERIALIZED
+  what%MPI_THREAD_MULTIPLE = MPI_THREAD_MULTIPLE
 
   return
 end subroutine RPN_COMM_get_mpi_definitions
