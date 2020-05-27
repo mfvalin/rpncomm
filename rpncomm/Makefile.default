@@ -1,6 +1,7 @@
 $(info using default setup)
 # this is for vanilla gcc/gfortran/mpicc/mpif90 to be adjusted on target system
 
+ifeq (,$(MY_ARCH))
 CFLAGS  = -fpic -O2
 FCFLAGS = -fpic -fno-second-underscore -fcray-pointer -O2
 
@@ -10,6 +11,16 @@ F90C    = fortran
 MPICC   = mpicc
 MPIFC   = mpif77
 MPIF90C = mpif90
+else
+CFLAGS  = $(MY_CFLAGS)
+FCFLAGS = $(MY_FCFLAGS)
+CC      = $(MY_CC)
+FC      = $(MY_FC)
+F90C    = $(MY_F90C)
+MPICC   = $(MY_MPICC)
+MPIFC   = $(MY_MPIFC)
+MPIF90C = $(MY_MPIF90C)
+endif
 
 # end of vanilla gcc/gfortran/mpicc/mpif90 defaults
 
