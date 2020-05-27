@@ -13,9 +13,12 @@ CLEAN    = rpn_comm_fortran_stubs.F90 rpn_comm_c_stubs.c mpi_stub.h \
            $(VPATH)/RPN_COMM_interfaces_int.inc $(VPATH)/dependencies.mk $(VPATH)/dependencies+.mk
 
 CLEANDIRS= $(VPATH)/rpn-comm_$(RPN_COMM_version_s)_multi $(LIBDIR)
-TESTS    = TEST_000.Abs TEST_001.Abs TEST_002.Abs TEST_004.Abs \
-           TEST_005.Abs TEST_006.Abs TEST_007.Abs TEST_008.Abs TEST_009.Abs \
-           TEST_010.Abs TEST_011.Abs
+
+# compute list of test executables to build
+TESTS = $(shell ls $(VPATH)/TEST_0*.[fF]90 | sed -e 's:.*/::' -e 's/[fF]90/Abs/g' | xargs)
+
+tstp:
+	echo $(TESTS)
 
 FMODULES = RPN_COMM_mod.o
 ifeq "$(SERIAL)" ""
@@ -30,7 +33,9 @@ SOURCES  = $(INCDECKS) $(CDECKS) $(FDECKS) $(HDECKS) $(F90DECKS)
 
 DISTINCLUDES = $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc $(VPATH)/rpn_comm.inc \
                $(VPATH)/RPN_COMM_types.inc $(VPATH)/RPN_COMM_constants.inc \
-               $(VPATH)/RPN_COMM_ftoc.inc $(VPATH)/RPN_COMM_is_null.inc
+               $(VPATH)/RPN_COMM_ftoc.inc $(VPATH)/RPN_COMM_is_null.inc \
+               $(VPATH)/RPN_COMM_mpi_layout.inc $(VPATH)/RPN_COMM_mpi_symbols.inc \
+               $(VPATH)/RPN_COMM_mpi_definitions.inc
 
 lib: $(LIBRARY)
 
@@ -133,18 +138,18 @@ $(LIBRARY).inc: $(DISTINCLUDES)
 	mkdir -p $(INCDIR)
 	cp $(DISTINCLUDES) $(INCDIR)
 
-TEST_000.Abs: $(LIBRARY) TEST_000.o
-TEST_001.Abs: $(LIBRARY) TEST_001.o
-TEST_002.Abs: $(LIBRARY) TEST_002.o
-TEST_003.Abs: $(LIBRARY) TEST_003.o
-TEST_004.Abs: $(LIBRARY) TEST_004.o
-TEST_005.Abs: $(LIBRARY) TEST_005.o
-TEST_006.Abs: $(LIBRARY) TEST_006.o
-TEST_007.Abs: $(LIBRARY) TEST_007.o
-TEST_008.Abs: $(LIBRARY) TEST_008.o
-TEST_009.Abs: $(LIBRARY) TEST_009.o
-TEST_010.Abs: $(LIBRARY) TEST_010.o
-TEST_011.Abs: $(LIBRARY) TEST_011.o
-TEST_012.Abs: $(LIBRARY) TEST_012.o
-TEST_013.Abs: $(LIBRARY) TEST_013.o
-TEST_014.Abs: $(LIBRARY) TEST_014.o
+#TEST_000.Abs: $(LIBRARY) TEST_000.o
+#TEST_001.Abs: $(LIBRARY) TEST_001.o
+#TEST_002.Abs: $(LIBRARY) TEST_002.o
+#TEST_003.Abs: $(LIBRARY) TEST_003.o
+#TEST_004.Abs: $(LIBRARY) TEST_004.o
+#TEST_005.Abs: $(LIBRARY) TEST_005.o
+#TEST_006.Abs: $(LIBRARY) TEST_006.o
+#TEST_007.Abs: $(LIBRARY) TEST_007.o
+#TEST_008.Abs: $(LIBRARY) TEST_008.o
+#TEST_009.Abs: $(LIBRARY) TEST_009.o
+#TEST_010.Abs: $(LIBRARY) TEST_010.o
+#TEST_011.Abs: $(LIBRARY) TEST_011.o
+#TEST_012.Abs: $(LIBRARY) TEST_012.o
+#TEST_013.Abs: $(LIBRARY) TEST_013.o
+#TEST_014.Abs: $(LIBRARY) TEST_014.o
