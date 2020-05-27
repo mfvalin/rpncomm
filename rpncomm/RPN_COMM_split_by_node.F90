@@ -17,6 +17,8 @@
 ! Free Software Foundation, Inc., 59 Temple Place - Suite 330,
 ! Boston, MA 02111-1307, USA.
 !
+#define RPN_COMM_OK 0
+#define RPN_COMM_ERROR -1
 
 module split_by_node
   save
@@ -55,7 +57,6 @@ subroutine RPN_COMM_split_by_node(origcomm, nodecomm, peercomm, noderank, peerra
       integer(C_LONG) :: id
     end function gethostid
   end interface
-  include 'RPN_COMM_constants.inc'
 
 !   integer :: myhost, myhost0, myhost1, tmpcomm, i, rank
   integer :: i, rank, ierr
@@ -79,15 +80,6 @@ subroutine RPN_COMM_split_by_node(origcomm, nodecomm, peercomm, noderank, peerra
     if(ierr .ne. MPI_SUCCESS) return
     call mpi_comm_split_type(origcomm, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL, nodecomm, ierr)
     if(ierr .ne. MPI_SUCCESS) return
-!     myhost  = gethostid()                    ! host id
-!     myhost0 = iand(myhost , Z'7FFFFFFF')     ! lower 31 bits
-!     myhost1 = iand( ishft(myhost, -31) , 1 ) ! upper bit
-! 
-!     call MPI_Comm_split(origcomm , myhost0, rank, tmpcomm, err)    ! split origcomm using the lower 31 bits of host id , weight=rank in origcomm
-!     if(err .ne. MPI_SUCCESS) return
-!     call MPI_Comm_split(tmpcomm ,myhost1, rank, nodecomm, err)     ! re split using the upper bit of host id , weight=rank in origcomm
-!     if(err .ne. MPI_SUCCESS) return
-!     call MPI_Comm_free(tmpcomm, err)                               ! tmpcomm no longer needed
     if(ierr .ne. MPI_SUCCESS) return
     call MPI_Comm_rank(nodecomm, noderank, ierr);                   ! rank of this PE on this SMP node
     if(ierr .ne. MPI_SUCCESS) return
@@ -124,7 +116,6 @@ subroutine RPN_COMM_split_by_socket(origcomm, nodecomm, sockcomm, peercomm, node
   use ISO_C_BINDING
   implicit none
   include 'mpif.h'
-  include 'RPN_COMM_constants.inc'
 ! ARGUMENTS
   integer, intent(IN)  :: origcomm  ! MPI communicator to split on a socket basis        !InTf!
   integer, intent(OUT) :: nodecomm  ! new communicator to be used py PEs on same node    !InTf!
@@ -137,19 +128,28 @@ subroutine RPN_COMM_split_by_socket(origcomm, nodecomm, sockcomm, peercomm, node
   integer, intent(OUT) :: err       ! error code                                         !InTf!
 !******
   integer :: socket, ierr, rank
-  integer :: lcpus, sockets_per_node, nnuma, ht, map
+  integer :: nnuma, my_numa, my_core, lstring, status, numapop
+  character(len=32) :: force_numa
 
   call RPN_COMM_split_by_node(origcomm, nodecomm, peercomm, noderank, peerrank, isiz, err) ! split by node
   if(ERR .ne. RPN_COMM_OK) return
 
   err = RPN_COMM_ERROR      ! precondition for failure
-  call get_logical_cpu_configuration(lcpus, sockets_per_node, nnuma, ht, map)
-  socket = noderank / (lcpus/sockets_per_node)          ! rank_on_node / cpus_per_socket
-!   if(noderank < isiz / 2 ) then
-!     socket = 0
-!   else
-!     socket = 1
-!   endif
+!   call get_logical_cpu_configuration(lcpus, sockets_per_node, nnuma, ht, map)
+!   socket = noderank / (lcpus/sockets_per_node)          ! rank_on_node / cpus_per_socket
+  call GET_ENVIRONMENT_VARIABLE('RPN_COMM_FORCE_NUMA', force_numa, lstring, status)  ! can be used to force number of numa spaces on node
+!   print *,'getting nnuma, lstring, status',lstring, status
+  if(status == 0) then
+    read(force_numa,*) nnuma
+!     if(noderank == 0) print *,'INFO: forcing nnuma to',nnuma
+  else
+    nnuma = 2
+  endif
+!
+  call MPI_comm_size(nodecomm, numapop, ierr)    ! node population
+  numapop = numapop / nnuma                      ! numa space population
+  socket = noderank / numapop                    ! temporary, will use numa_node_of_cpu()
+!
   call mpi_comm_split(nodecomm, socket, noderank, sockcomm, ierr)  ! re split by socket
   if(ierr .ne. MPI_SUCCESS) return
   call MPI_Comm_rank(sockcomm, sockrank,ierr);                       ! rank in socket communicator
@@ -168,3 +168,22 @@ subroutine RPN_COMM_split_by_socket(origcomm, nodecomm, sockcomm, peercomm, node
   return
 end subroutine RPN_COMM_split_by_socket  !InTf!
 
+#if defined(SELF_TEST)
+program test_numa
+!
+! s.f90 -DSELF_TEST -mpi -o a.out RPN_COMM_split_by_node.F90
+! export export RPN_COMM_FORCE_NUMA=4
+! r.run_in_parallel -npex 8 -npey 1 -pgm ./a.out -inorder -maxcores
+!
+  use ISO_C_BINDING
+  implicit none
+  include 'mpif.h'
+  integer :: ierr
+  integer :: nodecomm, sockcomm, peercomm, noderank, sockrank, peerrank, isiz
+  call mpi_init(ierr)
+  call RPN_COMM_split_by_socket(MPI_COMM_WORLD, nodecomm, sockcomm, peercomm, noderank, sockrank, peerrank, isiz, ierr)
+  print 1,'noderank, sockrank, peerrank =',noderank, sockrank, peerrank
+1 format(A,10I10)
+  call mpi_finalize(ierr)
+end program
+#endif
