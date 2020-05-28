@@ -37,7 +37,7 @@ DISTINCLUDES = $(VPATH)/RPN_COMM_interfaces.inc $(VPATH)/RPN_COMM.inc $(VPATH)/r
                $(VPATH)/RPN_COMM_mpi_layout.inc $(VPATH)/RPN_COMM_mpi_symbols.inc \
                $(VPATH)/RPN_COMM_mpi_definitions.inc
 
-lib: $(LIBRARY)
+lib: itf $(LIBRARY)
 
 obj: $(OBJECTS)
 
