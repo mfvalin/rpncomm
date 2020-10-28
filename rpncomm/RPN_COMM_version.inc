@@ -1,2 +1,2 @@
-        RPN_COMM_version=4051625
-        RPN_COMM_version_s="4.5.16.25"
+        RPN_COMM_version=40540
+        RPN_COMM_version_s="4.5.40"
