@@ -255,7 +255,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
       print *,'no data at level',k
     endif
   enddo
-  print *,"nerrors, nvalid=",nerrors,nvalid
+  print 101,"nerrors, nvalid, npts =",nerrors,nvalid,lnk*(in-i0+1)*(jn-j0+1),(in-i0+1),(jn-j0+1),lnk
 
   if(nerrors == 0) goto 777
 !  goto 777
@@ -498,7 +498,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
 ! print 100,'          start_x,count_x',start_x,count_x
 ! print 100,'          start_y,count_y',start_y,count_y
 ! print 101,'             local,global',loc(local),loc(global)
-! 100 format(A,1X,20I6)
+100 format(A,1X,20I6)
 ! 101 format(A,1X,8Z17.16)
 
 ! return
@@ -509,10 +509,11 @@ subroutine RPN_COMM_shuf_dist(setno,  &
   if(periody) return                          ! not supported in this version
   if(periodx) return                          ! no longer supported in this version
 ! when calling RPN_COMM_shuf_dist_1a, global halos ghx and ghy are needed
-! !   ghx = (gni - (start_x(nx) - count_x(nx) - 1) ) / 2   !  error if not equal to (1 - mini) or 0
-! !   ghy = (gnj - (start_y(nx) - count_y(ny) - 1) ) / 2   !  error if not equal to (1 - minj) or 0
-  ghx = 0    ! for now
-  ghy = 0    ! for now
+  ghx = (gni - (start_x(nx) + count_x(nx) - 1) ) / 2   !  error if not equal to (1 - mini) or 0
+  ghy = (gnj - (start_y(ny) + count_y(ny) - 1) ) / 2   !  error if not equal to (1 - minj) or 0
+!   print *,'gni, ghx, gnj, ghy =',gni, ghx, gnj, ghy
+!   ghx = 0    ! for now
+!   ghy = 0    ! for now
 !
 ! distribute one 2D plane at a time, one group of IO PEs at a time
 ! in a group of IO PEs, no column has more than 1 IO PE, neither has any row
@@ -529,20 +530,20 @@ subroutine RPN_COMM_shuf_dist(setno,  &
         if(pe_mex == io_set(setno)%x(n) .and. pe_mey == io_set(setno)%y(n)) listeik = liste_i(k)
       enddo
 !      print *,"DEBUG: shuf_dist, k,i=",k,i
-      call RPN_COMM_shuf_dist_1(setno, &
-                                global(1,1,k), gni, gnj, listeik,  &
+!       call RPN_COMM_shuf_dist_1(setno, &
+!                                 global(1,1,k), gni, gnj, listeik,  &
+!                                 local, mini, maxi, minj, maxj, lnk,  &
+!                                 liste_o, io_set(setno)%x(low:high),  io_set(setno)%y(low:high), (high-low+1), &
+!                                 start_x, count_x, start_y, count_y,  &
+!                                 periodx, periody, status)
+      ! gni replaced by gni - 2 * ghx
+      ! gnj replaced by gnj - 2 * ghy
+      call RPN_COMM_shuf_dist_1a(setno, &
+                                global(1,1,k), gni - 2*ghx, gnj - 2*ghy, listeik, ghx, ghy,  &
                                 local, mini, maxi, minj, maxj, lnk,  &
                                 liste_o, io_set(setno)%x(low:high),  io_set(setno)%y(low:high), (high-low+1), &
                                 start_x, count_x, start_y, count_y,  &
-                                periodx, periody, status)
-      ! gni replaced by gni - 2 * ghx
-      ! gnj replaced by gnj - 2 * ghy
-! !       call RPN_COMM_shuf_dist_1a(setno, &
-! !                                 global(1,1,k), gni - 2*ghx, gnj - 2*ghy, listeik, ghx, ghy,  &
-! !                                 local, mini, maxi, minj, maxj, lnk,  &
-! !                                 liste_o, io_set(setno)%x(low:high),  io_set(setno)%y(low:high), (high-low+1), &
-! !                                 start_x, count_x, start_y, count_y,  &
-! !                                 status)
+                                status)
 !      print *,"DEBUG: k,i,status,low,high,liste_i(k)=",k,i,status,low,high,liste_i(k)
       if(status == RPN_COMM_ERROR) return
 !      liste_o(liste_i(k)) = .true.  ! no longer needed, done by RPN_COMM_shuf_dist_1
@@ -884,14 +885,14 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
 !
 !   south and north PE on column get count + haloy + ghy rows, others get count + 2*haloy rows
 !
-    cy(1)         = count_y(1)         + haloy + ghy     ! south strip
+    cy(0)         = count_y(0)         + haloy + ghy     ! south strip
     cy(1:pe_ny-2) = count_y(1:pe_ny-2) + 2 * haloy       ! count, adjusted for halo
-    cy(1:pe_ny-1) = count_y(1:pe_ny-1) +  haloy + ghy    ! north strip
+    cy(pe_ny-1)   = count_y(pe_ny-1)   + haloy + ghy     ! north strip
 !
 !   all except south PE on column have their starting point bumped down by one haloy width
 !   south PE on column has its starting point bumped down by ghy (global halo)
 !
-    dy(1)         = start_y(1)         - 1 - ghy         ! displacement, adjusted for halo (south strip)
+    dy(0)         = start_y(0)         - 1 - ghy         ! displacement, adjusted for halo (south strip)
     dy(1:pe_ny-1) = start_y(1:pe_ny-1) - 1 - haloy       ! displacement, adjusted for halo
 !
     if(any(dy < 0) .or. any(cy+dy > gnj)) then
@@ -901,10 +902,10 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
 !     print 101,"INFO(RPN_COMM_shuf_dist_1): distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
     endif
 !
-    cy = cy * (gni + ghx*2)                     ! multiply by row length
-    dy = dy * (gni + ghx*2)                     ! multiply by row length
+    cy = cy * (gni + ghx*2)                     ! multiply by row length of global array
+    dy = dy * (gni + ghx*2)                     ! multiply by row length of global array
     ybase = minj
-    if(pe_mey == 0) ybase = 1                   ! south PE gets no south halo
+    if(pe_mey == 0) ybase = 1 - ghy             ! south PE may get no south halo
 !
     if(on_column .and. kcol > 0)then    ! this PE is on a column where a member of the IO PE group has something to send
       allocate(fullrow(1-ghx:gni+ghx,minj:maxj))
