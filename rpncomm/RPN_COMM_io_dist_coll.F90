@@ -65,16 +65,17 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   integer, parameter :: MAX_PRINT=80
   integer :: max_dist_k
   integer, dimension(:), allocatable :: liste_k, liste_k2
-  logical, dimension(:), allocatable  :: liste_o
+  logical, dimension(:), allocatable  :: liste_o, liste_o2
   integer, dimension(:,:,:), allocatable :: global,global2
-  integer, dimension(:,:,:), allocatable :: local
+  integer, dimension(:,:,:), allocatable :: glob_l,glob_l2
+  integer, dimension(:,:,:), allocatable :: local, loc_l2
   integer :: lni, lnj
   integer :: mini,maxi,minj,maxj,status
   integer, dimension(pe_nx) :: start_x,count_x
   integer, dimension(pe_ny) :: start_y,count_y
-  integer :: i0,in,j0,jn,nerrors,nvalid,expected,effective_lnk
+  integer :: i0,in,j0,jn,nerrors,nvalid,expected,effective_lnk,nerrors2,nvalid2
   logical, external :: RPN_COMM_io_dist_coll_check
-  integer, external :: RPN_COMM_shuf_ezdist, RPN_COMM_shuf_ezcoll
+  integer, external :: RPN_COMM_shuf_ezdist, RPN_COMM_shuf_ezdist_h, RPN_COMM_shuf_ezcoll
   integer :: grid_id
 !
   periodx = .false.
@@ -107,15 +108,17 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
 1 continue
   if(.not. RPN_COMM_io_dist_coll_check(gni,gnj,halo_x,halo_y)) return
 !
-  allocate(global(gni,gnj,dnk))
+  allocate( global(gni,gnj,dnk),  glob_l(1-halo_x:gni+halo_x,1-halo_y:gnj+halo_y,dnk))
   allocate(global2(gni,gnj,dnk))
   allocate(liste_k(dnk))
   liste_k = 0
   allocate(liste_k2(dnk))
-  allocate(liste_o(lnk))
+  liste_k2 = 0
+  allocate(liste_o(lnk), liste_o2(lnk))
   liste_o = .false.
   liste_o(max_dist_k) = .true.     ! test of warning for attempt to redistribute a level
   if(max_dist_k<lnk) liste_o(max_dist_k+1:lnk) = .false.
+  liste_o2 = liste_o
 !
 ! along X
 !
@@ -166,9 +169,11 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
     return
   endif
 !
-  allocate(local(mini:maxi,minj:maxj,lnk))
+  allocate( local(mini:maxi,minj:maxj,lnk))
+  allocate(loc_l2(mini:maxi,minj:maxj,lnk))
   local = 999999
   global = 888888
+  glob_l = 777777
 ! create IO PE set
   if(pe_me == 0) then
     print *,'IO PE number of PEs =',min( min(pe_nx,pe_ny)+iope_extra , lnk)
@@ -196,12 +201,26 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
         liste_k(k) = 1 + me_io + (k-1)*n_io     !  levels 1 -> nio*dnk - 1
         if(liste_k(k) > max_dist_k) liste_k(k) = 0
         liste_k(k) = max( liste_k(k) , 0)
+        liste_k2 = liste_k
         do j = 1,gnj
         do i = 1,gni
           global(i,j,k) = liste_k(k) + j*100 + i*10000
         enddo
         enddo
+        do j = 1-halo_y,gnj+halo_y
+        do i = 1-halo_x,gni+halo_x
+          glob_l(i,j,k) = liste_k(k) + (j+100)*100 + (i+100)*100000
+        enddo
+        enddo
       enddo
+! print *,'==== global array ====',liste_k
+! do j = gnj,1,-1
+!   print 102,' ',global(:,j,1)
+! enddo
+! print *,'==== glob_l array ====',liste_k
+! do j = gnj+halo_y,1-halo_y,-1
+!   print 102,' ',glob_l(:,j,1)
+! enddo
       print *,"level list =",liste_k
       do k= dnk,1,-1
         if(liste_k(k) <= 0) cycle
@@ -219,25 +238,36 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
 #if defined(EZ_TEST)
 !====================================================================================
 ! use previously obtained grid id
+    print *,'=== RPN_COMM_shuf_ezdist ==='
     status = RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_k, liste_o)
+    status = RPN_COMM_shuf_ezdist_h(setno, grid_id, glob_l, dnk, loc_l2, lnk, liste_k, liste_o)
 !====================================================================================
 #else
+    print *,'=== RPN_COMM_shuf_dist ==='
     call RPN_COMM_shuf_dist(setno,  &
                             global,gni,gnj,dnk,  &
                             local,mini,maxi,minj,maxj,lnk,  &
                             liste_k,liste_o,  &
                             start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                             periodx,periody,status)
+    call RPN_COMM_shuf_dist(setno,  &
+                            glob_l,gni+2*halo_x,gnj+2*halo_y,dnk,  &
+                            loc_l2,mini,maxi,minj,maxj,lnk,  &
+                            liste_k2,liste_o2,  &
+                            start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
+                            periodx,periody,status)
 #endif
-    print *,'liste_o apres=',liste_o
+    print *,'liste_o, liste_o2 apres=',liste_o, liste_o2
     if(status .ne. RPN_COMM_OK) then
       print 101,"ERROR: RPN_COMM_shuf_dist failure, lnk,dnk,n_io ",lnk,dnk,n_io
       return
     endif
   enddo ! end of test repetition loop
 !
-  nerrors = 0
-  nvalid = 0
+  nerrors  = 0
+  nerrors2 = 0
+  nvalid   = 0
+  nvalid2  = 0
   do k = lnk,1,-1
     if(liste_o(k)) then
       do j = j0,jn
@@ -245,8 +275,19 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
         nvalid = nvalid + 1
         expected = k + (start_y(pe_mey+1)+j-1)*100 + (start_x(pe_mex+1)+i-1)*10000
         if(expected .ne. local(i,j,k)) then
-          if(nerrors<4)print *,'i,j,k,expected,local(i,j,k)',i,j,k,expected,local(i,j,k)
+          if(nerrors<0)print *,'i,j,k,expected,local(i,j,k)',i,j,k,expected,local(i,j,k)
           nerrors = nerrors + 1
+         if(nerrors>3)goto 666
+        endif
+      enddo
+      enddo
+      do j = mini,maxi
+      do i = minj,maxj
+        nvalid2 = nvalid2 + 1
+        expected = k + (start_y(pe_mey+1)+j-1+100)*100 + (start_x(pe_mex+1)+i-1+100)*100000
+        if(expected .ne. loc_l2(i,j,k)) then
+          if(nerrors2<1)print *,'i,j,k,expected,local(i,j,k)',i,j,k,expected,loc_l2(i,j,k)
+          nerrors2 = nerrors2 + 1
 !          if(nerrors>3)goto 666
         endif
       enddo
@@ -255,8 +296,11 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
       print *,'no data at level',k
     endif
   enddo
-  print 101,"nerrors, nvalid, npts =",nerrors,nvalid,lnk*(in-i0+1)*(jn-j0+1),(in-i0+1),(jn-j0+1),lnk
+  print 101,"nerrors,  nvalid,  npts =",nerrors,nvalid,lnk*(in-i0+1)*(jn-j0+1),(in-i0+1),(jn-j0+1),lnk
+  print 101,"nerrors2, nvalid2, npts =",nerrors2,nvalid2,lnk*(maxi-mini+1)*(maxj-minj+1),(maxi-mini+1),(maxj-minj+1),lnk
 
+return
+  
   if(nerrors == 0) goto 777
 !  goto 777
 666 continue
@@ -278,6 +322,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
 !
 100 format(I3,20I7.6)
 101 format(A,20I5)
+102 format(A,20I9)
 !=======================================================================================
 777 continue
 !=======================================================================================
@@ -391,6 +436,49 @@ function RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_i, 
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           .false.,.false.,status)
 end function RPN_COMM_shuf_ezdist
+!! integer, external :: RPN_COMM_shuf_ezdist_h  !InTfX!   ! best interface we can provide for the time being
+function RPN_COMM_shuf_ezdist_h(setno, grid_id, global, dnk, local, lnk, liste_i, liste_o) result (status)
+! important notes:
+!      it is the caller's responsibility to ensure that liste_o is properly initialized to .false. 
+!      before calling the distribute function
+  use rpn_comm
+  implicit none
+#include <RPN_COMM_interfaces_int.inc>
+  integer, intent(IN) :: setno                     ! IO processor set (from RPN_COMM_create_io_set)
+  integer, intent(IN) :: grid_id                   ! grid identifier (from rpn_comm_create_2dgrid)
+  integer, intent(IN) :: dnk                       ! number of levels to distribute
+  integer, intent(IN) :: lnk                       ! number of levels in the "local" array
+  integer, intent(IN), dimension(*)     :: global
+  integer, intent(OUT), dimension(*)    :: local
+  integer, intent(IN), dimension(dnk)   :: liste_i ! needed only on IO Pes, list of levels to distribute
+  logical, intent(INOUT), dimension(lnk):: liste_o ! liste_o(k) will be set to .true. if level k received
+  integer :: status                                ! RPN_COMM_OK or RPN_COMM_ERROR
+!
+  integer, dimension(pe_nx)    :: start_x ! PE (i-1,any) points start at start_x(i) in global space (X direction)
+  integer, dimension(pe_nx)    :: count_x ! PE (i-1,any) contains count_x(i) points in the X direction
+  integer, dimension(pe_ny)    :: start_y ! PE (any,j-1) points start at start_y(j) in global space (Y direction)
+  integer, dimension(pe_ny)    :: count_y ! PE (any,j-1) contains count_y(j) points in the Y direction
+  integer :: gni,gnj                      ! horizontal dimensions of the "global" array
+  integer :: mini,maxi,minj,maxj          ! horizontal dimensions of the "local" array
+  integer :: ghx, ghy
+
+  status = rpn_comm_get_2dgrid(grid_id,pe_nx,pe_ny,gni,gnj, mini,maxi,minj,maxj,start_x,count_x,start_y,count_y)
+!   print *,'DEBUG: rpn_comm_get_2dgrid',mini,maxi,minj,maxj
+!
+  if(status .ne. RPN_COMM_OK) then
+    status = RPN_COMM_ERROR
+    return
+  endif
+
+  ghx = 1-mini
+  ghy = 1-minj
+  call RPN_COMM_shuf_dist(setno,  &
+                          global,gni+2*ghx,gnj+2*ghy,dnk,  &
+                          local,mini,maxi,minj,maxj,lnk,  &
+                          liste_i,liste_o,  &
+                          start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
+                          .false.,.false.,status)
+end function RPN_COMM_shuf_ezdist_h
 !====================================================================================
 !! integer, external :: RPN_COMM_shuf_ezcoll  !InTfX!   ! best interface we can provide for the time being
 function RPN_COMM_shuf_ezcoll(setno, grid_id, global, dnk, local, lnk, liste_o) result (status)
@@ -511,7 +599,7 @@ subroutine RPN_COMM_shuf_dist(setno,  &
 ! when calling RPN_COMM_shuf_dist_1a, global halos ghx and ghy are needed
   ghx = (gni - (start_x(nx) + count_x(nx) - 1) ) / 2   !  error if not equal to (1 - mini) or 0
   ghy = (gnj - (start_y(ny) + count_y(ny) - 1) ) / 2   !  error if not equal to (1 - minj) or 0
-!   print *,'gni, ghx, gnj, ghy =',gni, ghx, gnj, ghy
+  print *,'RPN_COMM_shuf_dist: gni, ghx, gnj, ghy =',gni, ghx, gnj, ghy
 !   ghx = 0    ! for now
 !   ghy = 0    ! for now
 !
@@ -824,6 +912,7 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
     nullify(fullrow)
     nullify(local_1)
 !
+print *,'       gni, ghx, gnj, ghy =',gni, ghx, gnj, ghy
     root = -1 
     kcol = -1
     haloy = 1 - minj          ! halos are implicitly specified by lower bound of x and y dimensions
@@ -894,8 +983,9 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
 !
     dy(0)         = start_y(0)         - 1 - ghy         ! displacement, adjusted for halo (south strip)
     dy(1:pe_ny-1) = start_y(1:pe_ny-1) - 1 - haloy       ! displacement, adjusted for halo
+    dy            = dy + ghy
 !
-    if(any(dy < 0) .or. any(cy+dy > gnj)) then
+    if(any(dy < 0) .or. any(cy+dy > (gnj+2*ghy))) then
       print 101,"ERROR(RPN_COMM_shuf_dist_1): problem with distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
       return
 !    else
@@ -905,7 +995,7 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
     cy = cy * (gni + ghx*2)                     ! multiply by row length of global array
     dy = dy * (gni + ghx*2)                     ! multiply by row length of global array
     ybase = minj
-    if(pe_mey == 0) ybase = 1 - ghy             ! south PE may get no south halo
+    if(pe_mey == 0 .and. ghy == 0) ybase = 1    ! south PE may get no south halo
 !
     if(on_column .and. kcol > 0)then    ! this PE is on a column where a member of the IO PE group has something to send
       allocate(fullrow(1-ghx:gni+ghx,minj:maxj))
@@ -917,6 +1007,10 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
                         fullrow(1-ghx,ybase),cy(pe_mey),MPI_INTEGER, &
                         root,pe_mycol,ierr)
       t(4) = RPN_COMM_wtime()
+! print 111,'==== FULLROW ====',ybase,ghy,haloy
+! do j = maxj, minj, -1
+!   print 111,' ',fullrow(:,j)
+! enddo
 !print *,'IN shuffle after scatter'
 !print *,"DEBUG: ======= fullrow for level",kcol
 !do j=maxj,minj,-1
