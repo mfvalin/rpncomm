@@ -194,6 +194,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
     liste_o = .false.
     liste_o(max_dist_k) = .true.     ! test of warning for attempt to redistribute a level
     if(max_dist_k<lnk) liste_o(max_dist_k+1:lnk) = .false.
+    liste_o2 = liste_o
     if(me_io .ne. -1) then
       print *,"I am a busy IO pe!",me_io+1,' of',n_io
       do k=1,dnk               ! global levels that this PE will distribute
@@ -240,7 +241,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
 ! use previously obtained grid id
     print *,'=== RPN_COMM_shuf_ezdist ==='
     status = RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_k, liste_o)
-    status = RPN_COMM_shuf_ezdist_h(setno, grid_id, glob_l, dnk, loc_l2, lnk, liste_k, liste_o)
+    status = RPN_COMM_shuf_ezdist_h(setno, grid_id, glob_l, dnk, loc_l2, lnk, liste_k, liste_o2)
 !====================================================================================
 #else
     print *,'=== RPN_COMM_shuf_dist ==='
@@ -299,7 +300,7 @@ subroutine RPN_COMM_io_dist_coll_test(nparams,params)
   print 101,"nerrors,  nvalid,  npts =",nerrors,nvalid,lnk*(in-i0+1)*(jn-j0+1),(in-i0+1),(jn-j0+1),lnk
   print 101,"nerrors2, nvalid2, npts =",nerrors2,nvalid2,lnk*(maxi-mini+1)*(maxj-minj+1),(maxi-mini+1),(maxj-minj+1),lnk
 
-return
+! return
   
   if(nerrors == 0) goto 777
 !  goto 777
@@ -396,6 +397,8 @@ return
   return
 end subroutine RPN_COMM_io_dist_coll_test
 !====================================================================================
+! global array dimensions are assumed to be gni x gnj
+!
 !! integer, external :: RPN_COMM_shuf_ezdist  !InTfX!   ! best interface we can provide for the time being
 function RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_i, liste_o) result (status)
 ! important notes:
@@ -436,6 +439,10 @@ function RPN_COMM_shuf_ezdist(setno, grid_id, global, dnk, local, lnk, liste_i, 
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
                           .false.,.false.,status)
 end function RPN_COMM_shuf_ezdist
+!====================================================================================
+! variant with assumed global halo
+! global array dimensions are assumed to be  gni + 2*halox x gnj + 2*haloy
+!
 !! integer, external :: RPN_COMM_shuf_ezdist_h  !InTfX!   ! best interface we can provide for the time being
 function RPN_COMM_shuf_ezdist_h(setno, grid_id, global, dnk, local, lnk, liste_i, liste_o) result (status)
 ! important notes:
@@ -470,10 +477,10 @@ function RPN_COMM_shuf_ezdist_h(setno, grid_id, global, dnk, local, lnk, liste_i
     return
   endif
 
-  ghx = 1-mini
+  ghx = 1-mini  ! global halo same as local halo
   ghy = 1-minj
   call RPN_COMM_shuf_dist(setno,  &
-                          global,gni+2*ghx,gnj+2*ghy,dnk,  &
+                          global, gni+2*ghx, gnj+2*ghy, dnk,  &
                           local,mini,maxi,minj,maxj,lnk,  &
                           liste_i,liste_o,  &
                           start_x,count_x,pe_nx,start_y,count_y,pe_ny,  &
@@ -543,7 +550,7 @@ end function RPN_COMM_shuf_ezcoll
 !    the following INPUT parameters MUST be the same on ALL PEs
 !      setno                    IO set number, as obtained from RPN_COMM_create_io_set
 !      mini,maxi,minj,maxj,lnk  (dimensions of the "local" array)
-!      gni,gnj,dnk              (dimensions of the "global" array)
+!      gni,gnj,dnk              (dimensions of the "global" array) (may include a halo)
 !      nx,ny,start_x,count_x,start_y,count_y  (start_x, start_y : ORIGIN 1)
 !      periodx,periody
 !
@@ -582,26 +589,16 @@ subroutine RPN_COMM_shuf_dist(setno,  &
   integer :: i, k, low, high, listeik, n
   integer :: ghx, ghy                              ! global halos
 
-! print 100,'DEBUG: RPN_COMM_shuf_dist',mini,maxi,minj,maxj,gni,gnj,dnk,nx,ny
-! print 100,'          start_x,count_x',start_x,count_x
-! print 100,'          start_y,count_y',start_y,count_y
-! print 101,'             local,global',loc(local),loc(global)
-100 format(A,1X,20I6)
-! 101 format(A,1X,8Z17.16)
-
-! return
   status = RPN_COMM_ERROR                     ! preset status to failure
   if(setno < 1 .or. setno > iosets) return    ! setno out of bounds, OUCH !
   if(io_set(setno)%ioset .ne. setno) return   ! IO set no longer valid, OUCH !
   if(pe_nx .ne. nx .or. pe_ny .ne. ny) return ! wrong number of PEs in grid, OUCH !
-  if(periody) return                          ! not supported in this version
+  if(periody) return                          ! no longer supported in this version
   if(periodx) return                          ! no longer supported in this version
 ! when calling RPN_COMM_shuf_dist_1a, global halos ghx and ghy are needed
   ghx = (gni - (start_x(nx) + count_x(nx) - 1) ) / 2   !  error if not equal to (1 - mini) or 0
   ghy = (gnj - (start_y(ny) + count_y(ny) - 1) ) / 2   !  error if not equal to (1 - minj) or 0
-  print *,'RPN_COMM_shuf_dist: gni, ghx, gnj, ghy =',gni, ghx, gnj, ghy
-!   ghx = 0    ! for now
-!   ghy = 0    ! for now
+!   print *,'RPN_COMM_shuf_dist: gni, ghx, gnj, ghy =',gni, ghx, gnj, ghy
 !
 ! distribute one 2D plane at a time, one group of IO PEs at a time
 ! in a group of IO PEs, no column has more than 1 IO PE, neither has any row
@@ -618,15 +615,13 @@ subroutine RPN_COMM_shuf_dist(setno,  &
         if(pe_mex == io_set(setno)%x(n) .and. pe_mey == io_set(setno)%y(n)) listeik = liste_i(k)
       enddo
 !      print *,"DEBUG: shuf_dist, k,i=",k,i
-!       call RPN_COMM_shuf_dist_1(setno, &
+!       call RPN_COMM_shuf_dist_old(setno, &
 !                                 global(1,1,k), gni, gnj, listeik,  &
 !                                 local, mini, maxi, minj, maxj, lnk,  &
 !                                 liste_o, io_set(setno)%x(low:high),  io_set(setno)%y(low:high), (high-low+1), &
 !                                 start_x, count_x, start_y, count_y,  &
 !                                 periodx, periody, status)
-      ! gni replaced by gni - 2 * ghx
-      ! gnj replaced by gnj - 2 * ghy
-      call RPN_COMM_shuf_dist_1a(setno, &
+      call RPN_COMM_shuf_dist_new(setno, &
                                 global(1,1,k), gni - 2*ghx, gnj - 2*ghy, listeik, ghx, ghy,  &
                                 local, mini, maxi, minj, maxj, lnk,  &
                                 liste_o, io_set(setno)%x(low:high),  io_set(setno)%y(low:high), (high-low+1), &
@@ -634,7 +629,6 @@ subroutine RPN_COMM_shuf_dist(setno,  &
                                 status)
 !      print *,"DEBUG: k,i,status,low,high,liste_i(k)=",k,i,status,low,high,liste_i(k)
       if(status == RPN_COMM_ERROR) return
-!      liste_o(liste_i(k)) = .true.  ! no longer needed, done by RPN_COMM_shuf_dist_1
     enddo
   enddo
   contains
@@ -644,7 +638,8 @@ subroutine RPN_COMM_shuf_dist(setno,  &
 ! assumption: no column has 2 IO PES, neither has any row
 !
 !====================================================================================
-  subroutine RPN_COMM_shuf_dist_1(setno,  &
+! old version, replaced by RPN_COMM_shuf_dist_new
+  subroutine RPN_COMM_shuf_dist_old(setno,  &
                                   global,gni,gnj,gnk,  &
                                   local,mini,maxi,minj,maxj,lnk,  &
                                   liste_o, pe_x, pe_y, npes, &
@@ -872,10 +867,10 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
 100 format(I3,20I6.5)
 101 format(A,20I5)
 111 format(A,20I9)
-  end subroutine RPN_COMM_shuf_dist_1
+  end subroutine RPN_COMM_shuf_dist_old
   ! ==================================================================================
 ! if array global is to have halos, they must be IDENTICAL to the halos of array local
-  subroutine RPN_COMM_shuf_dist_1a(setno,  &
+  subroutine RPN_COMM_shuf_dist_new(setno,  &
                                   global,gni,gnj,gnk,ghx,ghy,  &
                                   local,mini,maxi,minj,maxj,lnk,  &
                                   liste_o, pe_x, pe_y, npes, &
@@ -884,85 +879,85 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
     use rpn_comm
     use RPN_COMM_io_pe_tables
     implicit none
-    integer, intent(IN) :: setno
-    integer, intent(IN) :: gni,gnj,gnk
-    integer, intent(IN) :: ghx,ghy              ! global halos
-    integer, intent(IN), dimension(1-ghx:gni+ghx,1-ghy:gnj+ghy) :: global
-    integer, intent(IN) :: mini,maxi,minj,maxj,lnk
+    integer, intent(IN) :: setno                       ! IO set number
+    integer, intent(IN) :: gni,gnj,gnk                 ! global dimensions (without halo)
+    integer, intent(IN) :: ghx,ghy                     ! global halos (may be zero)
+    integer, intent(IN), dimension(1-ghx:gni+ghx,1-ghy:gnj+ghy) :: global   ! (gni,gnj) if ho halos
+    integer, intent(IN) :: mini,maxi,minj,maxj,lnk     ! local array dimensions
     integer, intent(OUT), dimension(mini:maxi,minj:maxj,lnk) :: local
-    logical, intent(OUT), dimension(lnk) :: liste_o
-    integer, intent(IN) :: npes
-    integer, intent(IN), dimension(npes) :: pe_x, pe_y
-    integer, intent(IN), dimension(0:pe_nx-1) :: start_x,count_x
-    integer, intent(IN), dimension(0:pe_ny-1) :: start_y,count_y
+    logical, intent(OUT), dimension(lnk) :: liste_o    ! output markers for level k processing
+    integer, intent(IN) :: npes                        ! total number of IO PEs
+    integer, intent(IN), dimension(npes) :: pe_x, pe_y ! x and y coordinates of IO PEs
+    integer, intent(IN), dimension(0:pe_nx-1) :: start_x,count_x  !  start in global space and size of tiles along x
+    integer, intent(IN), dimension(0:pe_ny-1) :: start_y,count_y  !  start in global space and size of tiles along y
     integer, intent(OUT) :: status
-    logical :: on_column, error, duplicate
+!
+    logical :: on_column, error
     integer :: root, ybase, kcol, ierr, halox, haloy, lni, lnj, size2d
-    integer, dimension(0:pe_nx-1) :: listofk
+    integer, dimension(0:pe_nx-1) :: listofk            ! list of levels collected on this PE row
     integer :: i, j, k, i0, in, ioff, lni0
-    integer, dimension(:,:), pointer :: fullrow
-    integer, dimension(:,:,:), pointer :: local_1
+    integer, dimension(:,:),   pointer :: fullrow       ! local array to collect a full row (global ni + halo,local nj + halo)
+    integer, dimension(:,:,:), pointer :: local_1       ! local array to reshape fullrow for distribution along x
     integer, dimension(0:pe_nx-1) :: cxs, dxs, cxr, dxr
     integer, dimension(0:pe_ny-1) :: cy, dy
-    real*8, dimension(0:6) :: t
-    integer, dimension(0:6) :: it
+    real*8, dimension(0:6)  :: t        ! temporary timing collection array
+    integer, dimension(0:6) :: it       ! timing collection array
 
     on_column = .false.     ! precondition for failure in case a hasty exit is needed
     status = RPN_COMM_ERROR ! precondition for failure in case a hasty exit is needed
     nullify(fullrow)
     nullify(local_1)
 !
-print *,'       gni, ghx, gnj, ghy =',gni, ghx, gnj, ghy
     root = -1 
     kcol = -1
-    haloy = 1 - minj          ! halos are implicitly specified by lower bound of x and y dimensions
-    if(pe_ny == 1) haloy = 0  ! no halo along y in this case
-    halox = 1 - mini
-    size2d = (maxj-minj+1) * (maxi-mini+1)    ! size of a 2D local array
-    lni = count_x(pe_mex)                     ! useful number of points on local tile
-    lnj = count_y(pe_mey)
+    haloy = 1 - minj                          ! haloy  is inferred from minj
+!     if(pe_ny == 1) haloy = 0                  ! no halo along y in this case
+    halox = 1 - mini                          ! halox is inferred from mini
+    size2d = (maxj-minj+1) * (maxi-mini+1)    ! size of a 2D local array slice
+    lni = count_x(pe_mex)                     ! useful number of points along x on local tile
+    lnj = count_y(pe_mey)                     ! useful number of points along y on local tile
     if(maxi < lni+halox .or. maxj < lnj+haloy) then
-      print 101,"ERROR: upper bound of array too small to accomodate halo"
-      print 101,"mini,maxi,lni,minj,maxj,lnj",mini,maxi,lni,minj,maxj,lnj
+      print 101,"ERROR: upper bound of array is too small to accomodate halo"
+      print 101,"       mini,maxi,lni,minj,maxj,lnj",mini,maxi,lni,minj,maxj,lnj
       return  ! OOPS, upper bound cannot accomodate halo
     endif
+    ! global halo may be either 0 or equal to local halo
     if( (ghx .ne. halox .and. ghx .ne. 0) .or. (ghy .ne. haloy .and. ghy .ne.0)) then
       print 101,"ERROR: global halos and local halos are not consistent"
       print 101,"       halox, ghx, haloy, ghy",halox, ghx, haloy, ghy
+      return  ! OOPS, inconsistent global and local halos
     endif
     do i = 1 , npes
       if(pe_mex == pe_x(i)) then
-        on_column = .true.                       ! there is an IO PE on the column (and only one)
-        root = pe_y(i)                           ! y coordinate of IO PE, will be the root for scatterv
-        if(root == pe_mey) kcol = gnk             ! level of 2D plane that this PE will distribute (it is the root)
+        on_column = .true.                       ! there is an IO PE on this column (and only one)
+        root = pe_y(i)                           ! y coordinate of IO PE, it will be the root for scatterv
+        if(root == pe_mey) kcol = gnk            ! level of the 2D plane that this PE will distribute (it is the root)
         exit
       endif
     enddo
     t(0) = RPN_COMM_wtime()
     call mpi_barrier(pe_indomm,ierr)              ! full sync, start / middle / end
     t(1:6) = t(0)
-    if(on_column) call mpi_bcast(kcol,1,MPI_INTEGER,root,pe_mycol,ierr)    ! send gnk to all PEs on the column
+    if(on_column) call mpi_bcast(kcol,1,MPI_INTEGER,root,pe_mycol,ierr)    ! broadcast gnk to all PEs on this column
     t(1) = RPN_COMM_wtime()
 !
-!   get list of which PE has which gnk along row
-!   if column had no IO PE, -1 gets transmitted
+!   get list of which PE has which level to distribute along this PE row
+!   if there is no IO PE in this column, -1 is sent
 !   if IO PE on column has nothing to contribute, 0 should get transmitted
 !
     listofk = 0
     call mpi_allgather(kcol,1,MPI_INTEGER,listofk,1,MPI_INTEGER,pe_myrow,ierr)
     t(2) = RPN_COMM_wtime()
     if(maxval(listofk) > lnk ) then    ! attempt to store a level > lnk, OOPS
-      print 101,"ERROR: 1 or more level to distribute > local nk, max level, local nk ",maxval(listofk),lnk
+      print 101,"ERROR: 1 or more level to distribute > local nk, highest level index, local nk ",maxval(listofk),lnk
       return
     endif
-!print *,"DEBUG: listofk=",listofk
-    if(maxval(listofk) <= 0) then   ! no contribution from any IO PE, job id done for this round
-!      print 101,"DEBUG: no work to do on this pass"
+
+    if(maxval(listofk) <= 0) then   ! no contribution from any IO PE, job is done for this round
       status = RPN_COMM_OK
       return
     endif
 !   maybe we should check instead if liste_o(listofk(i)) is already .true. which would point to a possible duplicate
-    duplicate = .false.
     do i = 0 , pe_nx-1
        if(listofk(i) > 0) then
          if(liste_o(listofk(i))) then
@@ -981,11 +976,10 @@ print *,'       gni, ghx, gnj, ghy =',gni, ghx, gnj, ghy
 !   all except south PE on column have their starting point bumped down by one haloy width
 !   south PE on column has its starting point bumped down by ghy (global halo)
 !
-    dy(0)         = start_y(0)         - 1 - ghy         ! displacement, adjusted for halo (south strip)
-    dy(1:pe_ny-1) = start_y(1:pe_ny-1) - 1 - haloy       ! displacement, adjusted for halo
-    dy            = dy + ghy
+    dy(0)         = start_y(0)         - 1               ! displacement in gloabal array (south row)
+    dy(1:pe_ny-1) = start_y(1:pe_ny-1) - 1 - haloy + ghy ! displacement in gloabal array, adjusted for halo (all but south row)
 !
-    if(any(dy < 0) .or. any(cy+dy > (gnj+2*ghy))) then
+    if(any(dy < 0) .or. any(cy+dy > (gnj+2*ghy))) then   ! negative start, or span along y too large
       print 101,"ERROR(RPN_COMM_shuf_dist_1): problem with distribution along y. gnj, min(dy), max(cy+dy)",gnj,minval(dy),maxval(cy+dy)
       return
 !    else
@@ -1007,57 +1001,41 @@ print *,'       gni, ghx, gnj, ghy =',gni, ghx, gnj, ghy
                         fullrow(1-ghx,ybase),cy(pe_mey),MPI_INTEGER, &
                         root,pe_mycol,ierr)
       t(4) = RPN_COMM_wtime()
-! print 111,'==== FULLROW ====',ybase,ghy,haloy
-! do j = maxj, minj, -1
-!   print 111,' ',fullrow(:,j)
-! enddo
-!print *,'IN shuffle after scatter'
-!print *,"DEBUG: ======= fullrow for level",kcol
-!do j=maxj,minj,-1
-!  print 100,j,fullrow(:,j)
-!enddo
 !
 !     fullrow now contains what will be redistributed along x, haloy is accounted for
-!     we may now process reshaping and halo along x periodicity condition
+!     we may now proceed to reshaping
 !
       allocate(local_1(mini:maxi,minj:maxj,pe_nx))    ! reshape for distribution along x
       lni0 = count_x(0)
       do k = 1 , pe_nx
         i0 = mini
         in = maxi
-        if(k == 1) i0 = 1 - ghx                     ! lower bound along x for west PE (1 if no global halo)
+        if(k == 1)     i0 = 1 - ghx                 ! lower bound along x for west PE (1 if no global halo)
         if(k == pe_nx) in = count_x(pe_nx-1) + ghx  ! upper boung along x for east PE (count_x(pe_nx-1) if no global halo)
         ioff = start_x(k-1) - 1                     ! offset along x in global space for PE no k-1 along x
         do j = minj , maxj
-          local_1(  :  ,j,k) = 0
+          local_1(  :  ,j,k) = 0                    ! make sure skipped elements are zeroed
           local_1(i0:in,j,k) = fullrow(i0+ioff:in+ioff,j)
         enddo
       enddo
-                    ! send sizes and displacements for the final alltoallv
+                    ! set sizes and displacements for the final alltoallv
       cxs = size2d  ! a full 2D local slice will be sent to all PEs on row
       dxs(0) = 0
       do i = 1 , pe_nx-1
-        dxs(i) = dxs(i-1) + cxs(i-1)
+        dxs(i) = dxs(i-1) + cxs(i-1)    ! source displacement
       enddo
-!print *,"DEBUG: ======= local_1 for level",kcol
-!do k = pe_nx,1,-1
-!  print *,"======= PE", k
-!  do j = maxj,minj,-1
-!    print 100,j,local_1(:,j,k)
-!  enddo
-!enddo
     else                           ! we are not on a column where there is an IO PE
-      allocate(fullrow(1,1))
-      allocate(local_1(1,1,1))
+      allocate(fullrow(1,1))       ! dummy allocate
+      allocate(local_1(1,1,1))     ! dummy allocate
       cxs = 0                      ! nothing to send from here, size = displacement = 0
       dxs = 0
-    endif
+    endif                          ! (on_column .and. kcol > 0)
 !
-!   receive sizes and displacements for the final alltoallv
+!   receive sizes and displacements for the final alltoallv along x
 !
     do i = 0 , pe_nx-1
       if(listofk(i) > 0) then    ! something (2D slice) will be received from column i
-        cxr(i) = size2d
+        cxr(i) = size2d          ! size of 2D slice
         dxr(i) = (listofk(i)-1) * size2d   ! offset into local is listofk(i)-1 2D planes
       else                       ! nothing to receive from column i
         cxr(i) = 0
@@ -1070,13 +1048,6 @@ print *,'       gni, ghx, gnj, ghy =',gni, ghx, gnj, ghy
 #if defined(FULL_DEBUG)
 if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
 #endif
-!print 100,kcol,cxs,dxs,11111,cxr,dxr,11111,listofk
-!do k=lnk,1,-1
-!  print *,'=== lv=',k
-!  do j=maxj,minj,-1
-!    print 100,j,local(:,j,k)
-!  enddo
-!enddo
     t(5) = RPN_COMM_wtime()
     call mpi_alltoallv(local_1, cxs, dxs, MPI_INTEGER,  &
                        local,   cxr, dxr, MPI_INTEGER,  &
@@ -1089,26 +1060,19 @@ if(pe_me==0) print *,"DEBUG: kcol,listofk", kcol,listofk
     do i = 1,6
       it(i) = max( 0.0_8 , (t(i) - t(i-1)) * 1000000 ) ! convert to microseconds
     enddo
-    
-!    print 111,"INFO: distribution timings(microsec)",it(0:6)
-!
-!do k=lnk,1,-1
-!  print *,'=== lv=',k
-!  do j=maxj,minj,-1
-!    print 100,j,local(:,j,k)
-!  enddo
-!enddo
-!print *,"DEBUG: exiting dist_1"
-    if(associated(fullrow)) deallocate(fullrow)
+!    
+    if(associated(fullrow)) deallocate(fullrow)  ! deallocate temporary arrays
     if(associated(local_1)) deallocate(local_1)
+!
     status = RPN_COMM_OK   ! success at last !
     do i = 0 , pe_nx-1     ! mark 2D array at position listofk(i) as received
        if(listofk(i) > 0) liste_o(listofk(i)) = .true.
     enddo
+
 100 format(I3,20I6.5)
 101 format(A,20I5)
 111 format(A,20I9)
-  end subroutine RPN_COMM_shuf_dist_1a
+  end subroutine RPN_COMM_shuf_dist_new
 end subroutine RPN_COMM_shuf_dist
 !====================================================================================
 !
