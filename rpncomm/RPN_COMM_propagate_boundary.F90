@@ -532,10 +532,10 @@ subroutine RPN_COMM_propagate_pilot_circular(f,minx,maxx,miny,maxy,lni,lnj,nk,pi
     endif
     return
   endif
-  if((pilx + hx > lni) .or. (pily + hy > lnj)) then
-    call RPN_COMM_xch_halo(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy,.false.,.false.,lni,0)
-    return
-  endif
+!   if((pilx + hx > lni) .or. (pily + hy > lnj)) then
+!     call RPN_COMM_xch_halo(f,minx,maxx,miny,maxy,lni,lnj,nk,hx,hy,.false.,.false.,lni,0)
+!     return
+!   endif
   ! usual case, pe_nx > 1 and pe_ny > 1
   nhor = pilx * hy * nk  ! size of horizontal boxes (tb, tc, tf, tg, t2, t3, t6, t7)
   nvrt = pily * hx * nk  ! size of vertical boxes (ta, td, te, th, t1, t4, t5, t8)
