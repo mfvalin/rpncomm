@@ -79,15 +79,6 @@ subroutine RPN_COMM_split_by_node(origcomm, nodecomm, peercomm, noderank, peerra
     if(ierr .ne. MPI_SUCCESS) return
     call mpi_comm_split_type(origcomm, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL, nodecomm, ierr)
     if(ierr .ne. MPI_SUCCESS) return
-!     myhost  = gethostid()                    ! host id
-!     myhost0 = iand(myhost , Z'7FFFFFFF')     ! lower 31 bits
-!     myhost1 = iand( ishft(myhost, -31) , 1 ) ! upper bit
-! 
-!     call MPI_Comm_split(origcomm , myhost0, rank, tmpcomm, err)    ! split origcomm using the lower 31 bits of host id , weight=rank in origcomm
-!     if(err .ne. MPI_SUCCESS) return
-!     call MPI_Comm_split(tmpcomm ,myhost1, rank, nodecomm, err)     ! re split using the upper bit of host id , weight=rank in origcomm
-!     if(err .ne. MPI_SUCCESS) return
-!     call MPI_Comm_free(tmpcomm, err)                               ! tmpcomm no longer needed
     if(ierr .ne. MPI_SUCCESS) return
     call MPI_Comm_rank(nodecomm, noderank, ierr);                   ! rank of this PE on this SMP node
     if(ierr .ne. MPI_SUCCESS) return
