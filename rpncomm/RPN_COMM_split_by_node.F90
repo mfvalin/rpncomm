@@ -128,19 +128,18 @@ subroutine RPN_COMM_split_by_socket(origcomm, nodecomm, sockcomm, peercomm, node
   integer, intent(OUT) :: err       ! error code                                         !InTf!
 !******
   integer :: socket, ierr, rank
-  integer :: lcpus, sockets_per_node, nnuma, ht, map
+  integer :: lcpus, sockets_per_node, nnuma, ht, map, numapop
 
   call RPN_COMM_split_by_node(origcomm, nodecomm, peercomm, noderank, peerrank, isiz, err) ! split by node
   if(ERR .ne. RPN_COMM_OK) return
 
   err = RPN_COMM_ERROR      ! precondition for failure
   call get_logical_cpu_configuration(lcpus, sockets_per_node, nnuma, ht, map)
-  socket = noderank / (lcpus/sockets_per_node)          ! rank_on_node / cpus_per_socket
-!   if(noderank < isiz / 2 ) then
-!     socket = 0
-!   else
-!     socket = 1
-!   endif
+  call MPI_comm_size(nodecomm, numapop, ierr)       ! node population
+  nnuma = nnuma * sockets_per_node                  ! numa spaces per node
+  numapop = ceiling (float(numapop) / float(nnuma)) ! numa space population
+  socket = noderank / numapop                       ! temporary, will use numa_node_of_cpu()
+!
   call mpi_comm_split(nodecomm, socket, noderank, sockcomm, ierr)  ! re split by socket
   if(ierr .ne. MPI_SUCCESS) return
   call MPI_Comm_rank(sockcomm, sockrank,ierr);                       ! rank in socket communicator
