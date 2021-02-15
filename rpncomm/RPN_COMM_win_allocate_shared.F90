@@ -22,7 +22,7 @@ subroutine RPN_COMM_win_allocate_shared(comm, msize, win, baseptr, err)  !InTf!
   implicit none
 !!  import :: C_PTR                            !InTf!   
   integer, intent(IN)  :: comm               !InTf!   communicator
-  integer, intent(IN)  :: msize              !InTf!   size in integers of shared memory area
+  integer(C_INTPTR_T), intent(IN)  :: msize  !InTf!   size in integers of shared memory area
   integer, intent(OUT) :: win                !InTf!   window communicator
   type(C_PTR), intent(OUT) :: baseptr        !InTf!   base address of shared memory area
   integer, intent(OUT)  :: err               !InTf!   status RPN_COMM_OK or RPN_COMM_ERROR
