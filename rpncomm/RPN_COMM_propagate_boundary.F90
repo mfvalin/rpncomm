@@ -61,18 +61,17 @@
 
 #define TAG 0
 
-#if defined(SELF_TEST)
-
-#define rpn_comm_test rpn_comm
-
 module rpn_comm_test
 #include <mpif.h>
   integer, dimension(:,:), pointer :: pe_id
   integer :: pe_mex, pe_mey, pe_grid, pe_nx, pe_ny
   logical :: bnd_north, bnd_south, bnd_east, bnd_west
 end module rpn_comm_test
+
+#if defined(SELF_TEST)
+
 program test
-  use rpn_comm
+  use rpn_comm_test
   implicit none
   integer :: NX=25
   integer :: NY=13
