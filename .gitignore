@@ -1,0 +1,7 @@
+Build*
+build*
+lib/
+
+dependencies.mk
+objects.lst
+
