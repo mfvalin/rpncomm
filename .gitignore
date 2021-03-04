@@ -5,3 +5,5 @@ lib/
 dependencies.mk
 objects.lst
 
+src/RPN_COMM_version.F90
+
