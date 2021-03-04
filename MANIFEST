@@ -1,0 +1,3 @@
+NAME: rpn_comm
+VERSION: 4.5.43
+DESCRIPTION: MPI based communication routines for models
