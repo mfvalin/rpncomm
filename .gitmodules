@@ -1,0 +1,3 @@
+[submodule "cmake"]
+	path = cmake
+	url = git@gitlab.science.gc.ca:RPN-SI/cmake_rpn.git
