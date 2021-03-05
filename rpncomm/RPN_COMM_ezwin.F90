@@ -9,7 +9,7 @@ module RPN_COMM_ezwin_mod
     integer     :: win
     integer     :: sz
   end type
-  integer, parameter :: RPN_COMM_MAGIC2=Z'0AFEFADE'
+  integer, parameter :: RPN_COMM_MAGIC2=int(Z'0AFEFADE')
   integer, parameter :: MAX_EZWINDOWS=64
   type(rpn_comm_ezwin), dimension(MAX_EZWINDOWS), save :: ezwtab
   integer, save :: ent=0
