@@ -21,7 +21,7 @@
     SUBROUTINE RPN_COMM_adj_halo4(g,minx,maxx,miny,maxy, &
                   ni,nj,nk,halox,haloy,periodx,periody, &
                   gni,npol_row)
-#include <RPN_COMM_adj_halo.hf>
+#include 'RPN_COMM_adj_halo.hf'
 
     entry adj_halo4(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody)
                  
@@ -35,7 +35,7 @@
                   ni,nj,nk,halox,haloy,periodx,periody, &
                   gni,npol_row)
 #define DOUBLE8
-#include <RPN_COMM_adj_halo.hf>
+#include 'RPN_COMM_adj_halo.hf'
 
     entry adj_halo8(g,minx,maxx,miny,maxy,ni,nj,nk,halox,haloy,periodx,periody)
                   
