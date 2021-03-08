@@ -24,5 +24,12 @@ include(compiler_presets)
 set(CMAKE_Fortran_COMPILER ${MPI_Fortran_COMPILER})
 set(CMAKE_C_COMPILER ${MPI_C_COMPILER})
 
+execute_process(
+   COMMAND mpirun --version 2>&1
+   COMMAND grep -w MPI
+   COMMAND sed -e "s/.* //"
+   OUTPUT_VARIABLE MPI_LIBRARY_VERSION
+   OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 add_subdirectory(src)
 

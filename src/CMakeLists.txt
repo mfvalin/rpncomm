@@ -36,8 +36,8 @@ add_custom_target(RPN_COMM_interfaces DEPENDS RPN_COMM_interfaces.inc)
 add_dependencies(${PROJECT_NAME} RPN_COMM_interfaces)
 
 # Adjust library file name and setup for a symbolic link
-set(FULL_LIB_NAME ${PROJECT_NAME}_${PROJECT_VERSION}_${MPI_Fortran_VERSION})
-set(SHORT_LIB_FILE_NAME ${PROJECT_NAME}_${MPI_Fortran_VERSION}.a)
+set(FULL_LIB_NAME ${PROJECT_NAME}_${PROJECT_VERSION}_${MPI_LIBRARY_VERSION})
+set(SHORT_LIB_FILE_NAME ${PROJECT_NAME}_${MPI_LIBRARY_VERSION}.a)
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${FULL_LIB_NAME})
 add_custom_command(
    TARGET ${PROJECT_NAME}
