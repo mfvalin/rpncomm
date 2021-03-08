@@ -5,13 +5,15 @@ include(gen_test_target)
 
 option(BUILD_TESTS "Whether to build the test programs associated with the RPN_Comm library")
 
+# Files to compile
 file(GLOB PROJECT_INCLUDE_FILES RPN_COMM*.h RPN_COMM*.inc RPN_COMM*.hf)
 file(GLOB PROJECT_C_FILES RPN_COMM*.c)
 file(GLOB PROJECT_F_FILES RPN_COMM*.F90  RPN_COMM*.f90)
 
-message(STATUS "RPN_COMM_VERSION_STRING = ${RPN_COMM_VERSION_STRING}")
-message(STATUS "RPN_COMM_VERSION_MARKER = ${RPN_COMM_VERSION_MARKER}")
+#message(STATUS "RPN_COMM_VERSION_STRING = ${RPN_COMM_VERSION_STRING}")
+#message(STATUS "RPN_COMM_VERSION_MARKER = ${RPN_COMM_VERSION_MARKER}")
 
+# Main target and some custom compilation configuration
 add_library(${PROJECT_NAME} STATIC ${PROJECT_INCLUDE_FILES} ${PROJECT_C_FILES} ${PROJECT_F_FILES})
 
 configure_file(RPN_COMM_version.F90.in ${CMAKE_CURRENT_SOURCE_DIR}/RPN_COMM_version.F90 @ONLY)
@@ -19,16 +21,46 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC MARKER=RPN_COMM_marker_${RPN_C
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-gen_headers(SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/gen_interfaces.sh INPUT_FILES ${PROJECT_F_FILES} OUTPUT_SUFFIX inc OUTPUT_FILENAME RPN_COMM_interfaces_int.inc)
-
+# Targets for generating header files
+gen_headers(
+   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/gen_interfaces.sh
+   INPUT_FILES ${PROJECT_F_FILES}
+   OUTPUT_SUFFIX inc
+   OUTPUT_FILENAME RPN_COMM_interfaces_int.inc)
 add_custom_command(
-    OUTPUT RPN_COMM_interfaces.inc
-    COMMAND cat RPN_COMM_interfaces_int.inc | grep -v '^\#' > RPN_COMM_interfaces.inc
-    DEPENDS RPN_COMM_interfaces_int.inc
+   OUTPUT RPN_COMM_interfaces.inc
+   COMMAND cat RPN_COMM_interfaces_int.inc | grep -v '^\#' > RPN_COMM_interfaces.inc
+   DEPENDS RPN_COMM_interfaces_int.inc
 )
 add_custom_target(RPN_COMM_interfaces DEPENDS RPN_COMM_interfaces.inc)
 add_dependencies(${PROJECT_NAME} RPN_COMM_interfaces)
 
+# Adjust library file name and setup for a symbolic link
+set(FULL_LIB_NAME ${PROJECT_NAME}_${PROJECT_VERSION}_${MPI_Fortran_VERSION})
+set(SHORT_LIB_FILE_NAME ${PROJECT_NAME}_${MPI_Fortran_VERSION}.a)
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${FULL_LIB_NAME})
+add_custom_command(
+   TARGET ${PROJECT_NAME}
+   POST_BUILD
+   COMMAND ln -sfv $<TARGET_FILE_NAME:${PROJECT_NAME}> ${SHORT_LIB_FILE_NAME}
+)
+
+# Installation
+set(DISTINCLUDES
+   RPN_COMM.inc
+   rpn_comm.inc 
+   RPN_COMM_types.inc
+   RPN_COMM_constants.inc
+   RPN_COMM_ftoc.inc
+   RPN_COMM_is_null.inc
+   ${CMAKE_CURRENT_BINARY_DIR}/RPN_COMM_interfaces.inc
+)
+
+install(TARGETS ${PROJECT_NAME})
+install(FILES ${DISTINCLUDES} DESTINATION include)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${SHORT_LIB_FILE_NAME} DESTINATION lib)
+
+# The tests
 if (BUILD_TESTS)
     gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_000.F90)
     gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_001.F90 LINK_LIBRARIES ${PROJECT_NAME})
