@@ -7,17 +7,36 @@ include(ec_parse_manifest)
 
 project(${NAME} VERSION ${VERSION} DESCRIPTION "${DESCRIPTION}") 
 
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_BINARY_DIR}/install CACHE PATH "..." FORCE)
+endif()
+
 set(RPN_COMM_VERSION_STRING "${VERSION}")
 string(REPLACE "." "" RPN_COMM_VERSION_MARKER ${VERSION})
+
+option(RPN_SERIAL "Whether the library will avoid MPI")
 
 include(dump_cmake_variables)
 # dump_cmake_variables()
 
 enable_language(Fortran)
 enable_language(C)
-find_package(MPI)
 include(compiler_presets)
+
+find_package(MPI)
 set(CMAKE_Fortran_COMPILER ${MPI_Fortran_COMPILER})
 set(CMAKE_C_COMPILER ${MPI_C_COMPILER})
 
+if (NOT RPN_SERIAL)
+   execute_process(
+      COMMAND mpirun --version 2>&1
+      COMMAND grep -w MPI
+      COMMAND sed -e "s/.* //"
+      OUTPUT_VARIABLE MPI_LIBRARY_VERSION
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+  set(MPI_LIBRARY_VERSION "_${MPI_LIBRARY_VERSION}")
+endif()
+
 add_subdirectory(src)
+
