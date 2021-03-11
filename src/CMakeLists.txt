@@ -33,11 +33,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 # Targets for generating header files
-gen_headers(
-   SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/gen_interfaces.sh
-   INPUT_FILES ${PROJECT_F_FILES}
-   OUTPUT_SUFFIX inc
-   OUTPUT_FILENAME RPN_COMM_interfaces_int.inc)
+add_custom_command(
+   OUTPUT RPN_COMM_interfaces_int.inc
+   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/gen_interfaces.sh ${PROJECT_F_FILES} > RPN_COMM_interfaces_int.inc
+   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/gen_interfaces.sh ${PROJECT_F_FILES}
+   )
 add_custom_command(
    OUTPUT RPN_COMM_interfaces.inc
    COMMAND cat RPN_COMM_interfaces_int.inc | grep -v '^\#' > RPN_COMM_interfaces.inc
