@@ -31,10 +31,11 @@ endif()
 add_executable(${MAKE_MPI_STUB_INCLUDE} ${MAKE_MPI_STUB_INCLUDE_SOURCE})
 
 # Generate the program that generates the header used by stubs
+set(GEN_MAKE_STUB_HEADER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/gen_make_mpi_stub_include.sh)
 add_custom_command(
    OUTPUT ${MAKE_MPI_STUB_INCLUDE_SOURCE}
-   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/gen_make_mpi_stub_include.sh > ${MAKE_MPI_STUB_INCLUDE_SOURCE}
-   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/gen_make_mpi_stub_include.sh
+   COMMAND ${GEN_MAKE_STUB_HEADER_SCRIPT} > ${MAKE_MPI_STUB_INCLUDE_SOURCE}
+   DEPENDS ${GEN_MAKE_STUB_HEADER_SCRIPT}
 )
 
 # Generate the header used by stubs
