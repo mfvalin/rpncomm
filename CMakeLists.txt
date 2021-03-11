@@ -29,18 +29,40 @@ enable_language(C)
 include(compiler_presets)
 
 find_package(MPI)
-set(CMAKE_Fortran_COMPILER ${MPI_Fortran_COMPILER})
-set(CMAKE_C_COMPILER ${MPI_C_COMPILER})
+
+if (MPI_FOUND)
+   set(CMAKE_Fortran_COMPILER ${MPI_Fortran_COMPILER})
+   set(CMAKE_C_COMPILER ${MPI_C_COMPILER})
+else()
+   find_program(RPN_MPICC mpicc)
+   find_program(RPN_MPIF90 mpif90)
+
+   if (${RPN_MPICC} STREQUAL "RPN_MPICC-NOTFOUND" OR ${RPN_MPIF90} STREQUAL "RPN_MPIF90-NOTFOUND")
+      message(FATAL_ERROR "Did not find a compiler for mpi. (Just looking for mpicc and mpif90)")
+   endif()
+
+   message(STATUS "RPN_MPIRUN = ${RPN_MPIRUN}")
+   message(STATUS "RPN_MPICC = ${RPN_MPICC}")
+   message(STATUS "RPN_MPIF90 = ${RPN_MPIF90}")
+
+   set(CMAKE_Fortran_COMPILER ${RPN_MPIF90})
+   set(CMAKE_C_COMPILER ${RPN_MPICC})
+endif()
 
 if (NOT RPN_SERIAL)
-   execute_process(
-      COMMAND mpirun --version 2>&1
-      COMMAND grep -w MPI
-      COMMAND sed -e "s/.* //"
-      OUTPUT_VARIABLE MPI_LIBRARY_VERSION
-      OUTPUT_STRIP_TRAILING_WHITESPACE)
+   find_program(RPN_MPIRUN mpirun)
+   if (${RPN_MPIRUN} STREQUAL "RPN_MPIRUN-NOTFOUND")
+      message(FATAL_ERROR "mpirun not found. Won't be able to configure the version.")
+   else()
+      execute_process(
+         COMMAND ${RPN_MPIRUN} --version 2>&1
+         COMMAND grep -w MPI
+         COMMAND sed -e "s/.* //"
+         OUTPUT_VARIABLE MPI_LIBRARY_VERSION
+         OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-  set(MPI_LIBRARY_VERSION "_${MPI_LIBRARY_VERSION}")
+     set(MPI_LIBRARY_VERSION "_${MPI_LIBRARY_VERSION}")
+   endif()
 endif()
 
 add_subdirectory(src)
