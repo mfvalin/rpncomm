@@ -41,7 +41,7 @@ add_custom_command(
 # Generate the header used by stubs
 add_custom_command(
    OUTPUT ${MPI_STUB_INCLUDE}
-   COMMAND ${MAKE_MPI_STUB_INCLUDE} > ${MPI_STUB_INCLUDE}
+   COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${MAKE_MPI_STUB_INCLUDE} > ${MPI_STUB_INCLUDE}
    DEPENDS ${MAKE_MPI_STUB_INCLUDE}
 )
 

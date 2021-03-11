@@ -36,12 +36,12 @@ if (MPI_FOUND)
 else()
    find_program(RPN_MPICC mpicc)
    find_program(RPN_MPIF90 mpif90)
-
    if (${RPN_MPICC} STREQUAL "RPN_MPICC-NOTFOUND" OR ${RPN_MPIF90} STREQUAL "RPN_MPIF90-NOTFOUND")
-      message(FATAL_ERROR "Did not find a compiler for mpi. (Just looking for mpicc and mpif90)")
+      # message(FATAL_ERROR "Did not find a compiler for mpi. (Just looking for mpicc and mpif90)")
+      find_program(RPN_MPICC cc)
+      find_program(RPN_MPIF90 ftn)
    endif()
 
-   message(STATUS "RPN_MPIRUN = ${RPN_MPIRUN}")
    message(STATUS "RPN_MPICC = ${RPN_MPICC}")
    message(STATUS "RPN_MPIF90 = ${RPN_MPIF90}")
 
@@ -57,7 +57,7 @@ if (NOT RPN_SERIAL)
       execute_process(
          COMMAND ${RPN_MPIRUN} --version 2>&1
          COMMAND grep -w MPI
-         COMMAND sed -e "s/.* //"
+         COMMAND sed -e "s/.* //" -e "s/)//"
          OUTPUT_VARIABLE MPI_LIBRARY_VERSION
          OUTPUT_STRIP_TRAILING_WHITESPACE)
 
