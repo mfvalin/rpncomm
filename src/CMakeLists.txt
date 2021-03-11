@@ -54,6 +54,13 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
    COMMAND ln -sfv $<TARGET_FILE_NAME:${PROJECT_NAME}> ${SHORT_LIB_FILE_NAME}
 )
 
+# Sanity check for library content
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+   COMMAND ar t $<TARGET_FILE_NAME:${PROJECT_NAME}> | sort -u > objects.lst
+   COMMAND sort -u ${CMAKE_CURRENT_SOURCE_DIR}/REFERENCE.lst > sorted_reference.lst
+   COMMAND diff sorted_reference.lst objects.lst
+)
+
 # Installation
 set(DISTINCLUDES
    RPN_COMM.inc
