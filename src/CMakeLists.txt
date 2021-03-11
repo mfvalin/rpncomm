@@ -7,9 +7,10 @@ option(RPN_BUILD_TESTS "Whether to build the test programs associated with the R
 option(RPN_BUILD_STUBS "Whether to build the stubs and, if building the serial version of RPN_Comm, include them in the library")
 
 # Files to compile
+set(RPN_VERSION_FILE ${CMAKE_CURRENT_BINARY_DIR}/RPN_COMM_version.F90)
 file(GLOB PROJECT_INCLUDE_FILES RPN_COMM*.h RPN_COMM*.inc RPN_COMM*.hf)
 file(GLOB PROJECT_C_FILES RPN_COMM*.c)
-file(GLOB PROJECT_F_FILES RPN_COMM*.F90  RPN_COMM*.f90)
+file(GLOB PROJECT_F_FILES RPN_COMM*.F90  RPN_COMM*.f90 ${RPN_VERSION_FILE})
 
 #message(STATUS "RPN_COMM_VERSION_STRING = ${RPN_COMM_VERSION_STRING}")
 #message(STATUS "RPN_COMM_VERSION_MARKER = ${RPN_COMM_VERSION_MARKER}")
@@ -27,7 +28,7 @@ add_library(${PROJECT_NAME} STATIC
    ${PROJECT_STUB_FILES}
 )
 
-configure_file(RPN_COMM_version.F90.in ${CMAKE_CURRENT_SOURCE_DIR}/RPN_COMM_version.F90 @ONLY)
+configure_file(RPN_COMM_version.F90.in ${RPN_VERSION_FILE} @ONLY)
 target_compile_definitions(${PROJECT_NAME} PUBLIC MARKER=RPN_COMM_marker_${RPN_COMM_VERSION_MARKER})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
