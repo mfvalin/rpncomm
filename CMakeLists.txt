@@ -14,7 +14,12 @@ endif()
 set(RPN_COMM_VERSION_STRING "${VERSION}")
 string(REPLACE "." "" RPN_COMM_VERSION_MARKER ${VERSION})
 
-option(RPN_SERIAL "Whether the library will avoid MPI")
+option(RPN_SERIAL "Whether the library will avoid MPI (not fully implemented, DO NOT USE)")
+
+if (RPN_SERIAL)
+   message(WARNING "The RPN_SERIAL option is not fully implemented. It will be deactivated.")
+   set(RPN_SERIAL FALSE)
+endif()
 
 include(dump_cmake_variables)
 # dump_cmake_variables()
