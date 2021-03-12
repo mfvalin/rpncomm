@@ -2,10 +2,13 @@ Build*
 build*
 lib/
 
+CMakeLists.txt.user
+
 dependencies.mk
 objects.lst
 SORTED.lst
 
 rpncomm/RPN_COMM_interfaces*.inc
 src/RPN_COMM_version.F90
+
 
