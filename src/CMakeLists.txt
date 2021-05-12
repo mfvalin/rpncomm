@@ -1,8 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
 
-include(gen_headers)
-include(gen_test_target)
-
 option(RPN_BUILD_TESTS "Whether to build the test programs associated with the RPN_Comm library")
 option(RPN_BUILD_STUBS "Whether to build the stubs and, if building the serial version of RPN_Comm, include them in the library")
 
@@ -81,18 +78,38 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${SHORT_LIB_FILE_NAME} DESTINATION lib
 
 # The tests
 if (RPN_BUILD_TESTS)
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_000.F90)
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_001.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_002.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    # gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_003.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_004.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_005.F90)
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_006.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_007.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_008.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_009.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_010.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_011.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_012.F90 LINK_LIBRARIES ${PROJECT_NAME})
-    # gen_test_target(GENERATE_F_PROGRAM rpn_comm INPUT_FILES TEST_013.F90)
+   set(TEST_SOURCES
+      TEST_000.F90
+      TEST_001.F90
+      TEST_002.F90
+      # TEST_003.F90
+      TEST_004.F90
+      TEST_005.F90
+      TEST_006.F90
+      TEST_007.F90
+      TEST_008.F90
+      TEST_009.F90
+      TEST_010.F90
+      TEST_011.F90
+      TEST_012.F90
+      # TEST_013.F90
+   )
+
+   function(get_test_name SOURCE_FILE TEST_NAME)
+      get_filename_component(BASE_NAME ${SOURCE_FILE} NAME_WLE)
+      set(${TEST_NAME} ${PROJECT_NAME}_${BASE_NAME} PARENT_SCOPE)
+   endfunction(get_test_name)
+
+   # Build the tests
+   foreach(TEST_SOURCE ${TEST_SOURCES})
+      get_test_name(${TEST_SOURCE} TEST_TARGET)
+
+
+      set(CMAKE_RPN_TEST_FUNCTION_NAME ${TEST_TARGET})
+      set(TEST_PROGRAM_FILE ${CMAKE_CURRENT_BINARY_DIR}/${TEST_SOURCE}_main.f90)
+      file(WRITE ${TEST_PROGRAM_FILE} "program MAIN_TEST_PROGRAM\n  call ${CMAKE_RPN_TEST_FUNCTION_NAME}\n  stop\nend program MAIN_TEST_PROGRAM\n")
+
+      add_executable(${TEST_TARGET} ${TEST_SOURCE} ${TEST_PROGRAM_FILE})
+      target_link_libraries(${TEST_TARGET} ${PROJECT_NAME})
+   endforeach(TEST_SOURCE)
 endif()

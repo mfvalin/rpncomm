@@ -5,6 +5,8 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 include(ec_init)
 include(ec_parse_manifest)
 
+ec_parse_manifest()
+
 project(${NAME} VERSION ${VERSION} DESCRIPTION "${DESCRIPTION}") 
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -21,12 +23,9 @@ if (RPN_SERIAL)
    set(RPN_SERIAL FALSE)
 endif()
 
-include(dump_cmake_variables)
-# dump_cmake_variables()
-
 enable_language(Fortran)
 enable_language(C)
-include(compiler_presets)
+include(ec_compiler_presets)
 
 find_package(MPI)
 
