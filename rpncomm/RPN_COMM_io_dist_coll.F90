@@ -615,18 +615,19 @@ subroutine RPN_COMM_shuf_dist(setno,  &
         if(pe_mex == io_set(setno)%x(n) .and. pe_mey == io_set(setno)%y(n)) listeik = liste_i(k)
       enddo
 !      print *,"DEBUG: shuf_dist, k,i=",k,i
-!       call RPN_COMM_shuf_dist_old(setno, &
-!                                 global(1,1,k), gni, gnj, listeik,  &
-!                                 local, mini, maxi, minj, maxj, lnk,  &
-!                                 liste_o, io_set(setno)%x(low:high),  io_set(setno)%y(low:high), (high-low+1), &
-!                                 start_x, count_x, start_y, count_y,  &
-!                                 periodx, periody, status)
-      call RPN_COMM_shuf_dist_new(setno, &
-                                global(1,1,k), gni - 2*ghx, gnj - 2*ghy, listeik, ghx, ghy,  &
+!     TEMPORARY REVERSION TO "old" VERSION UNTIL SUSPECTED BUG FOUND IN "new" VERSION
+      call RPN_COMM_shuf_dist_old(setno, &
+                                global(1,1,k), gni, gnj, listeik,  &
                                 local, mini, maxi, minj, maxj, lnk,  &
                                 liste_o, io_set(setno)%x(low:high),  io_set(setno)%y(low:high), (high-low+1), &
                                 start_x, count_x, start_y, count_y,  &
-                                status)
+                                periodx, periody, status)
+!       call RPN_COMM_shuf_dist_new(setno, &
+!                                 global(1,1,k), gni - 2*ghx, gnj - 2*ghy, listeik, ghx, ghy,  &
+!                                 local, mini, maxi, minj, maxj, lnk,  &
+!                                 liste_o, io_set(setno)%x(low:high),  io_set(setno)%y(low:high), (high-low+1), &
+!                                 start_x, count_x, start_y, count_y,  &
+!                                 status)
 !      print *,"DEBUG: k,i,status,low,high,liste_i(k)=",k,i,status,low,high,liste_i(k)
       if(status == RPN_COMM_ERROR) return
     enddo
