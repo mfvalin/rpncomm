@@ -5,13 +5,14 @@ option(RPN_BUILD_STUBS "Whether to build the stubs and, if building the serial v
 
 # Files to compile
 set(RPN_VERSION_FILE ${CMAKE_CURRENT_BINARY_DIR}/RPN_COMM_version.F90)
-file(GLOB PROJECT_INCLUDE_FILES RPN_COMM*.h RPN_COMM*.inc RPN_COMM*.hf)
-file(GLOB PROJECT_C_FILES RPN_COMM*.c)
-file(GLOB PROJECT_F_FILES RPN_COMM*.F90  RPN_COMM*.f90)
+file(GLOB PROJECT_INCLUDE_FILES RPN_*.h RPN_COMM*.inc RPN_*.hf c_binding_extras.hf iso_c_binding_extras.hf)
+file(GLOB PROJECT_C_FILES RPN_*.c)
+file(GLOB PROJECT_F_FILES RPN_*.F90  RPN_COMM*.f90)
+#file(GLOB PROJECT_MPI_F_FILES RPN_MPI*.F90)
 list(APPEND PROJECT_F_FILES ${RPN_VERSION_FILE})
 
-#message(STATUS "RPN_COMM_VERSION_STRING = ${RPN_COMM_VERSION_STRING}")
-#message(STATUS "RPN_COMM_VERSION_MARKER = ${RPN_COMM_VERSION_MARKER}")
+#message(STATUS "(EC) RPN_COMM_VERSION_STRING = ${RPN_COMM_VERSION_STRING}")
+#message(STATUS "(EC) RPN_COMM_VERSION_MARKER = ${RPN_COMM_VERSION_MARKER}")
 
 if (RPN_BUILD_STUBS)
    add_subdirectory(stubs)
@@ -23,6 +24,7 @@ add_library(${PROJECT_NAME} STATIC
    ${PROJECT_INCLUDE_FILES}
    ${PROJECT_C_FILES}
    ${PROJECT_F_FILES}
+   ${PROJECT_MPI_F_FILES}
    ${PROJECT_STUB_FILES}
 )
 
@@ -30,14 +32,30 @@ configure_file(RPN_COMM_version.F90.in ${RPN_VERSION_FILE} @ONLY)
 target_compile_definitions(${PROJECT_NAME} PUBLIC MARKER=RPN_COMM_marker_${RPN_COMM_VERSION_MARKER})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-
+target_compile_options(
+  ${PROJECT_NAME}
+  PRIVATE
+  $<$<COMPILE_LANG_AND_ID:Fortran,Intel>:-diag-disable 5268>
+)
 # Targets for generating header files
+add_executable(c_binding_extras c_binding_extras.c)
+add_custom_command(
+  OUTPUT c_binding_extras.hf
+  COMMAND ${CMAKE_CURRENT_BINARY_DIR}/c_binding_extras > ${CMAKE_CURRENT_SOURCE_DIR}/c_binding_extras.hf 
+  COMMENT "Generating c_binding_extras.hf"
+  DEPENDS c_binding_extras
+  BYPRODUCTS c_binding_extras.hf
+  USES_TERMINAL
+)
+add_custom_target(c_binding_extras_include DEPENDS c_binding_extras.hf)
+add_dependencies(${PROJECT_NAME} c_binding_extras_include)
+
 set(GEN_INTERFACES_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/gen_interfaces.sh)
 add_custom_command(
    OUTPUT RPN_COMM_interfaces_int.inc
    COMMAND ${GEN_INTERFACES_SCRIPT} ${PROJECT_F_FILES} > RPN_COMM_interfaces_int.inc
    DEPENDS ${GEN_INTERFACES_SCRIPT} ${PROJECT_F_FILES}
-   )
+)
 add_custom_command(
    OUTPUT RPN_COMM_interfaces.inc
    COMMAND cat RPN_COMM_interfaces_int.inc | grep -v '^\#' > RPN_COMM_interfaces.inc

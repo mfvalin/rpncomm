@@ -1,6 +1,8 @@
+*~
 Build*
 build*
 lib/
+src/c_binding_extras.hf
 
 CMakeLists.txt.user
 

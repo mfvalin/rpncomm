@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
+message(STATUS "(EC) Generating rpncomm Makefile")
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake_rpn)
 
 include(ec_init)
@@ -15,7 +17,7 @@ string(REPLACE "." "" RPN_COMM_VERSION_MARKER ${VERSION})
 option(RPN_SERIAL "Whether the library will avoid MPI (not fully implemented, DO NOT USE)")
 
 if (RPN_SERIAL)
-   message(WARNING "The RPN_SERIAL option is not fully implemented. It will be deactivated.")
+   message(WARNING "(EC) The RPN_SERIAL option is not fully implemented. It will be deactivated.")
    set(RPN_SERIAL FALSE)
 endif()
 
@@ -32,7 +34,7 @@ endif()
 if (NOT RPN_SERIAL)
    find_program(RPN_MPIRUN mpirun)
    if (${RPN_MPIRUN} STREQUAL "RPN_MPIRUN-NOTFOUND")
-      message(FATAL_ERROR "mpirun not found. Won't be able to configure the version.")
+      message(FATAL_ERROR "(EC) mpirun not found. Won't be able to configure the version.")
    else()
       execute_process(
          COMMAND ${RPN_MPIRUN} --version 2>&1
