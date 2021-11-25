@@ -51,18 +51,31 @@ add_custom_target(c_binding_extras_include DEPENDS c_binding_extras.hf)
 add_dependencies(${PROJECT_NAME} c_binding_extras_include)
 
 set(GEN_INTERFACES_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/../scripts/gen_interfaces.sh)
+set(RPN_COMM_ITF_FILE RPN_COMM_interfaces_int.inc)
 add_custom_command(
-   OUTPUT RPN_COMM_interfaces_int.inc
-   COMMAND ${GEN_INTERFACES_SCRIPT} ${PROJECT_F_FILES} > RPN_COMM_interfaces_int.inc
+   OUTPUT ${RPN_COMM_ITF_FILE}
+   COMMAND ${GEN_INTERFACES_SCRIPT} ${PROJECT_F_FILES} > ${RPN_COMM_ITF_FILE}
+   COMMENT "Generating ${RPN_COMM_ITF_FILE}"
    DEPENDS ${GEN_INTERFACES_SCRIPT} ${PROJECT_F_FILES}
 )
 add_custom_command(
    OUTPUT RPN_COMM_interfaces.inc
    COMMAND cat RPN_COMM_interfaces_int.inc | grep -v '^\#' > RPN_COMM_interfaces.inc
+   COMMENT "Generating RPN_COMM_interfaces.inc"
    DEPENDS RPN_COMM_interfaces_int.inc
 )
 add_custom_target(RPN_COMM_interfaces DEPENDS RPN_COMM_interfaces.inc)
 add_dependencies(${PROJECT_NAME} RPN_COMM_interfaces)
+
+set (RPN_MPI_ITF_FILE RPN_MPI_interfaces_gen.hf)
+add_custom_command(
+   OUTPUT ${RPN_MPI_ITF_FILE}
+   COMMAND ${GEN_INTERFACES_SCRIPT} ${PROJECT_MPI_F_FILES} > ${RPN_MPI_ITF_FILE}
+   COMMENT "Generating ${RPN_MPI_ITF_FILE}"
+   DEPENDS ${GEN_INTERFACES_SCRIPT} ${PROJECT_MPI_F_FILES}
+)
+add_custom_target(RPN_MPI_interfaces DEPENDS ${RPN_MPI_ITF_FILE})
+add_dependencies(${PROJECT_NAME} RPN_MPI_interfaces)
 
 set(FULL_LIB_NAME ${PROJECT_NAME}_${PROJECT_VERSION}${MPI_LIBRARY_VERSION})
 set(SHORT_LIB_FILE_NAME lib${PROJECT_NAME}${MPI_LIBRARY_VERSION}.a)
@@ -88,6 +101,15 @@ set(DISTINCLUDES
    RPN_COMM_ftoc.inc
    RPN_COMM_is_null.inc
    ${CMAKE_CURRENT_BINARY_DIR}/RPN_COMM_interfaces.inc
+   ${CMAKE_CURRENT_BINARY_DIR}/RPN_COMM_interfaces_int.inc
+   
+   RPN_MPI.hf
+   RPN_MPI_macros.hf
+   RPN_MPI_mpi_definitions.hf
+   RPN_MPI_nulls.hf
+   RPN_MPI_COMM_interfaces.hf
+   RPN_MPI_interfaces.hf
+   ${CMAKE_CURRENT_BINARY_DIR}/RPN_MPI_interfaces_gen.hf
 )
 
 install(TARGETS ${PROJECT_NAME})

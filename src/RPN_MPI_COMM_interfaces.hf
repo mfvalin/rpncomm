@@ -1,0 +1,115 @@
+interface
+#if ! defined(IN_RPN_COMM_barrier)
+
+      SUBROUTINE RPN_COMM_barrier(com,ierr) 
+      implicit none                    
+      integer, intent(OUT) :: ierr
+      character(len=*), intent(IN) ::  com
+      end SUBROUTINE RPN_COMM_barrier
+
+      integer function RPN_COMM_barrier_data(level,values,nvalues)
+      integer , intent(IN) :: level
+      integer , intent(IN) :: nvalues
+      real(kind=kind(1.d0)), dimension(nvalues), intent(OUT) :: values
+      end function RPN_COMM_barrier_data              
+#endif
+#if ! defined(IN_RPN_COMM_colors)
+
+      integer function RPN_COMM_colors(comm)         
+      implicit none             
+      character(len=*) :: comm
+      end function RPN_COMM_colors
+#endif
+#if ! defined(IN_RPN_COMM_comm)
+
+      integer function RPN_COMM_comm(com)
+      implicit none                                 
+      character(len=*), intent(IN) :: com
+      end function RPN_COMM_comm                         
+#endif
+#if ! defined(IN_RPN_COMM_finalize)
+
+      SUBROUTINE RPN_COMM_finalize(ierr)
+      implicit none
+      integer, intent(OUT) ::  ierr
+      end SUBROUTINE RPN_COMM_finalize
+#endif
+#if ! defined(IN_RPN_COMM_init)
+
+
+      SUBROUTINE RPN_COMM_init(Userinit,Pelocal,Petotal,Pex,Pey)
+      implicit none     
+      integer, intent(out)   :: Pelocal,Petotal
+      integer, intent(inout) :: Pex,Pey                      
+      external Userinit                              
+      end SUBROUTINE RPN_COMM_init
+
+      INTEGER FUNCTION RPN_COMM_init_multigrid   &
+         (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids)
+      implicit none               
+      external :: Userinit
+      integer, intent(out)   :: Pelocal,Petotal
+      integer, intent(inout) :: Pex,Pey
+      integer, intent(in)    :: MultiGrids
+      end FUNCTION RPN_COMM_init_multigrid
+
+      INTEGER FUNCTION RPN_COMM_init_multi_level &
+         (Userinit,Pelocal,Petotal,Pex,Pey,MultiGrids,Grids)
+      implicit none         
+      external :: Userinit
+      integer, intent(out)   :: Pelocal,Petotal
+      integer, intent(inout) :: Pex,Pey
+      integer, intent(in)    :: MultiGrids
+      integer, intent(in)    :: Grids
+      end FUNCTION RPN_COMM_init_multi_level
+      integer function RPN_COMM_get_a_free_unit_x()
+      end function RPN_COMM_get_a_free_unit_x
+      function RPN_COMM_set_timeout_alarm_x(seconds) result(seconds_since)
+      integer, intent(IN) :: seconds
+      integer :: seconds_since
+      end function RPN_COMM_set_timeout_alarm_x
+#endif
+#if ! defined(IN_RPN_COMM_limit)
+
+      integer function RPN_COMM_limit_2 &
+         (my_id, npe, gmin, gmax, lmini,lmaxi,count, offset,relax)
+      implicit none
+      integer, intent(IN) ::  my_id, npe, gmin, gmax, relax
+      integer, intent(OUT) :: lmini,lmaxi
+      integer, intent(OUT) :: count(npe),offset(npe)
+      end function RPN_COMM_limit_2      
+
+      integer function RPN_COMM_limit  &
+         (my_id, npe, gmin, gmax, lmini, lmaxi,count, offset)
+      implicit none
+      integer, intent(IN) ::  my_id, npe, gmin, gmax
+      integer, intent(OUT) :: lmini,lmaxi
+      integer, intent(OUT) :: count(npe),offset(npe)
+      end function RPN_COMM_limit
+#endif
+#if ! defined(IN_RPN_COMM_low2up)
+
+      SUBROUTINE RPN_COMM_UP2LOW(S1,S2)
+      implicit none
+      character (len=*), intent(IN) :: S1
+      character (len=*), intent(OUT) :: S2
+      END SUBROUTINE RPN_COMM_UP2LOW
+#endif
+#if ! defined(IN_RPN_COMM_rank)
+
+      SUBROUTINE RPN_COMM_rank( com, rank ,ierr )
+      implicit none
+      character(len=*),intent(in) :: com
+      integer, intent(out) :: rank
+      integer, intent(out) :: ierr
+      end SUBROUTINE RPN_COMM_rank
+#endif
+#if ! defined(IN_RPN_COMM_size)
+
+      SUBROUTINE RPN_COMM_size( com, size ,ierr )
+      implicit none
+      integer, intent(OUT) :: ierr,size
+      character(len=*), intent(IN) ::  com
+      end SUBROUTINE RPN_COMM_size
+#endif
+end interface
