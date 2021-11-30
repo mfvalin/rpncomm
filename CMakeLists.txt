@@ -5,13 +5,13 @@ message(STATUS "(EC) Generating rpncomm Makefile")
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake_rpn)
 
 include(ec_init)
-include(ec_parse_manifest)
-
+ec_git_version()           # Get version from git state
 ec_parse_manifest()
 
 project(${NAME} VERSION ${VERSION} DESCRIPTION "${DESCRIPTION}") 
+set(PROJECT_VERSION ${VERSION}${STATE})
+set(RPN_COMM_VERSION ${PROJECT_VERSION} CACHE INTERNAL "rpncomm version" FORCE) # Needed for cascaded version identification
 
-set(RPN_COMM_VERSION_STRING "${VERSION}")
 string(REPLACE "." "" RPN_COMM_VERSION_MARKER ${VERSION})
 
 option(RPN_SERIAL "Whether the library will avoid MPI (not fully implemented, DO NOT USE)")
@@ -49,3 +49,18 @@ endif()
 
 add_subdirectory(src)
 
+#----- Packaging
+ec_install_prefix(${NAME} ${PROJECT_VERSION})  # Define package prefix  
+ec_build_config()      # Create build configuration script
+ec_prepare_ssm(lib bin include)                                              # Prepare ssm packaging files
+
+set(CPACK_GENERATOR "TGZ")
+set(CPACK_PACKAGE_VENDOR "ECCC")
+set(CPACK_PACKAGE_CONTACT "${MAINTAINER}")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.txt")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.org")
+set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/package")
+set(CPACK_PACKAGE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set(CPACK_PACKAGE_FILE_NAME "${CMAKE_INSTALL_PREFIX}")
+set(CPACK_SOURCE_PACKAGE_FILE_NAME "${NAME}_${PROJECT_VERSION}")
+include(CPack)

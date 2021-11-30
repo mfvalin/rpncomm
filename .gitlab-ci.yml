@@ -1,0 +1,94 @@
+variables:
+  ORD_SOUMET_CPUS: "40"
+  ORD_SOUMET_TMPFS: "8G"
+  ORD_SOUMET_M: "80G"
+  GIT_SUBMODULE_STRATEGY: recursive
+
+stages:
+  - build_gnu-7.4
+  - build_gnu-7.5
+  - build_gnu-9.3
+  - build_intel
+  - build_xc50
+
+before_script:
+    - export CLICOLOR_FORCE=1
+
+build_xc50:
+  stage: build_xc50
+  tags:
+  - XC50-login
+  when: always
+  script:
+    - set +e
+    - source ci-env/latest/sles-15-skylake-64/intel-19.0.5.281.sh
+    - mkdir build-intel-xc50
+    - cd build-intel-xc50
+    - cmake ..
+    - make -j `nproc`
+    - make package
+  artifacts:
+    expire_in: 2 hrs
+    paths:
+    - build-intel-xc50
+
+build_intel:
+  stage: build_intel
+  when: always
+  script:
+    - source ci-env/latest/ubuntu-18.04-skylake-64/intel-19.0.3.199.sh
+    - mkdir build-intel
+    - cd build-intel
+    - cmake ..
+    - make -j `nproc`
+    - make package
+  artifacts:
+    expire_in: 2 hrs
+    paths:
+    - build-intel
+
+build_gnu-7.4:
+  stage: build_gnu-7.4
+  when: always
+  script:
+    - source ci-env/latest/ubuntu-18.04-amd-64/gnu-7.4.0.sh
+    - mkdir build-gnu-7.4
+    - cd build-gnu-7.4
+    - cmake ..
+    - make -j `nproc`
+    - make package
+  artifacts:
+    expire_in: 2 hrs
+    paths:
+    - build-gnu-7.4
+
+build_gnu-7.5:
+  stage: build_gnu-7.5
+  when: always
+  script:
+    - source ci-env/latest/ubuntu-18.04-amd-64/gnu-7.5.0.sh
+    - mkdir build-gnu-7.5
+    - cd build-gnu-7.5
+    - cmake ..
+    - make -j `nproc`
+    - make package
+  artifacts:
+    expire_in: 2 hrs
+    paths:
+    - build-gnu-7.5
+
+build_gnu-9.3:
+  stage: build_gnu-9.3
+  when: always
+  script:
+    - source ci-env/latest/ubuntu-18.04-amd-64/gnu-9.3.0.sh
+    - mkdir build-gnu-9.3
+    - cd build-gnu-9.3
+    - cmake ..
+    - make -j `nproc`
+    - make package
+  artifacts:
+    expire_in: 2 hrs
+    paths:
+    - build-gnu-9.3
+
