@@ -1,7 +1,4 @@
 variables:
-  ORD_SOUMET_CPUS: "40"
-  ORD_SOUMET_TMPFS: "8G"
-  ORD_SOUMET_M: "80G"
   GIT_SUBMODULE_STRATEGY: recursive
 
 stages:
