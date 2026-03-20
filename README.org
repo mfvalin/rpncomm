@@ -1,6 +1,8 @@
 rpncomm
 
-MPI based communication routines for models
+old version of MPI based communication routines for models
+
+see https://github.com/ECCC-ASTD-MRD/rpncomm for up to date code
 
 * At CMC
 
